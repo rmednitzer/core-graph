@@ -1,0 +1,17 @@
+{{- if .Values.nats.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "nats") }}-jetstream
+  labels:
+    {{- include "core-graph.labels" . | nindent 4 }}
+    {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "nats") | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- if .Values.nats.storageClass }}
+  storageClassName: {{ .Values.nats.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.nats.jetstream.storage }}
+{{- end }}

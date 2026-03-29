@@ -1,0 +1,16 @@
+{{- if .Values.valkey.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "valkey") }}
+  labels:
+    {{- include "core-graph.labels" . | nindent 4 }}
+    {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "valkey") | nindent 4 }}
+spec:
+  selector:
+    {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "valkey") | nindent 4 }}
+  ports:
+    - port: 6379
+      targetPort: 6379
+      protocol: TCP
+{{- end }}

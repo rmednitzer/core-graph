@@ -1,0 +1,14 @@
+{{- if eq .Values.global.profile "prod" }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "api") }}
+  labels:
+    {{- include "core-graph.labels" . | nindent 4 }}
+    {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "api") | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "api") | nindent 6 }}
+{{- end }}

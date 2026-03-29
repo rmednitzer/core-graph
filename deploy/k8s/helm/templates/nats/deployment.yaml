@@ -1,0 +1,62 @@
+{{- if .Values.nats.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "nats") }}
+  labels:
+    {{- include "core-graph.labels" . | nindent 4 }}
+    {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "nats") | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "nats") | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/nats/configmap.yaml") . | sha256sum }}
+      labels:
+        {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "nats") | nindent 8 }}
+    spec:
+      {{- include "core-graph.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: nats
+          image: "{{ .Values.nats.image.repository }}:{{ .Values.nats.image.tag }}"
+          ports:
+            - containerPort: 4222
+              name: client
+              protocol: TCP
+            - containerPort: 8222
+              name: monitoring
+              protocol: TCP
+          args: ["--config", "/etc/nats/nats-server.conf"]
+          resources:
+            {{- toYaml .Values.nats.resources | nindent 12 }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: monitoring
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: monitoring
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nats
+            - name: jetstream
+              mountPath: /data
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "nats") }}-config
+        - name: jetstream
+          persistentVolumeClaim:
+            claimName: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "nats") }}-jetstream
+      {{- include "core-graph.nodeScheduling" . | nindent 6 }}
+{{- end }}

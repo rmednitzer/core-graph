@@ -1,0 +1,22 @@
+apiVersion: v2
+name: core-graph
+description: >-
+  Converged graph-vector knowledge platform for threat intelligence,
+  security events, compliance, and forensic timelines.
+type: application
+version: 0.1.0
+appVersion: "0.1.0-alpha"
+home: https://github.com/rmednitzer/core-graph
+sources:
+  - https://github.com/rmednitzer/core-graph
+maintainers:
+  - name: rmednitzer
+keywords:
+  - knowledge-graph
+  - threat-intelligence
+  - security
+  - compliance
+  - stix
+  - ocsf
+annotations:
+  assurance.platform/tier: T1

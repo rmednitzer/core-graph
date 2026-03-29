@@ -1,0 +1,132 @@
+# Core-Graph Helm Chart — Lab Defaults
+# Override with values-prod.yaml for production deployments.
+
+global:
+  profile: lab  # lab | prod
+  imageRegistry: ghcr.io
+  imagePullSecrets: []
+  nodeSelector: {}
+  tolerations: []
+  waitForImage: "busybox:1.37"  # Override for air-gapped registries
+
+# ---------------------------------------------------------------------------
+# API — FastAPI REST server (port 8000)
+# ---------------------------------------------------------------------------
+api:
+  replicaCount: 2
+  image:
+    repository: rmednitzer/core-graph
+    tag: ""  # defaults to Chart.appVersion
+    pullPolicy: IfNotPresent
+  port: 8000
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPU: 70
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+    hosts: []
+    #  - host: core-graph.example.com
+    #    paths:
+    #      - path: /
+    #        pathType: Prefix
+    tls: []
+  # Non-secret CG_* environment variables.
+  # CG_PG_DSN, CG_NATS_URL, CG_VALKEY_URL are auto-resolved from dependency config.
+  config:
+    CG_DEFAULT_TLP: "2"
+    CG_OIDC_ENABLED: "false"
+    CG_CORS_ORIGINS: "*"
+  podAnnotations: {}
+
+# ---------------------------------------------------------------------------
+# Graph Writer — NATS JetStream consumer → AGE graph
+# ---------------------------------------------------------------------------
+graphWriter:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+
+# ---------------------------------------------------------------------------
+# PostgreSQL 16 — graph store (AGE), vector store (pgvector), audit log
+# Set enabled=false and configure external.* to use an external instance.
+# ---------------------------------------------------------------------------
+postgres:
+  enabled: true
+  # Image must bundle Apache AGE, pgvector, pgaudit, and pg_cron.
+  # Built from deploy/docker/Dockerfile.postgres.
+  image:
+    repository: rmednitzer/core-graph-postgres
+    tag: "16-extensions"
+  storage: 10Gi
+  storageClass: ""
+  resources:
+    requests:
+      cpu: 500m
+      memory: 1Gi
+    limits:
+      cpu: "2"
+      memory: 4Gi
+  auth:
+    database: core_graph
+    username: cg_admin
+    password: changeme  # Override via --set in production
+  external:
+    host: ""
+    port: 5432
+    password: ""
+
+# ---------------------------------------------------------------------------
+# NATS JetStream — message bus for enriched entities
+# Set enabled=false and configure external.* to use an external cluster.
+# ---------------------------------------------------------------------------
+nats:
+  enabled: true
+  image:
+    repository: nats
+    tag: "2.10"
+  storageClass: ""
+  jetstream:
+    maxMem: 256MB
+    maxFile: 1GB
+    storage: 5Gi
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  external:
+    url: ""
+
+# ---------------------------------------------------------------------------
+# Valkey (Redis) — caching layer
+# Set enabled=false and configure external.* to use an external instance.
+# ---------------------------------------------------------------------------
+valkey:
+  enabled: true
+  image:
+    repository: valkey/valkey
+    tag: "8"
+  storage: 1Gi
+  storageClass: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  external:
+    url: ""
+
+# ---------------------------------------------------------------------------
+# Network Policy — default-deny + per-component rules
+# ---------------------------------------------------------------------------
+networkPolicy:
+  enabled: true

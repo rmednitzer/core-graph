@@ -1,0 +1,23 @@
+Core-Graph has been deployed.
+
+Profile: {{ .Values.global.profile }}
+
+API endpoint:
+  kubectl port-forward svc/{{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "api") }} {{ .Values.api.port }}:{{ .Values.api.port }}
+
+Health check:
+  curl http://localhost:{{ .Values.api.port }}/healthz
+
+Readiness check:
+  curl http://localhost:{{ .Values.api.port }}/readyz
+
+Prometheus metrics:
+  curl http://localhost:{{ .Values.api.port }}/metrics
+
+{{- if .Values.api.ingress.enabled }}
+
+Ingress:
+  {{- range .Values.api.ingress.hosts }}
+  http{{ if $.Values.api.ingress.tls }}s{{ end }}://{{ .host }}
+  {{- end }}
+{{- end }}

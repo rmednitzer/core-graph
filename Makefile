@@ -1,4 +1,4 @@
-.PHONY: help up down migrate seed validate test lint clean reset psql serve mcp graph-writer integration-test verify-chain bench
+.PHONY: help up down migrate seed validate test lint clean reset psql serve mcp graph-writer integration-test verify-chain bench helm-lint helm-template helm-validate zarf-validate deploy-lint
 
 # Database connection defaults (override via environment)
 PGHOST   ?= localhost
@@ -92,3 +92,23 @@ bench: ## Run performance benchmarks
 	python scripts/bench/bench_ner_extraction.py
 	python scripts/bench/bench_graph_traversal.py
 	python scripts/bench/bench_ingest_throughput.py
+
+helm-lint: ## Lint Helm chart (lab + prod profiles)
+	@echo "==> Linting Helm chart (lab)"
+	helm lint deploy/k8s/helm
+	@echo "==> Linting Helm chart (prod)"
+	helm lint deploy/k8s/helm -f deploy/k8s/helm/values.yaml -f deploy/k8s/helm/values-prod.yaml
+
+helm-template: ## Template Helm chart (lab + prod profiles)
+	@echo "==> Templating Helm chart (lab)"
+	helm template core-graph deploy/k8s/helm --debug > /dev/null
+	@echo "==> Templating Helm chart (prod)"
+	helm template core-graph deploy/k8s/helm -f deploy/k8s/helm/values.yaml -f deploy/k8s/helm/values-prod.yaml --debug > /dev/null
+
+helm-validate: helm-lint helm-template ## Full Helm validation (lint + template)
+
+zarf-validate: ## Validate zarf.yaml against Zarf schema
+	@echo "==> Validating zarf.yaml"
+	check-jsonschema --schemafile "https://raw.githubusercontent.com/zarf-dev/zarf/main/zarf.schema.json" zarf.yaml
+
+deploy-lint: helm-lint zarf-validate ## Validate all deployment artifacts

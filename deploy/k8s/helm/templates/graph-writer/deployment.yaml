@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "graph-writer") }}
+  labels:
+    {{- include "core-graph.labels" . | nindent 4 }}
+    {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "graph-writer") | nindent 4 }}
+spec:
+  replicas: {{ .Values.graphWriter.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "graph-writer") | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/api/configmap.yaml") . | sha256sum }}
+        checksum/secret: {{ include (print $.Template.BasePath "/common/secrets.yaml") . | sha256sum }}
+      labels:
+        {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "graph-writer") | nindent 8 }}
+    spec:
+      {{- include "core-graph.imagePullSecrets" . | nindent 6 }}
+      initContainers:
+        {{- include "core-graph.waitFor" (dict "name" "postgres" "host" (include "core-graph.postgresHost" .) "port" (include "core-graph.postgresPort" . | trimAll " ") "waitForImage" .Values.global.waitForImage) | nindent 8 }}
+        {{- if .Values.nats.enabled }}
+        {{- include "core-graph.waitFor" (dict "name" "nats" "host" (include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "nats")) "port" "4222" "waitForImage" .Values.global.waitForImage) | nindent 8 }}
+        {{- end }}
+      containers:
+        - name: graph-writer
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.api.image.repository }}:{{ .Values.api.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.api.image.pullPolicy }}
+          command: ["python", "-m", "ingest.graph_writer"]
+          env:
+            - name: CG_PG_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "api") }}-secret
+                  key: pg-dsn
+          envFrom:
+            - configMapRef:
+                name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "api") }}-config
+          resources:
+            {{- toYaml .Values.graphWriter.resources | nindent 12 }}
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "kill -0 1"]
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          securityContext:
+            {{- include "core-graph.restrictedSecurityContext" (dict "runAsUser" 10001) | nindent 12 }}
+      {{- include "core-graph.nodeScheduling" . | nindent 6 }}

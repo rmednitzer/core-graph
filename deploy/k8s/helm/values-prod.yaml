@@ -1,0 +1,39 @@
+# Core-Graph Helm Chart — Production Overrides
+# Usage: helm install cg ./deploy/k8s/helm -f deploy/k8s/helm/values-prod.yaml
+
+global:
+  profile: prod
+
+api:
+  replicaCount: 3
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+  autoscaling:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 6
+    targetCPU: 70
+
+graphWriter:
+  resources:
+    requests:
+      cpu: 200m
+      memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+postgres:
+  storage: 50Gi
+
+nats:
+  jetstream:
+    storage: 20Gi
+
+valkey:
+  storage: 5Gi

@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "api") }}-config
+  labels:
+    {{- include "core-graph.labels" . | nindent 4 }}
+    {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "api") | nindent 4 }}
+data:
+  CG_NATS_URL: {{ include "core-graph.natsURL" . | quote }}
+  CG_VALKEY_URL: {{ include "core-graph.valkeyURL" . | quote }}
+  {{- range $key, $value := .Values.api.config }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}

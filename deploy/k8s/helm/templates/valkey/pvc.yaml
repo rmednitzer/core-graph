@@ -1,0 +1,17 @@
+{{- if .Values.valkey.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "valkey") }}-data
+  labels:
+    {{- include "core-graph.labels" . | nindent 4 }}
+    {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "valkey") | nindent 4 }}
+spec:
+  accessModes: ["ReadWriteOnce"]
+  {{- if .Values.valkey.storageClass }}
+  storageClassName: {{ .Values.valkey.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.valkey.storage }}
+{{- end }}

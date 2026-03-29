@@ -1,0 +1,189 @@
+{{- if .Values.networkPolicy.enabled }}
+# Default deny all traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "core-graph.fullname" . }}-default-deny
+  labels:
+    {{- include "core-graph.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+# API: allow egress to postgres, nats, valkey, and DNS
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "api") }}-egress
+  labels:
+    {{- include "core-graph.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "api") | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "postgres") | nindent 14 }}
+      ports:
+        - port: 5432
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "nats") | nindent 14 }}
+      ports:
+        - port: 4222
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "valkey") | nindent 14 }}
+      ports:
+        - port: 6379
+          protocol: TCP
+    # DNS resolution
+    - to: []
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+---
+# API: allow ingress on port 8000
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "api") }}-ingress
+  labels:
+    {{- include "core-graph.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "api") | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: {{ .Values.api.port }}
+          protocol: TCP
+---
+# Graph-writer: allow egress to postgres, nats, and DNS
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "graph-writer") }}-egress
+  labels:
+    {{- include "core-graph.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "graph-writer") | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "postgres") | nindent 14 }}
+      ports:
+        - port: 5432
+          protocol: TCP
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "nats") | nindent 14 }}
+      ports:
+        - port: 4222
+          protocol: TCP
+    # DNS resolution
+    - to: []
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+---
+# PostgreSQL: allow ingress from api and graph-writer
+{{- if .Values.postgres.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "postgres") }}-ingress
+  labels:
+    {{- include "core-graph.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "postgres") | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "api") | nindent 14 }}
+        - podSelector:
+            matchLabels:
+              {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "graph-writer") | nindent 14 }}
+      ports:
+        - port: 5432
+          protocol: TCP
+{{- end }}
+---
+# NATS: allow ingress from api and graph-writer
+{{- if .Values.nats.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "nats") }}-ingress
+  labels:
+    {{- include "core-graph.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "nats") | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "api") | nindent 14 }}
+        - podSelector:
+            matchLabels:
+              {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "graph-writer") | nindent 14 }}
+      ports:
+        - port: 4222
+          protocol: TCP
+{{- end }}
+---
+# Valkey: allow ingress from api
+{{- if .Values.valkey.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "valkey") }}-ingress
+  labels:
+    {{- include "core-graph.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "valkey") | nindent 6 }}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "api") | nindent 14 }}
+      ports:
+        - port: 6379
+          protocol: TCP
+{{- end }}
+{{- end }}

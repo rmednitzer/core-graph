@@ -1,0 +1,56 @@
+# ArgoCD Application — core-graph (lab environment)
+# Deploy with: kubectl apply -f deploy/k8s/helm/argocd/application-lab.yaml
+# Requires: ArgoCD installed + repo credentials configured
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: core-graph-lab
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: core-graph
+    assurance.platform/tier: "T1"
+    assurance.platform/profile: lab
+  annotations:
+    argocd.argoproj.io/manifest-generate-paths: deploy/k8s/helm
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/rmednitzer/core-graph.git
+    targetRevision: main
+    path: deploy/k8s/helm
+    helm:
+      valueFiles:
+        - values.yaml
+      parameters: []
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: core-graph
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+      allowEmpty: false
+    syncOptions:
+      - CreateNamespace=true
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
+    - group: ""
+      kind: Secret
+      jsonPointers:
+        - /data
+  revisionHistoryLimit: 5

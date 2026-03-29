@@ -1,0 +1,18 @@
+{{- if .Values.nats.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "nats") }}-config
+  labels:
+    {{- include "core-graph.labels" . | nindent 4 }}
+    {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "nats") | nindent 4 }}
+data:
+  nats-server.conf: |
+    listen: 0.0.0.0:4222
+    http_port: 8222
+    jetstream {
+        store_dir: /data/jetstream
+        max_mem: {{ .Values.nats.jetstream.maxMem }}
+        max_file: {{ .Values.nats.jetstream.maxFile }}
+    }
+{{- end }}

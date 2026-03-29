@@ -86,3 +86,67 @@ jobs:
         with:
           config: .markdownlint.yml
           globs: "**/*.md"
+
+  helm-lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.20.0
+      - name: Helm lint (lab profile)
+        run: helm lint deploy/k8s/helm
+      - name: Helm lint (prod profile)
+        run: helm lint deploy/k8s/helm -f deploy/k8s/helm/values.yaml -f deploy/k8s/helm/values-prod.yaml
+      - name: Helm template (lab profile)
+        run: helm template core-graph deploy/k8s/helm --debug > /dev/null
+      - name: Helm template (prod profile)
+        run: helm template core-graph deploy/k8s/helm -f deploy/k8s/helm/values.yaml -f deploy/k8s/helm/values-prod.yaml --debug > /dev/null
+
+  kubeconform:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.20.0
+      - name: Install kubeconform
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz | tar xz
+          sudo mv kubeconform /usr/local/bin/
+      - name: Validate manifests (lab profile)
+        run: |
+          helm template core-graph deploy/k8s/helm | kubeconform \
+            -strict \
+            -summary \
+            -kubernetes-version 1.32.0 \
+            -skip CustomResourceDefinition
+      - name: Validate manifests (prod profile)
+        run: |
+          helm template core-graph deploy/k8s/helm \
+            -f deploy/k8s/helm/values.yaml \
+            -f deploy/k8s/helm/values-prod.yaml | kubeconform \
+            -strict \
+            -summary \
+            -kubernetes-version 1.32.0 \
+            -skip CustomResourceDefinition
+
+  zarf-validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install check-jsonschema
+      - name: Validate zarf.yaml against Zarf schema
+        run: |
+          check-jsonschema \
+            --schemafile "https://raw.githubusercontent.com/zarf-dev/zarf/main/zarf.schema.json" \
+            zarf.yaml

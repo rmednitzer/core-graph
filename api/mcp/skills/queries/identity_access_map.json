@@ -1,0 +1,13 @@
+{
+  "description": "Effective permissions for a principal: direct and inherited via groups",
+  "parameters": {
+    "principal_id": {
+      "type": "string",
+      "required": true,
+      "description": "Keycloak user ID or service account ID"
+    }
+  },
+  "returns": "list",
+  "max_depth": 3,
+  "estimated_ms": 150
+}

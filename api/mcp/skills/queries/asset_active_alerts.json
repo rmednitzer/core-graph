@@ -1,0 +1,19 @@
+{
+  "description": "Active (firing) alerts for an asset, ordered by severity",
+  "parameters": {
+    "canonical_key": {
+      "type": "string",
+      "required": true,
+      "description": "SHA-256 canonical key of the host entity"
+    },
+    "limit": {
+      "type": "integer",
+      "required": false,
+      "description": "Maximum alerts to return (default 20)",
+      "default": 20
+    }
+  },
+  "returns": "list",
+  "max_depth": 2,
+  "estimated_ms": 100
+}

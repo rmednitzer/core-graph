@@ -1,0 +1,13 @@
+{
+  "description": "Vulnerabilities affecting an asset via indicator-to-CVE traversal",
+  "parameters": {
+    "canonical_key": {
+      "type": "string",
+      "required": true,
+      "description": "SHA-256 canonical key of the host entity"
+    }
+  },
+  "returns": "list",
+  "max_depth": 4,
+  "estimated_ms": 150
+}

@@ -1,0 +1,19 @@
+{
+  "description": "Security events involving a principal within a time window",
+  "parameters": {
+    "principal_id": {
+      "type": "string",
+      "required": true,
+      "description": "Keycloak user ID or service account ID"
+    },
+    "hours_back": {
+      "type": "integer",
+      "required": false,
+      "description": "Hours to look back (default 72)",
+      "default": 72
+    }
+  },
+  "returns": "list",
+  "max_depth": 2,
+  "estimated_ms": 150
+}

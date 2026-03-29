@@ -1,0 +1,13 @@
+{
+  "description": "Compliance gaps created by an alert condition: stale or missing evidence",
+  "parameters": {
+    "alertname": {
+      "type": "string",
+      "required": true,
+      "description": "Name of the monitoring alert"
+    }
+  },
+  "returns": "list",
+  "max_depth": 3,
+  "estimated_ms": 150
+}

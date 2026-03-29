@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=78.1.1"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "core-graph"
 version = "0.1.0"
@@ -8,6 +12,9 @@ test = [
   "pytest>=8.0",
   "jellyfish>=1.0",
 ]
+
+[tool.setuptools.packages.find]
+include = ["ingest*"]
 
 [tool.ruff]
 line-length = 100

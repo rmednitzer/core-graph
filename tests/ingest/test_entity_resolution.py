@@ -8,16 +8,6 @@ from __future__ import annotations
 
 from ingest.canonical import canonical_key
 
-
-# ---------------------------------------------------------------------------
-# Tests: deterministic key generation
-# ---------------------------------------------------------------------------
-
-
-def test_ip_key_is_deterministic() -> None:
-    k1 = canonical_key("ip", "192.168.1.1")
-    k2 = canonical_key("ip", "192.168.1.1")
-    assert k1 == k2
 # ---------------------------------------------------------------------------
 # Tests: deterministic key generation
 # ---------------------------------------------------------------------------

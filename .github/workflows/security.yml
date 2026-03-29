@@ -30,7 +30,7 @@ jobs:
       - uses: actions/download-artifact@v8.0.1
         with:
           name: sbom.cyclonedx.json
-      - uses: anchore/scan-action@v5
+      - uses: anchore/scan-action@v7
         with:
           sbom: sbom.cyclonedx.json
           fail-build: true

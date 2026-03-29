@@ -1,0 +1,206 @@
+---
+name: CoreGraphPolicies
+description: Test suite for core-graph Cerbos resource policies
+tests:
+  # ------------------------------------------------------------------
+  # threat_entity
+  # ------------------------------------------------------------------
+  - name: threat_entity — CISO can read TLP:RED
+    input:
+      principals: [ciso_user]
+      resources: [threat_entity_red]
+      actions: [read]
+    expected:
+      - principal: ciso_user
+        resource: threat_entity_red
+        actions:
+          read: EFFECT_ALLOW
+
+  - name: threat_entity — SOC analyst can read TLP:AMBER
+    input:
+      principals: [soc_user]
+      resources: [threat_entity_amber]
+      actions: [read]
+    expected:
+      - principal: soc_user
+        resource: threat_entity_amber
+        actions:
+          read: EFFECT_ALLOW
+
+  - name: threat_entity — SOC analyst cannot read TLP:RED
+    input:
+      principals: [soc_user]
+      resources: [threat_entity_red]
+      actions: [read]
+    expected:
+      - principal: soc_user
+        resource: threat_entity_red
+        actions:
+          read: EFFECT_DENY
+
+  - name: threat_entity — External auditor can read TLP:GREEN
+    input:
+      principals: [auditor_user]
+      resources: [threat_entity_green]
+      actions: [read]
+    expected:
+      - principal: auditor_user
+        resource: threat_entity_green
+        actions:
+          read: EFFECT_ALLOW
+
+  - name: threat_entity — External auditor cannot read TLP:AMBER
+    input:
+      principals: [auditor_user]
+      resources: [threat_entity_amber]
+      actions: [read]
+    expected:
+      - principal: auditor_user
+        resource: threat_entity_amber
+        actions:
+          read: EFFECT_DENY
+
+  - name: threat_entity — AI agent cannot read TLP:AMBER
+    input:
+      principals: [ai_user]
+      resources: [threat_entity_amber]
+      actions: [read]
+    expected:
+      - principal: ai_user
+        resource: threat_entity_amber
+        actions:
+          read: EFFECT_DENY
+
+  - name: threat_entity — AI agent cannot read TLP:RED
+    input:
+      principals: [ai_user]
+      resources: [threat_entity_red]
+      actions: [read]
+    expected:
+      - principal: ai_user
+        resource: threat_entity_red
+        actions:
+          read: EFFECT_DENY
+
+  # ------------------------------------------------------------------
+  # evidence_record
+  # ------------------------------------------------------------------
+  - name: evidence_record — Compliance officer can read
+    input:
+      principals: [compliance_user]
+      resources: [evidence_record_generic]
+      actions: [read]
+    expected:
+      - principal: compliance_user
+        resource: evidence_record_generic
+        actions:
+          read: EFFECT_ALLOW
+
+  - name: evidence_record — IT operations cannot read
+    input:
+      principals: [it_ops_user]
+      resources: [evidence_record_generic]
+      actions: [read]
+    expected:
+      - principal: it_ops_user
+        resource: evidence_record_generic
+        actions:
+          read: EFFECT_DENY
+
+  # ------------------------------------------------------------------
+  # incident
+  # ------------------------------------------------------------------
+  - name: incident — SOC analyst can read own assigned incident
+    input:
+      principals: [soc_user]
+      resources: [incident_assigned_to_soc]
+      actions: [read]
+    expected:
+      - principal: soc_user
+        resource: incident_assigned_to_soc
+        actions:
+          read: EFFECT_ALLOW
+
+  - name: incident — SOC analyst cannot read incident assigned to other
+    input:
+      principals: [soc_user]
+      resources: [incident_assigned_to_other]
+      actions: [read]
+    expected:
+      - principal: soc_user
+        resource: incident_assigned_to_other
+        actions:
+          read: EFFECT_DENY
+
+principals:
+  ciso_user:
+    id: ciso_user
+    roles: [ciso]
+    attr: {}
+
+  soc_user:
+    id: soc_user
+    roles: [soc_analyst]
+    attr:
+      case_id: case-001
+
+  compliance_user:
+    id: compliance_user
+    roles: [compliance_officer]
+    attr: {}
+
+  it_ops_user:
+    id: it_ops_user
+    roles: [it_operations]
+    attr: {}
+
+  auditor_user:
+    id: auditor_user
+    roles: [external_auditor]
+    attr: {}
+
+  ai_user:
+    id: ai_user
+    roles: [ai_agent]
+    attr: {}
+
+resources:
+  threat_entity_red:
+    kind: threat_entity
+    id: te-red-001
+    attr:
+      tlp_marking: RED
+
+  threat_entity_amber:
+    kind: threat_entity
+    id: te-amber-001
+    attr:
+      tlp_marking: AMBER
+
+  threat_entity_green:
+    kind: threat_entity
+    id: te-green-001
+    attr:
+      tlp_marking: GREEN
+
+  evidence_record_generic:
+    kind: evidence_record
+    id: ev-001
+    attr:
+      record_type: audit_log
+
+  incident_assigned_to_soc:
+    kind: incident
+    id: inc-001
+    attr:
+      assigned_to: soc_user
+      category: malware
+      contains_pii: false
+
+  incident_assigned_to_other:
+    kind: incident
+    id: inc-002
+    attr:
+      assigned_to: other_analyst
+      category: malware
+      contains_pii: false

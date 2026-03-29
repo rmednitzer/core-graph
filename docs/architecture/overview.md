@@ -7,7 +7,7 @@
 Satellite systems feed structured entities through NATS JetStream into the
 PostgreSQL graph-vector core.
 
-```
+```text
 Wazuh ──┐
 OpenCTI ─┤
 MISP ────┤──► NATS JetStream ──► NER Pipeline ──► PostgreSQL (AGE + pgvector)
@@ -20,7 +20,7 @@ Logs ────┘                                         MCP Server ──�
 ## Core components
 
 | Component | Role | Licence |
-|---|---|---|
+| --- | --- | --- |
 | PostgreSQL 16+ | Core database engine | PostgreSQL Licence |
 | Apache AGE | Graph extension (openCypher) | Apache 2.0 |
 | pgvector | Vector similarity search | PostgreSQL Licence |

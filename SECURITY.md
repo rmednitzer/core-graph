@@ -5,9 +5,10 @@
 If you discover a security vulnerability in this project, please report it
 responsibly. Do not open a public issue.
 
-Email: security@blackphoenix.org
+Email: <security@blackphoenix.org>
 
 Include:
+
 - Description of the vulnerability
 - Steps to reproduce
 - Affected component (schema, API, ingest, deploy)

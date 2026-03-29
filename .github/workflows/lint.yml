@@ -1,0 +1,88 @@
+name: Lint
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  python-lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check .
+      - run: ruff format --check .
+
+  yaml-lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install yamllint
+      - run: >
+          yamllint
+          -d '{extends: default, rules: {line-length: {max: 120}}}'
+          policies/ artifact-index.yaml
+
+  sql-lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate SQL files are valid UTF-8 and end with a newline
+        run: |
+          set -euo pipefail
+          failed=0
+          for f in schema/migrations/*.sql schema/seed/*.sql; do
+            [ -f "$f" ] || continue
+            # UTF-8 check
+            if ! iconv -f utf-8 -t utf-8 "$f" > /dev/null 2>&1; then
+              echo "ERROR: $f is not valid UTF-8"
+              failed=1
+            fi
+            # Trailing newline check
+            if [ -n "$(tail -c1 "$f")" ]; then
+              echo "ERROR: $f does not end with a newline"
+              failed=1
+            fi
+          done
+          exit $failed
+      - name: Validate migration file naming (NNN_*.sql, sequential from 001)
+        run: |
+          set -euo pipefail
+          expected=1
+          for f in $(ls schema/migrations/*.sql 2>/dev/null | sort); do
+            base=$(basename "$f")
+            num=$(echo "$base" | grep -oP '^\d+')
+            if [ -z "$num" ]; then
+              echo "ERROR: $f does not start with a number"
+              exit 1
+            fi
+            got=$((10#$num))
+            if [ "$got" -ne "$expected" ]; then
+              echo "ERROR: expected migration $(printf '%03d' $expected) but found $base"
+              exit 1
+            fi
+            expected=$((expected + 1))
+          done
+          echo "Migration numbering OK ($(( expected - 1 )) file(s))"
+
+  markdown-lint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: DavidAnson/markdownlint-cli2-action@v19
+        with:
+          config: .markdownlint.yml
+          globs: "**/*.md"

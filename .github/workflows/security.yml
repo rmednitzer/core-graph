@@ -1,0 +1,74 @@
+name: Security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    - cron: "0 2 * * 0"
+
+jobs:
+  sbom:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: anchore/sbom-action@v0
+        with:
+          format: cyclonedx-json
+          artifact-name: sbom.cyclonedx.json
+
+  cve-scan:
+    runs-on: ubuntu-latest
+    needs: sbom
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4.1.3
+        with:
+          name: sbom.cyclonedx.json
+      - uses: anchore/scan-action@v5
+        with:
+          sbom: sbom.cyclonedx.json
+          fail-build: true
+          severity-cutoff: high
+
+  secret-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: trufflesecurity/trufflehog@main
+        with:
+          extra_args: --only-verified
+
+  docker-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check for Dockerfiles
+        id: check
+        run: |
+          if ls deploy/docker/Dockerfile* 2>/dev/null | grep -q .; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build Docker image
+        if: steps.check.outputs.found == 'true'
+        run: docker build -t core-graph-scan:ci deploy/docker/
+      - uses: aquasecurity/trivy-action@master
+        if: steps.check.outputs.found == 'true'
+        with:
+          image-ref: core-graph-scan:ci
+          format: table
+          exit-code: "1"
+          severity: CRITICAL

@@ -1,0 +1,132 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  schema-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: core_graph_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start PostgreSQL with all extensions
+        run: |
+          # Phase 1: start with AGE only, install extra packages
+          docker run -d --name pgsetup \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_DB=core_graph_test \
+            apache/age:release_PG16_1.6.0
+          until docker exec pgsetup pg_isready -U postgres; do sleep 1; done
+          docker exec pgsetup bash -c \
+            "apt-get update -qq && apt-get install -y postgresql-16-pgvector postgresql-16-pgaudit postgresql-16-cron"
+          docker stop pgsetup
+
+          # Phase 2: commit image with packages, restart with full shared_preload_libraries
+          docker commit pgsetup age-full
+          docker rm pgsetup
+          docker run -d --name pgtest -p 5432:5432 \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_DB=core_graph_test \
+            age-full \
+            postgres -c shared_preload_libraries='age,pgaudit,pg_cron' \
+              -c cron.database_name=core_graph_test
+          until docker exec pgtest pg_isready -U postgres; do sleep 1; done
+      - name: Install PostgreSQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y postgresql-client
+      - name: Run migrations
+        run: bash tests/schema/test_migrations.sh
+      - name: Verify extensions exist
+        run: |
+          required_extensions=("age" "vector" "pgaudit" "pg_cron")
+          for ext in "${required_extensions[@]}"; do
+            if ! psql -tAc "SELECT 1 FROM pg_extension WHERE extname = '${ext}'" | grep -q 1; then
+              echo "Required extension '${ext}' is not installed"
+              exit 1
+            fi
+          done
+
+  rls-test:
+    runs-on: ubuntu-latest
+    needs: schema-test
+    permissions:
+      contents: read
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      PGDATABASE: core_graph_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start PostgreSQL with all extensions
+        run: |
+          docker run -d --name pgsetup \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_DB=core_graph_test \
+            apache/age:release_PG16_1.6.0
+          until docker exec pgsetup pg_isready -U postgres; do sleep 1; done
+          docker exec pgsetup bash -c \
+            "apt-get update -qq && apt-get install -y postgresql-16-pgvector postgresql-16-pgaudit postgresql-16-cron"
+          docker stop pgsetup
+          docker commit pgsetup age-full
+          docker rm pgsetup
+          docker run -d --name pgtest -p 5432:5432 \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_DB=core_graph_test \
+            age-full \
+            postgres -c shared_preload_libraries='age,pgaudit,pg_cron' \
+              -c cron.database_name=core_graph_test
+          until docker exec pgtest pg_isready -U postgres; do sleep 1; done
+      - name: Install PostgreSQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y postgresql-client
+      - name: Run migrations
+        run: bash tests/schema/test_migrations.sh
+      - name: Run RLS tests
+        run: psql -f tests/rls/test_tlp_enforcement.sql
+
+  policy-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Cerbos CLI
+        run: |
+          CERBOS_VERSION=$(curl -s https://api.github.com/repos/cerbos/cerbos/releases/latest \
+            | grep -oP '"tag_name":\s*"\K[^"]+')
+          mkdir -p "$HOME/.local/bin"
+          curl -sL "https://github.com/cerbos/cerbos/releases/download/${CERBOS_VERSION}/cerbos_${CERBOS_VERSION#v}_Linux_x86_64.tar.gz" \
+            | tar xz -C "$HOME/.local/bin" cerbos
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          cerbos --version
+      - name: Compile and test policies
+        run: cerbos compile --tests=tests/auth policies/
+
+  python-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install '.[test]'
+      - name: Run pytest
+        run: pytest

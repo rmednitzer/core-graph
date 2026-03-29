@@ -1,0 +1,25 @@
+---
+apiVersion: api.cerbos.dev/v1
+derivedRoles:
+  name: core_graph_roles
+  definitions:
+    - name: ciso
+      parentRoles: [ciso]
+
+    - name: soc_analyst
+      parentRoles: [soc_analyst]
+
+    - name: compliance_officer
+      parentRoles: [compliance_officer]
+
+    - name: it_operations
+      parentRoles: [it_operations]
+
+    - name: dpo
+      parentRoles: [dpo]
+
+    - name: external_auditor
+      parentRoles: [external_auditor]
+
+    - name: ai_agent
+      parentRoles: [ai_agent]

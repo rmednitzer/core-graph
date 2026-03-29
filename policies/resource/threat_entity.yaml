@@ -1,0 +1,51 @@
+---
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: threat_entity
+  version: default
+  importDerivedRoles:
+    - core_graph_roles
+  rules:
+    - actions: ["*"]
+      effect: EFFECT_ALLOW
+      derivedRoles: [ciso]
+
+    - actions: [read]
+      effect: EFFECT_ALLOW
+      derivedRoles: [soc_analyst]
+      condition:
+        match:
+          expr: >
+            request.resource.attr.tlp_marking in ["CLEAR", "GREEN", "AMBER"]
+
+    - actions: [read]
+      effect: EFFECT_ALLOW
+      derivedRoles: [compliance_officer]
+      condition:
+        match:
+          expr: >
+            request.resource.attr.tlp_marking in ["CLEAR", "GREEN"]
+
+    - actions: [read]
+      effect: EFFECT_ALLOW
+      derivedRoles: [it_operations]
+      condition:
+        match:
+          expr: >
+            request.resource.attr.tlp_marking in ["CLEAR", "GREEN"]
+
+    - actions: [read]
+      effect: EFFECT_ALLOW
+      derivedRoles: [external_auditor]
+      condition:
+        match:
+          expr: >
+            request.resource.attr.tlp_marking in ["CLEAR", "GREEN"]
+
+    - actions: [read]
+      effect: EFFECT_ALLOW
+      derivedRoles: [ai_agent]
+      condition:
+        match:
+          expr: >
+            request.resource.attr.tlp_marking in ["CLEAR", "GREEN"]

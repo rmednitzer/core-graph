@@ -1,0 +1,39 @@
+---
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: incident
+  version: default
+  importDerivedRoles:
+    - core_graph_roles
+  rules:
+    - actions: ["*"]
+      effect: EFFECT_ALLOW
+      derivedRoles: [ciso]
+
+    - actions: [read, update]
+      effect: EFFECT_ALLOW
+      derivedRoles: [soc_analyst]
+      condition:
+        match:
+          expr: >
+            request.resource.attr.assigned_to == request.principal.id
+
+    - actions: [read]
+      effect: EFFECT_ALLOW
+      derivedRoles: [compliance_officer]
+
+    - actions: [read]
+      effect: EFFECT_ALLOW
+      derivedRoles: [it_operations]
+      condition:
+        match:
+          expr: >
+            request.resource.attr.category == "infrastructure"
+
+    - actions: [read]
+      effect: EFFECT_ALLOW
+      derivedRoles: [ai_agent]
+      condition:
+        match:
+          expr: >
+            request.resource.attr.contains_pii == false

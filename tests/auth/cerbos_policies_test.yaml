@@ -1,5 +1,5 @@
 ---
-apiVersion: cerbos.dev/v1
+name: CoreGraphPolicies
 description: Test suite for core-graph Cerbos resource policies
 tests:
   # ------------------------------------------------------------------

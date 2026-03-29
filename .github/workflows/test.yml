@@ -13,7 +13,7 @@ jobs:
       contents: read
     services:
       postgres:
-        image: apache/age:latest
+        image: apache/age:release_PG16_1.6.0
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -37,8 +37,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y postgresql-client
-          docker exec $(docker ps -q --filter ancestor=apache/age:latest) \
-            bash -c "apt-get update -qq && apt-get install -y postgresql-16-pgvector" || true
+          docker exec $(docker ps -q --filter ancestor=apache/age:release_PG16_1.6.0) \
+            bash -c "apt-get update -qq && apt-get install -y postgresql-16-pgvector"
       - name: Wait for PostgreSQL
         run: |
           until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done
@@ -56,7 +56,7 @@ jobs:
       contents: read
     services:
       postgres:
-        image: apache/age:latest
+        image: apache/age:release_PG16_1.6.0
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -80,8 +80,8 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y postgresql-client
-          docker exec $(docker ps -q --filter ancestor=apache/age:latest) \
-            bash -c "apt-get update -qq && apt-get install -y postgresql-16-pgvector" || true
+          docker exec $(docker ps -q --filter ancestor=apache/age:release_PG16_1.6.0) \
+            bash -c "apt-get update -qq && apt-get install -y postgresql-16-pgvector"
       - name: Wait for PostgreSQL
         run: |
           until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done
@@ -102,6 +102,6 @@ jobs:
             | grep -oP '"tag_name":\s*"\K[^"]+')
           curl -sL "https://github.com/cerbos/cerbos/releases/download/${CERBOS_VERSION}/cerbos_${CERBOS_VERSION#v}_Linux_x86_64.tar.gz" \
             | tar xz -C /usr/local/bin cerbos
-          cerbos version
+          cerbos --version
       - name: Compile and test policies
         run: cerbos compile --tests=tests/auth policies/

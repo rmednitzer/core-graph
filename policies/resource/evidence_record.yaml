@@ -1,0 +1,36 @@
+---
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: evidence_record
+  version: default
+  importDerivedRoles:
+    - core_graph_roles
+  rules:
+    - actions: ["*"]
+      effect: EFFECT_ALLOW
+      derivedRoles: [ciso]
+
+    - actions: [read, list]
+      effect: EFFECT_ALLOW
+      derivedRoles: [compliance_officer]
+
+    - actions: [read]
+      effect: EFFECT_ALLOW
+      derivedRoles: [soc_analyst]
+      condition:
+        match:
+          expr: >
+            request.resource.attr.case_id == request.principal.attr.case_id
+
+    # Time scoping for external_auditor is enforced at the RLS layer.
+    - actions: [read]
+      effect: EFFECT_ALLOW
+      derivedRoles: [external_auditor]
+
+    - actions: [read]
+      effect: EFFECT_ALLOW
+      derivedRoles: [dpo]
+      condition:
+        match:
+          expr: >
+            request.resource.attr.record_type == "pii_processing"

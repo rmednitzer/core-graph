@@ -1,0 +1,40 @@
+---
+# Artifact index for core-graph
+# Machine-readable classification of project artifacts
+
+project:
+  name: core-graph
+  description: Converged graph-vector knowledge platform
+  licence: Apache-2.0
+  repository: https://github.com/rmednitzer/core-graph
+
+artifacts:
+  schema:
+    type: database
+    path: schema/migrations/
+    format: sql
+    description: Numbered PostgreSQL migrations (AGE + pgvector + RLS)
+
+  policies:
+    type: authorization
+    path: policies/
+    format: yaml
+    description: Cerbos ABAC policies for TLP-based access control
+
+  architecture:
+    type: documentation
+    path: docs/architecture/
+    format: markdown
+    description: System architecture and design decisions
+
+  compliance:
+    type: documentation
+    path: docs/compliance/
+    format: markdown
+    description: Regulatory mapping (NIS2, CRA, GDPR, AI Act, BSI)
+
+  ontology:
+    type: documentation
+    path: docs/ontology/
+    format: markdown
+    description: Six-layer unified ontology design

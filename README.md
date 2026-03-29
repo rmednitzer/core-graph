@@ -34,6 +34,59 @@ make serve    # REST API on :8000
 make mcp      # MCP server
 ```
 
+## Deployment
+
+### Helm chart
+
+The Helm chart in `deploy/k8s/helm/` bundles the API, graph writer, PostgreSQL,
+NATS JetStream, and Valkey. Each dependency can be disabled to point at external
+services.
+
+```bash
+# Lab (bundled dependencies, 2 API replicas)
+helm install cg deploy/k8s/helm/
+
+# Production (HA replicas, autoscaling, resource limits)
+helm install cg deploy/k8s/helm/ -f deploy/k8s/helm/values-prod.yaml
+
+# External PostgreSQL
+helm install cg deploy/k8s/helm/ \
+  --set postgres.enabled=false \
+  --set postgres.external.host=my-pg.example.com \
+  --set postgres.external.password=secret
+```
+
+See `deploy/k8s/helm/values.yaml` for the full configuration reference.
+
+### ArgoCD
+
+Pre-built Application manifests are provided for both environments:
+
+```bash
+# Lab — auto-sync, self-heal, CreateNamespace=true
+kubectl apply -f deploy/k8s/helm/argocd/application-lab.yaml
+
+# Production — manual sync, change-control compliant
+kubectl apply -f deploy/k8s/helm/argocd/application-prod.yaml
+```
+
+### Air-gapped install (Zarf)
+
+[Zarf](https://zarf.dev/) packages the Helm chart and all container images into
+a single signed tarball for disconnected clusters.
+
+```bash
+# Build (internet-connected machine)
+zarf package create --confirm
+
+# Deploy (air-gapped cluster)
+zarf package deploy zarf-package-core-graph-amd64-0.1.0.tar.zst --confirm
+
+# Deploy with production profile
+zarf package deploy zarf-package-core-graph-amd64-0.1.0.tar.zst \
+  --components="core-graph,prod-profile" --confirm
+```
+
 ## Architecture
 
 ```
@@ -85,10 +138,11 @@ core-graph/
 ├── policies/       Authorization policies (Cerbos YAML)
 ├── ingest/         Satellite connectors, NER pipeline, graph writer, DLQ
 ├── api/            MCP server, REST API, authz (SpiceDB/Cerbos), connection pool
-├── deploy/         Docker Compose (dev), Kustomize (lab/prod), NATS config
+├── deploy/         Docker Compose (dev), Kustomize, Helm chart, ArgoCD manifests
 ├── evidence/       Signing, hash chains, MinIO WORM, Rekor integration
 ├── tests/          Schema, RLS, ingest, and auth tests
-└── scripts/        Bootstrap, validation, MinIO init
+├── scripts/        Bootstrap, validation, MinIO init
+└── zarf.yaml       Zarf package definition (air-gapped deployment)
 ```
 
 ## Conventions

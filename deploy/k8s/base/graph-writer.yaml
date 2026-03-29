@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: graph-writer
-          image: core-graph/api:latest
+          image: ghcr.io/rmednitzer/core-graph:latest
           command: ["python", "-m", "ingest.graph_writer"]
           envFrom:
             - configMapRef:

@@ -1,0 +1,203 @@
+{
+  "uid": "core-graph-overview",
+  "title": "core-graph Overview",
+  "tags": ["core-graph", "operations"],
+  "timezone": "utc",
+  "refresh": "10s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "API Request Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "sum(rate(cg_http_requests_total[5m])) by (status)",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "API Latency P50/P95/P99",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 0 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(cg_http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "P50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(cg_http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "P95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(cg_http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "P99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Active Connections",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 0 },
+      "targets": [
+        {
+          "expr": "cg_http_connections_active",
+          "legendFormat": "Active"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Ingest Events/sec",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(cg_ingest_events_total[5m])) by (source)",
+          "legendFormat": "{{source}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Graph Writes/sec",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(cg_graph_writes_total[5m])) by (label)",
+          "legendFormat": "{{label}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        }
+      }
+    },
+    {
+      "id": 6,
+      "title": "DLQ Depth",
+      "type": "stat",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 8 },
+      "targets": [
+        {
+          "expr": "cg_ingest_dlq_total",
+          "legendFormat": "DLQ entries"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "color": "green", "value": 0 },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 100 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Audit Log Entries/sec",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "rate(cg_audit_log_entries_total[5m])",
+          "legendFormat": "entries/sec"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ops"
+        }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Bloom Filter Hit Rate",
+      "type": "gauge",
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 },
+      "targets": [
+        {
+          "expr": "sum(rate(cg_bloom_checks_total{result=\"hit\"}[5m])) / sum(rate(cg_bloom_checks_total[5m]))",
+          "legendFormat": "Hit rate"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "steps": [
+              { "color": "red", "value": 0 },
+              { "color": "yellow", "value": 0.8 },
+              { "color": "green", "value": 0.95 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 9,
+      "title": "NATS Consumer Lag",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 },
+      "targets": [
+        {
+          "expr": "nats_consumer_num_pending",
+          "legendFormat": "{{stream}}/{{consumer}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    },
+    {
+      "id": 10,
+      "title": "PostgreSQL Connections",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "targets": [
+        {
+          "expr": "pg_stat_activity_count",
+          "legendFormat": "{{state}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        }
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "version": 1
+}

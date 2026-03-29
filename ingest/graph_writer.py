@@ -10,6 +10,7 @@ Never constructs Cypher strings via concatenation (CVE-2022-45786 mitigation).
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import uuid
@@ -59,6 +60,12 @@ MERGE_TEMPLATES: dict[str, str] = {
         $$, $1) as (id agtype)
     """,
 }
+
+
+def _hash_properties(params: dict) -> str:
+    """Compute SHA-256 of canonicalized entity properties for audit."""
+    canonical = json.dumps(params, sort_keys=True, default=str)
+    return hashlib.sha256(canonical.encode()).hexdigest()
 
 
 async def _ensure_stream(js: nats.js.JetStreamContext) -> None:
@@ -165,7 +172,7 @@ async def _process_message(
         entity_id=vertex_id,
         entity_label=label,
         operation="MERGE",
-        new_value_hash=None,  # TODO: compute hash of entity properties
+        new_value_hash=_hash_properties(params),
         actor="graph_writer",
         correlation_id=correlation_id,
     )

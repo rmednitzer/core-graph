@@ -54,21 +54,37 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v6
-      - name: Check for Dockerfiles
-        id: check
+      - name: Build application Docker image
+        run: docker build -t core-graph-app:ci -f deploy/docker/Dockerfile.app .
+      - name: Scan application image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: core-graph-app:ci
+          format: table
+          exit-code: "1"
+          severity: CRITICAL
+      - name: Generate container image SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: core-graph-app:ci
+          format: cyclonedx-json
+          artifact-name: sbom-container.cyclonedx.json
+      - name: Check for additional Dockerfiles
+        id: check-pg
         run: |
-          if ls deploy/docker/Dockerfile* 2>/dev/null | grep -q .; then
+          if [ -f deploy/docker/Dockerfile.postgres ]; then
             echo "found=true" >> "$GITHUB_OUTPUT"
           else
             echo "found=false" >> "$GITHUB_OUTPUT"
           fi
-      - name: Build Docker image
-        if: steps.check.outputs.found == 'true'
-        run: docker build -t core-graph-scan:ci deploy/docker/
-      - uses: aquasecurity/trivy-action@master
-        if: steps.check.outputs.found == 'true'
+      - name: Build PostgreSQL image
+        if: steps.check-pg.outputs.found == 'true'
+        run: docker build -t core-graph-pg:ci -f deploy/docker/Dockerfile.postgres .
+      - name: Scan PostgreSQL image with Trivy
+        if: steps.check-pg.outputs.found == 'true'
+        uses: aquasecurity/trivy-action@master
         with:
-          image-ref: core-graph-scan:ci
+          image-ref: core-graph-pg:ci
           format: table
           exit-code: "1"
           severity: CRITICAL

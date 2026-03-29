@@ -1,4 +1,4 @@
-.PHONY: help up down migrate seed validate test lint clean reset psql serve mcp graph-writer integration-test verify-chain
+.PHONY: help up down migrate seed validate test lint clean reset psql serve mcp graph-writer integration-test verify-chain bench
 
 # Database connection defaults (override via environment)
 PGHOST   ?= localhost
@@ -87,3 +87,8 @@ integration-test: ## Run integration tests only
 
 verify-chain: ## Run audit log hash chain verification
 	python -m evidence.chain.verify
+
+bench: ## Run performance benchmarks
+	python scripts/bench/bench_ner_extraction.py
+	python scripts/bench/bench_graph_traversal.py
+	python scripts/bench/bench_ingest_throughput.py

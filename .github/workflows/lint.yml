@@ -9,6 +9,8 @@ on:
 jobs:
   python-lint:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -20,6 +22,8 @@ jobs:
 
   yaml-lint:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - run: pip install yamllint
@@ -30,6 +34,8 @@ jobs:
 
   sql-lint:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - name: Validate SQL files are valid UTF-8 and end with a newline
@@ -72,6 +78,8 @@ jobs:
 
   markdown-lint:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: DavidAnson/markdownlint-cli2-action@v19

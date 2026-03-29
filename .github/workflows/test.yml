@@ -9,6 +9,8 @@ on:
 jobs:
   schema-test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     services:
       postgres:
         image: apache/age:PG16_latest
@@ -50,6 +52,8 @@ jobs:
   rls-test:
     runs-on: ubuntu-latest
     needs: schema-test
+    permissions:
+      contents: read
     services:
       postgres:
         image: apache/age:PG16_latest
@@ -88,6 +92,8 @@ jobs:
 
   policy-test:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - name: Install Cerbos CLI

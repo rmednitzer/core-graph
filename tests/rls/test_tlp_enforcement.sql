@@ -184,15 +184,8 @@ end $$;
 -- Cleanup
 -- ============================================================
 
+-- Drop the table (policies are dropped automatically with the table).
 drop table if exists rls_test_nodes;
-
-drop policy if exists ciso_all              on rls_test_nodes;
-drop policy if exists soc_analyst_pol       on rls_test_nodes;
-drop policy if exists compliance_officer_pol on rls_test_nodes;
-drop policy if exists it_operations_pol     on rls_test_nodes;
-drop policy if exists dpo_no_access         on rls_test_nodes;
-drop policy if exists external_auditor_pol  on rls_test_nodes;
-drop policy if exists ai_agent_pol          on rls_test_nodes;
 
 drop role if exists ciso_test;
 drop role if exists soc_analyst_test;

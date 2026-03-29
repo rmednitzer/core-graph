@@ -125,7 +125,10 @@ def check_secrets() -> None:
 
         for name, pattern in SECRET_PATTERNS:
             if pattern.search(content):
-                fail(f"Potential {name} found in {path.relative_to(REPO_ROOT)}")
+                fail(
+                    f"Potential secret ({name}) found in {path.relative_to(REPO_ROOT)} "
+                    "(secret contents not logged)"
+                )
 
     ok("No obvious secrets detected")
 

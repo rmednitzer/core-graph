@@ -6,20 +6,18 @@ No running database required.
 
 from __future__ import annotations
 
-import hashlib
+from ingest.canonical import canonical_key
 
 
-def canonical_key(ioc_type: str, value: str) -> str:
-    """Return a deterministic, source-independent key for an IOC.
-
-    The key is a SHA-256 hex digest of ``<type>:<normalised_value>`` so that
-    the same IOC from different sources always produces the same canonical key.
-    """
-    normalised = value.strip().lower()
-    raw = f"{ioc_type.lower()}:{normalised}"
-    return hashlib.sha256(raw.encode()).hexdigest()
+# ---------------------------------------------------------------------------
+# Tests: deterministic key generation
+# ---------------------------------------------------------------------------
 
 
+def test_ip_key_is_deterministic() -> None:
+    k1 = canonical_key("ip", "192.168.1.1")
+    k2 = canonical_key("ip", "192.168.1.1")
+    assert k1 == k2
 # ---------------------------------------------------------------------------
 # Tests: deterministic key generation
 # ---------------------------------------------------------------------------

@@ -1,5 +1,10 @@
 # Contributing
 
+## Code of conduct
+
+This project follows a [Code of Conduct](CODE_OF_CONDUCT.md). By participating,
+you are expected to uphold it.
+
 ## Commits
 
 This project uses [Conventional Commits](https://www.conventionalcommits.org/).

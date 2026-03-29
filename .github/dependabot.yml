@@ -5,15 +5,30 @@ updates:
     schedule:
       interval: weekly
       day: monday
+    labels:
+      - dependencies
+      - python
+    assignees:
+      - rmednitzer
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
       day: monday
+    labels:
+      - dependencies
+      - github-actions
+    assignees:
+      - rmednitzer
 
   - package-ecosystem: docker
     directory: /deploy/docker
     schedule:
       interval: weekly
       day: monday
+    labels:
+      - dependencies
+      - docker
+    assignees:
+      - rmednitzer

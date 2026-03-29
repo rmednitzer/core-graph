@@ -8,6 +8,8 @@ on:
   schedule:
     - cron: "0 2 * * 0"
 
+permissions: {}
+
 jobs:
   sbom:
     runs-on: ubuntu-latest

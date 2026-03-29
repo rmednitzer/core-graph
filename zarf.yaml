@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/zarf-dev/zarf/main/zarf.schema.json
+# =============================================================================
+# Zarf Package Definition — core-graph
+# =============================================================================
+# Creates a self-contained, declarative package for deploying core-graph into
+# air-gapped Kubernetes clusters. Zarf handles image mirroring, Helm chart
+# bundling, and in-cluster registry injection automatically.
+#
+# Build:   zarf package create --confirm
+# Deploy:  zarf package deploy zarf-package-core-graph-amd64-0.1.0.tar.zst --confirm
+# =============================================================================
+
+kind: ZarfPackageConfig
+metadata:
+  name: core-graph
+  description: >-
+    Converged graph-vector knowledge platform for air-gapped Kubernetes
+    deployments. Includes REST API, graph writer, PostgreSQL 16 (AGE/pgvector),
+    NATS JetStream, and Valkey.
+  version: 0.1.0
+  url: https://github.com/rmednitzer/core-graph
+  authors: Roman Mednitzer <r.mednitzer@outlook.com>
+
+components:
+  # ---------------------------------------------------------------------------
+  # Core stack — always deployed
+  # ---------------------------------------------------------------------------
+  - name: core-graph
+    required: true
+    description: "Core-graph Helm chart with API, graph-writer, and bundled infrastructure"
+    charts:
+      - name: core-graph
+        localPath: deploy/k8s/helm
+        namespace: core-graph
+        version: 0.1.0
+        valuesFiles:
+          - deploy/k8s/helm/values.yaml
+    images:
+      # Core-graph API + graph-writer
+      - ghcr.io/rmednitzer/core-graph:0.1.0-alpha
+      # PostgreSQL 16 (with AGE, pgvector, pgaudit, pg_cron)
+      - docker.io/library/postgres:16
+      # NATS JetStream
+      - docker.io/library/nats:2.10
+      # Valkey (Redis-compatible cache)
+      - docker.io/valkey/valkey:8
+      # Init container (waitFor dependency checks)
+      - docker.io/library/busybox:1.37
+
+  # ---------------------------------------------------------------------------
+  # Optional: Production overrides
+  # ---------------------------------------------------------------------------
+  - name: prod-profile
+    required: false
+    description: "Production profile — HA replicas, autoscaling, resource limits"
+    charts:
+      - name: core-graph
+        localPath: deploy/k8s/helm
+        namespace: core-graph
+        version: 0.1.0
+        valuesFiles:
+          - deploy/k8s/helm/values.yaml
+          - deploy/k8s/helm/values-prod.yaml
+    images: []

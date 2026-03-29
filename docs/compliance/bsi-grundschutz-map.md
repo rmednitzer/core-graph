@@ -23,6 +23,7 @@ appropriate use of cryptographic mechanisms.
 | Time authentication | NTS (Network Time Security) for authenticated timestamps. Prevents time-based attacks on bitemporal fact validity windows and audit log ordering. |
 
 **Evidence artefacts:**
+
 - Hash chain verification: `SELECT verify_hash_chain() FROM audit_log`
 - Rekor log entries for all cosign signatures
 - step-ca certificate inventory and rotation logs
@@ -44,6 +45,7 @@ control, auditing, and hardening.
 | Backup encryption | Encrypted backups via pgBackRest + AES-256. Backup encryption keys are managed separately from database credentials. Backups are stored in EU-sovereign object storage (Hetzner). |
 
 **Evidence artefacts:**
+
 - PostgreSQL configuration diff against CIS benchmark
 - RLS policy definitions in `schema/migrations/`
 - pgAudit log entries in PostgreSQL log stream
@@ -65,6 +67,7 @@ information and IT systems, with appropriate granularity.
 | Emergency access | Break-glass with Shamir secret shares and automatic expiry. Emergency access requires multiple key holders, is time-limited, and generates prominent audit entries for mandatory review. |
 
 **Evidence artefacts:**
+
 - Cerbos policy files in `policies/`
 - SpiceDB relationship tuples and namespace definitions
 - `audit_log` entries with `action = 'role_assigned'` or `action = 'break_glass_activated'`
@@ -86,6 +89,7 @@ events and support forensic analysis.
 | Automated maintenance | pg_cron for automated log rotation and Merkle root computation. Periodic jobs compute Merkle tree roots over audit_log batches, providing efficient integrity verification for large log volumes. |
 
 **Evidence artefacts:**
+
 - `audit_log` hash chain verification query
 - pgAudit configuration in `postgresql.conf`
 - NATS JetStream stream configuration and consumer lag metrics
@@ -107,6 +111,7 @@ runtime isolation, and network segmentation.
 | Network isolation | Kubernetes with NetworkPolicy isolation (Phase 3). Pod-to-pod communication is denied by default; explicit policies whitelist only required traffic flows. |
 
 **Evidence artefacts:**
+
 - Harbor scan reports per image tag and digest
 - cosign signature verification logs
 - NetworkPolicy definitions in `deploy/kustomize/`
@@ -128,6 +133,7 @@ structured, documented manner.
 | Deduplication | Bloom filter dedup prevents duplicate alert processing. Duplicate events are detected at ingest time, preventing alert fatigue and reducing graph noise. |
 
 **Evidence artefacts:**
+
 - NATS stream `INGEST.wazuh` consumer metrics
 - Graph query: `MATCH (a:Alert)-[:CAUSED_BY]->(root) RETURN a, root`
 - Bloom filter false positive rate monitoring
@@ -149,6 +155,7 @@ tested, and secure backup procedures.
 | RPO targets | RPO <=1h standard for operational data via hourly incremental backups. RPO 0 for evidence chain via synchronous WAL archiving -- the hash chain is never broken, even during failover. |
 
 **Evidence artefacts:**
+
 - pgBackRest backup manifests and verification reports
 - WAL archive lag monitoring (must be 0 for evidence chain)
 - Monthly restore test reports in MinIO `evidence/compliance/`

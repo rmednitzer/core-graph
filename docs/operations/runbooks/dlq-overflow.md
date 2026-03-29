@@ -61,6 +61,7 @@ retries cannot resolve.
 ### 1. Identify the root cause
 
 Common causes:
+
 - **Schema mismatch**: Incoming data does not match expected graph labels
 - **Upstream data quality**: Malformed payloads from satellite connectors
 - **PostgreSQL errors**: Connection issues, constraint violations

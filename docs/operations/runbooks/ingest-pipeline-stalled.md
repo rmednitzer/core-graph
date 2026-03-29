@@ -32,6 +32,7 @@ nats consumer info ENRICHED graph_writer
 ```
 
 Key metrics:
+
 - `num_pending`: messages waiting to be delivered
 - `num_redelivered`: messages that failed processing and were redelivered
 - `last_delivered`: timestamp of last successful delivery
@@ -109,6 +110,7 @@ select * from audit_log order by recorded_at desc limit 10;
 ## Verification
 
 After resolution:
+
 1. Consumer lag should start decreasing
 2. `cg_graph_writes_total` should resume incrementing
 3. No new errors in graph-writer logs
@@ -121,6 +123,7 @@ watch -n5 'nats consumer info ENRICHED graph_writer | grep pending'
 ## Escalation Criteria
 
 Escalate if:
+
 - Pipeline remains stalled for > 15 minutes after restart
 - DLQ depth exceeds 1000 unresolved entries
 - PostgreSQL connection issues persist after idle connection cleanup

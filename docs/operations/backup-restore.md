@@ -89,6 +89,7 @@ recorded as compliance evidence in Layer 4 (audit/compliance).
    to production systems.
 
 2. **Restore latest full + incrementals.**
+
    ```bash
    pgbackrest --stanza=core-graph --type=time \
      --target="<target-timestamp>" \
@@ -98,6 +99,7 @@ recorded as compliance evidence in Layer 4 (audit/compliance).
 3. **Verify hash chain integrity in `audit_log`.**
    Run the hash chain verification query to confirm no gaps or tampering in
    the append-only audit log.
+
    ```sql
    select count(*) as broken_links
    from   core.audit_log a
@@ -111,6 +113,7 @@ recorded as compliance evidence in Layer 4 (audit/compliance).
    ```
 
 4. **Run schema validation tests.**
+
    ```bash
    pytest tests/schema/ -v
    ```

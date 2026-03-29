@@ -49,8 +49,13 @@ jobs:
         run: bash tests/schema/test_migrations.sh
       - name: Verify extensions exist
         run: |
-          psql -c "SELECT extname FROM pg_extension WHERE extname IN ('age','vector','pgaudit','pg_cron') ORDER BY extname;" \
-            | grep -E 'age|vector'
+          required_extensions=("age" "vector" "pgaudit" "pg_cron")
+          for ext in "${required_extensions[@]}"; do
+            if ! psql -tAc "SELECT 1 FROM pg_extension WHERE extname = '${ext}'" | grep -q 1; then
+              echo "Required extension '${ext}' is not installed"
+              exit 1
+            fi
+          done
 
   rls-test:
     runs-on: ubuntu-latest

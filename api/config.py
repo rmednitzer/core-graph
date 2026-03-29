@@ -39,3 +39,11 @@ MINIO_USE_SSL = os.environ.get("CG_MINIO_USE_SSL", "false").lower() == "true"
 # Connection pool
 PG_POOL_MIN = int(os.environ.get("CG_PG_POOL_MIN", "2"))
 PG_POOL_MAX = int(os.environ.get("CG_PG_POOL_MAX", "10"))
+
+# Netbox (CMDB/IPAM)
+NETBOX_URL = os.environ.get("NETBOX_URL", "http://localhost:8080")
+NETBOX_TOKEN = os.environ.get("NETBOX_TOKEN", "")
+
+# Prometheus AlertManager webhook
+PROMETHEUS_WEBHOOK_HOST = os.environ.get("CG_PROMETHEUS_WEBHOOK_HOST", "0.0.0.0")
+PROMETHEUS_WEBHOOK_PORT = int(os.environ.get("CG_PROMETHEUS_WEBHOOK_PORT", "9095"))

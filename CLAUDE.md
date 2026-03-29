@@ -6,8 +6,8 @@ Instructions for AI assistants working on this repository.
 
 core-graph is a converged graph-vector knowledge platform. PostgreSQL with
 Apache AGE (graph) and pgvector (embeddings) is the canonical store. Satellite
-systems (Wazuh, OpenCTI, MISP, OpenSearch, MinIO) feed structured entities
-through NATS JetStream into the core.
+systems (Wazuh, OpenCTI, MISP, OpenSearch, MinIO, Netbox, Prometheus) feed
+structured entities through NATS JetStream into the core.
 
 Target: EU-sovereign, single-engineer operable, auditable, evidence-producing.
 
@@ -23,8 +23,8 @@ Target: EU-sovereign, single-engineer operable, auditable, evidence-producing.
   t_recorded, t_superseded). Facts invalidated, never deleted.
 - Evidence integrity via append-only audit log + MinIO WORM + cosign + Rekor.
 - MCP server is the primary AI agent interface.
-- Six ontology layers: threat intel, security events, OSINT, audit/compliance,
-  AI memory, forensic timeline.
+- Seven ontology layers: threat intel, security events, OSINT, audit/compliance,
+  AI memory, forensic timeline, infrastructure & assets.
 - STIX 2.1 as canonical threat intelligence data model.
 - OCSF as event normalisation layer.
 - Connection pooling via psycopg-pool (not per-request connections).

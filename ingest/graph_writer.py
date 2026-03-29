@@ -59,6 +59,72 @@ MERGE_TEMPLATES: dict[str, str] = {
             return id(v)
         $$, $1) as (id agtype)
     """,
+    # -- Layer 7: Infrastructure & Assets ------------------------------------
+    "Host": """
+        select * from ag_catalog.cypher('core_graph', $$
+            merge (v:Host {canonical_key: $canonical_key})
+            on create set v.name = $name, v.host_type = $host_type,
+                          v.platform = $platform, v.status = $status,
+                          v.site = $site, v.tlp_level = $tlp,
+                          v.primary_ip = $primary_ip, v.netbox_id = $netbox_id,
+                          v.first_seen = $now
+            on match set v.last_seen = $now, v.status = $status,
+                         v.platform = $platform,
+                         v.primary_ip = $primary_ip, v.netbox_id = $netbox_id
+            return id(v)
+        $$, $1) as (id agtype)
+    """,
+    "Network": """
+        select * from ag_catalog.cypher('core_graph', $$
+            merge (v:Network {prefix: $prefix})
+            on create set v.vlan_id = $vlan_id, v.site = $site,
+                          v.description = $description, v.tlp_level = $tlp,
+                          v.first_seen = $now
+            on match set v.last_seen = $now
+            return id(v)
+        $$, $1) as (id agtype)
+    """,
+    "Site": """
+        select * from ag_catalog.cypher('core_graph', $$
+            merge (v:Site {name: $name})
+            on create set v.slug = $slug, v.region = $region,
+                          v.tlp_level = $tlp, v.first_seen = $now
+            on match set v.last_seen = $now
+            return id(v)
+        $$, $1) as (id agtype)
+    """,
+    "Interface": """
+        select * from ag_catalog.cypher('core_graph', $$
+            merge (v:Interface {canonical_key: $canonical_key})
+            on create set v.name = $name, v.mac_address = $mac_address,
+                          v.enabled = $enabled, v.tlp_level = $tlp,
+                          v.first_seen = $now
+            on match set v.last_seen = $now, v.enabled = $enabled
+            return id(v)
+        $$, $1) as (id agtype)
+    """,
+    "Service": """
+        select * from ag_catalog.cypher('core_graph', $$
+            merge (v:Service {canonical_key: $canonical_key})
+            on create set v.name = $name, v.protocol = $protocol,
+                          v.ports = $ports, v.tlp_level = $tlp,
+                          v.first_seen = $now
+            on match set v.last_seen = $now
+            return id(v)
+        $$, $1) as (id agtype)
+    """,
+    "MonitoringAlert": """
+        select * from ag_catalog.cypher('core_graph', $$
+            merge (v:MonitoringAlert {fingerprint: $fingerprint})
+            on create set v.alertname = $alertname, v.severity = $severity,
+                          v.status = $status, v.instance = $instance,
+                          v.tlp_level = $tlp, v.starts_at = $starts_at,
+                          v.ends_at = $ends_at, v.first_seen = $now
+            on match set v.status = $status, v.ends_at = $ends_at,
+                         v.last_seen = $now
+            return id(v)
+        $$, $1) as (id agtype)
+    """,
 }
 
 

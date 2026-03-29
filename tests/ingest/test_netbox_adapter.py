@@ -85,8 +85,12 @@ class TestMapVM:
 
     def test_vm_canonical_key_differs_from_device(self) -> None:
         stub = {
-            "id": 1, "name": "a", "platform": None,
-            "status": None, "site": None, "primary_ip": None,
+            "id": 1,
+            "name": "a",
+            "platform": None,
+            "status": None,
+            "site": None,
+            "primary_ip": None,
         }
         device = _map_device(stub)
         vm = _map_vm(stub)

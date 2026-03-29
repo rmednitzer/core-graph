@@ -32,6 +32,7 @@ DEFAULT_TLP = 1  # TLP:GREEN — infrastructure inventory
 
 # -- Entity mapping ----------------------------------------------------------
 
+
 def _map_device(obj: dict[str, Any]) -> dict[str, Any]:
     """Map a Netbox device to a Host entity."""
     name = obj.get("name") or obj.get("display", "")
@@ -150,6 +151,7 @@ _ENDPOINT_MAPPERS: dict[str, Any] = {
 
 # -- Fetching ----------------------------------------------------------------
 
+
 async def _fetch_endpoint(
     client: httpx.AsyncClient,
     base_url: str,
@@ -198,6 +200,7 @@ async def _fetch_endpoint(
 
 # -- Publishing --------------------------------------------------------------
 
+
 async def _publish_entities(
     js: nats.js.JetStreamContext,
     endpoint: str,
@@ -237,6 +240,7 @@ async def _publish_entities(
 
 # -- Audit -------------------------------------------------------------------
 
+
 async def _write_audit_entry(
     pg_dsn: str,
     entity_count: int,
@@ -268,6 +272,7 @@ async def _write_audit_entry(
 
 
 # -- Main loop ---------------------------------------------------------------
+
 
 async def run(
     config: NetboxConfig | None = None,
@@ -308,14 +313,20 @@ async def run(
                 total = 0
                 for endpoint in ENDPOINT_LABEL_MAP:
                     objects = await _fetch_endpoint(
-                        client, cfg.url, endpoint, cfg.token, cache,
+                        client,
+                        cfg.url,
+                        endpoint,
+                        cfg.token,
+                        cache,
                     )
                     if objects:
                         count = await _publish_entities(js, endpoint, objects)
                         total += count
                         await _write_audit_entry(dsn, count, endpoint)
                         logger.info(
-                            "Netbox %s: published %d entities", endpoint, count,
+                            "Netbox %s: published %d entities",
+                            endpoint,
+                            count,
                         )
 
                 logger.info("Netbox sync cycle complete: %d entities total", total)
@@ -327,6 +338,7 @@ async def run(
 
 if __name__ == "__main__":
     logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s",
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
     )
     asyncio.run(run())

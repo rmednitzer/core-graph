@@ -4,15 +4,17 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from typing import Any
 
 import nats
+import psycopg
 from nats.js.api import StreamConfig
 from pydantic import BaseModel
 
-logger = logging.getLogger(__name__)
+from api.config import NATS_URL, PG_DSN
 
-NATS_URL = "nats://localhost:4222"
+logger = logging.getLogger(__name__)
 
 # Required OCSF fields for basic validation
 REQUIRED_FIELDS = {"class_uid", "category", "time"}
@@ -57,11 +59,15 @@ def _validate_ocsf_event(event: dict[str, Any]) -> list[str]:
     return errors
 
 
-async def ingest_event(event: dict[str, Any]) -> dict[str, Any]:
+async def ingest_event(
+    event: dict[str, Any],
+    caller_identity: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Validate and publish an OCSF event to NATS JetStream.
 
     Args:
         event: OCSF-normalised event dictionary.
+        caller_identity: MCP session context for audit logging.
 
     Returns:
         Acknowledgement with status and sequence number.
@@ -70,6 +76,8 @@ async def ingest_event(event: dict[str, Any]) -> dict[str, Any]:
     errors = _validate_ocsf_event(event)
     if errors:
         return {"status": "error", "errors": errors}
+
+    correlation_id = uuid.uuid4()
 
     # Publish to NATS
     nc = await nats.connect(NATS_URL)
@@ -88,8 +96,25 @@ async def ingest_event(event: dict[str, Any]) -> dict[str, Any]:
             json.dumps(event, default=str).encode(),
         )
 
-        # TODO: log to audit trail
         logger.info("Event ingested: stream=%s seq=%d", ack.stream, ack.seq)
+
+        # Write audit log entry
+        async with await psycopg.AsyncConnection.connect(PG_DSN) as conn:
+            await conn.execute(
+                """
+                insert into audit_log
+                    (entity_label, operation, actor, correlation_id)
+                values (%s, %s, %s, %s)
+                """,
+                (
+                    f"ocsf:{event.get('category', 'unknown')}",
+                    "INGEST",
+                    caller_identity.get("actor", "mcp") if caller_identity else "mcp",
+                    correlation_id,
+                ),
+            )
+            await conn.commit()
+
         return {
             "status": "ok",
             "sequence": ack.seq,

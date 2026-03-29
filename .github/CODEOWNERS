@@ -1,0 +1,17 @@
+# Global owner — all files require review from the maintainer
+* @rmednitzer
+
+# Schema migrations are sensitive; require explicit sign-off
+schema/migrations/ @rmednitzer
+schema/seed/       @rmednitzer
+
+# Authorization policies and RLS are security-critical
+policies/                    @rmednitzer
+schema/migrations/004_rls_policies.sql @rmednitzer
+
+# CI/CD and deployment configuration
+.github/   @rmednitzer
+deploy/    @rmednitzer
+
+# Evidence integrity (signing, hash chains)
+evidence/  @rmednitzer

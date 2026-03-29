@@ -40,10 +40,8 @@ jobs:
           CONTAINER=$(docker ps -q --filter ancestor=apache/age:release_PG16_1.6.0)
           docker exec "$CONTAINER" bash -c \
             "apt-get update -qq && apt-get install -y postgresql-16-pgvector postgresql-16-pgaudit postgresql-16-cron"
-          docker exec "$CONTAINER" bash -c \
-            "echo \"shared_preload_libraries = 'age,pgaudit,pg_cron'\" >> /var/lib/postgresql/data/postgresql.conf"
-          docker exec "$CONTAINER" bash -c \
-            "echo \"cron.database_name = 'core_graph_test'\" >> /var/lib/postgresql/data/postgresql.conf"
+          psql -c "ALTER SYSTEM SET shared_preload_libraries = 'age,pgaudit,pg_cron';"
+          psql -c "ALTER SYSTEM SET cron.database_name = 'core_graph_test';"
           docker restart "$CONTAINER"
           until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done
       - name: Run migrations
@@ -87,10 +85,8 @@ jobs:
           CONTAINER=$(docker ps -q --filter ancestor=apache/age:release_PG16_1.6.0)
           docker exec "$CONTAINER" bash -c \
             "apt-get update -qq && apt-get install -y postgresql-16-pgvector postgresql-16-pgaudit postgresql-16-cron"
-          docker exec "$CONTAINER" bash -c \
-            "echo \"shared_preload_libraries = 'age,pgaudit,pg_cron'\" >> /var/lib/postgresql/data/postgresql.conf"
-          docker exec "$CONTAINER" bash -c \
-            "echo \"cron.database_name = 'core_graph_test'\" >> /var/lib/postgresql/data/postgresql.conf"
+          psql -c "ALTER SYSTEM SET shared_preload_libraries = 'age,pgaudit,pg_cron';"
+          psql -c "ALTER SYSTEM SET cron.database_name = 'core_graph_test';"
           docker restart "$CONTAINER"
           until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done
       - name: Run migrations

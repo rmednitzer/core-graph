@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: graph-writer
+  namespace: core-graph
+  labels:
+    app.kubernetes.io/name: graph-writer
+    app.kubernetes.io/part-of: core-graph
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: graph-writer
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: graph-writer
+    spec:
+      containers:
+        - name: graph-writer
+          image: core-graph/api:latest
+          command: ["python", "-m", "ingest.graph_writer"]
+          envFrom:
+            - configMapRef:
+                name: api-config
+            - secretRef:
+                name: api-secret
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "kill -0 1"]
+            initialDelaySeconds: 10
+            periodSeconds: 15

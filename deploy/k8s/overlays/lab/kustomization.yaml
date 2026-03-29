@@ -1,0 +1,55 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: core-graph
+
+resources:
+  - ../../base
+
+# Lab overlay: single replicas, smaller PVCs, dev credentials, no NetworkPolicy
+patches:
+  # Single replica for API
+  - target:
+      kind: Deployment
+      name: api
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 1
+
+  # Smaller PVC for PostgreSQL
+  - target:
+      kind: StatefulSet
+      name: postgres
+    patch: |
+      - op: replace
+        path: /spec/volumeClaimTemplates/0/spec/resources/requests/storage
+        value: 5Gi
+
+  # Smaller PVC for NATS
+  - target:
+      kind: PersistentVolumeClaim
+      name: nats-jetstream
+    patch: |
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: 2Gi
+
+  # Smaller PVC for Valkey
+  - target:
+      kind: PersistentVolumeClaim
+      name: valkey-data
+    patch: |
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: 512Mi
+
+  # Remove NetworkPolicies for lab
+  - target:
+      kind: NetworkPolicy
+    patch: |
+      $patch: delete
+      apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: placeholder

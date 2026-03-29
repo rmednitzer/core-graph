@@ -60,10 +60,61 @@ services:
     networks:
       - core-graph
 
+  spicedb:
+    image: authzed/spicedb:latest
+    container_name: cg-spicedb
+    command: serve --grpc-preshared-key=cg_dev_only --datastore-engine=memory
+    ports:
+      - "50051:50051"
+    networks:
+      - core-graph
+
+  cerbos:
+    image: ghcr.io/cerbos/cerbos:latest
+    container_name: cg-cerbos
+    ports:
+      - "3593:3593"
+    volumes:
+      - ../../policies:/policies:ro
+    command: ["server", "--set=storage.driver=disk", "--set=storage.disk.directory=/policies"]
+    networks:
+      - core-graph
+
+  minio:
+    image: minio/minio:latest
+    container_name: cg-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: cg_admin
+      MINIO_ROOT_PASSWORD: cg_dev_only_minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - core-graph
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: cg-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - core-graph
+
 volumes:
   pgdata:
   natsdata:
   valkeydata:
+  miniodata:
 
 networks:
   core-graph:

@@ -27,6 +27,11 @@ Target: EU-sovereign, single-engineer operable, auditable, evidence-producing.
   AI memory, forensic timeline.
 - STIX 2.1 as canonical threat intelligence data model.
 - OCSF as event normalisation layer.
+- Connection pooling via psycopg-pool (not per-request connections).
+- SpiceDB for ReBAC (Zanzibar model).
+- Cerbos for ABAC (YAML policies in `policies/`).
+- OIDC for authentication (pluggable IdP).
+- Dead-letter queue with retry and archive.
 
 ## Coding conventions
 
@@ -55,6 +60,9 @@ Target: EU-sovereign, single-engineer operable, auditable, evidence-producing.
 - `deploy/` - Docker Compose (dev), Kustomize (lab/prod), NATS config
 - `evidence/` - cosign signing, hash chain computation, Rekor config
 - `tests/` - Schema validation, RLS enforcement, ingest integration, auth decisions
+- `api/authz/` - SpiceDB and Cerbos client modules
+- `api/db.py` - Shared connection pool
+- `ingest/dlq/` - Dead-letter queue processor
 - `docs/` - Architecture, compliance mapping, ontology design, operations
 
 ## What not to do

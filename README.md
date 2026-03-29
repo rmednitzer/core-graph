@@ -4,6 +4,10 @@ A converged graph-vector knowledge platform built on PostgreSQL with Apache AGE
 and pgvector. Designed for EU-sovereign deployment with security, compliance,
 and operational assurance as structural properties.​
 
+<!-- Badges placeholder -->
+<!-- ![CI](https://github.com/rmednitzer/core-graph/actions/workflows/test.yml/badge.svg) -->
+<!-- ![License](https://img.shields.io/badge/license-Apache--2.0-blue) -->
+
 ## What it does
 
 core-graph is a canonical convergence point for heterogeneous data domains:
@@ -15,33 +19,62 @@ core-graph is a canonical convergence point for heterogeneous data domains:
 - **Audit and compliance** (evidence chains, control mapping, NIS2/CRA/GDPR/AI Act)
 - **Forensic timelines** (bitemporal facts, chain of custody)
 
-Satellite systems feed structured entities through NATS JetStream into the
-PostgreSQL graph-vector core. The platform exposes a Model Context Protocol
-(MCP) server for framework-agnostic querying.
+## Status
+
+**Alpha:** local development stack operational, schema stable, ingest pipeline
+functional.
+
+## Quick start
+
+```bash
+git clone https://github.com/rmednitzer/core-graph.git
+cd core-graph
+./scripts/bootstrap.sh
+make serve    # REST API on :8000
+make mcp      # MCP server
+```
 
 ## Architecture
 
-**Core:** PostgreSQL 16+ with Apache AGE (openCypher graph), pgvector (HNSW
-similarity search), pgAudit (audit logging), and native Row-Level Security.
+```
+┌─────────────┐   ┌─────────────┐   ┌─────────────┐
+│   Wazuh     │   │  OpenCTI    │   │    MISP     │
+│   (SIEM)    │   │  (ThreatI.) │   │  (Sharing)  │
+└──────┬──────┘   └──────┬──────┘   └──────┬──────┘
+       │                 │                 │
+       └────────┬────────┴────────┬────────┘
+                │  NATS JetStream │
+                └────────┬────────┘
+                         │
+           ┌─────────────┴─────────────┐
+           │     PostgreSQL 16+        │
+           │  ┌───────┐  ┌──────────┐  │
+           │  │  AGE   │  │ pgvector │  │
+           │  │(graph) │  │ (embed.) │  │
+           │  └───────┘  └──────────┘  │
+           │  RLS · pgAudit · pg_cron  │
+           └─────────────┬─────────────┘
+                         │
+              ┌──────────┴──────────┐
+              │    REST + MCP API   │
+              │  Cerbos · SpiceDB   │
+              └─────────────────────┘
+```
 
-**Satellites:** Wazuh (SIEM), OpenCTI CE (threat intelligence), MISP (community
-sharing), OpenSearch (hot log store), MinIO WORM (evidence store).
+## Development
 
-**Bus:** NATS JetStream (message broker, subject-based routing per satellite).
-
-**Authorization:** Cerbos (ABAC/TLP) + SpiceDB (ReBAC/compartments) + PostgreSQL
-RLS (unforgeable enforcement).
-
-**Evidence integrity:** Append-only audit log with hash chain, MinIO WORM
-custody chain, periodic Merkle roots, self-hosted Rekor transparency log.
-
-See [docs/architecture/overview.md](docs/architecture/overview.md) for the full
-design.
-
-## Status
-
-**Pre-alpha.** Schema design and architectural documentation phase. Not yet
-operational.
+| Target              | Description                              |
+|---------------------|------------------------------------------|
+| `make up`           | Start Docker Compose dev stack           |
+| `make down`         | Stop dev stack                           |
+| `make migrate`      | Run database migrations                  |
+| `make seed`         | Load reference data                      |
+| `make serve`        | REST API on :8000 (uvicorn --reload)     |
+| `make mcp`          | Run MCP server                           |
+| `make graph-writer` | Run graph writer worker                  |
+| `make test`         | Run all tests                            |
+| `make lint`         | Lint Python and YAML                     |
+| `make verify-chain` | Verify audit log hash chain              |
 
 ## Repository layout
 
@@ -50,12 +83,12 @@ core-graph/
 ├── docs/           Architecture, compliance, ontology, operations
 ├── schema/         SQL migrations (numbered) and seed data
 ├── policies/       Authorization policies (Cerbos YAML)
-├── ingest/         Satellite connectors, NER pipeline, graph writer
-├── api/            MCP server, REST API, GraphQL (optional)
+├── ingest/         Satellite connectors, NER pipeline, graph writer, DLQ
+├── api/            MCP server, REST API, authz (SpiceDB/Cerbos), connection pool
 ├── deploy/         Docker Compose (dev), Kustomize (lab/prod), NATS config
-├── evidence/       Signing, hash chains, Rekor integration
+├── evidence/       Signing, hash chains, MinIO WORM, Rekor integration
 ├── tests/          Schema, RLS, ingest, and auth tests
-└── scripts/        Bootstrap, validation, seed loading
+└── scripts/        Bootstrap, validation, MinIO init
 ```
 
 ## Conventions

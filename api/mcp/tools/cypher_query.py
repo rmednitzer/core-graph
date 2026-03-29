@@ -13,11 +13,10 @@ import logging
 import uuid
 from typing import Any
 
-import psycopg
-from psycopg.rows import dict_row
 from pydantic import BaseModel
 
-from api.config import DEFAULT_TLP, PG_DSN
+from api.config import DEFAULT_TLP
+from api.db import get_connection
 
 logger = logging.getLogger(__name__)
 
@@ -75,24 +74,10 @@ async def cypher_query(
             f"Unknown query template: {template!r}. Available: {sorted(QUERY_TEMPLATES)}"
         )
 
-    # Determine TLP level from caller identity or default
-    max_tlp = str(DEFAULT_TLP)
-    allowed_compartments = ""
-    if caller_identity:
-        max_tlp = str(caller_identity.get("max_tlp", DEFAULT_TLP))
-        allowed_compartments = ",".join(caller_identity.get("allowed_compartments", []))
-
     correlation_id = uuid.uuid4()
+    caller = caller_identity or {"max_tlp": DEFAULT_TLP, "allowed_compartments": []}
 
-    async with await psycopg.AsyncConnection.connect(PG_DSN, row_factory=dict_row) as conn:
-        # Set RLS session variables
-        await conn.execute("select set_config('app.max_tlp', %s, true)", (max_tlp,))
-        await conn.execute(
-            "select set_config('app.allowed_compartments', %s, true)",
-            (allowed_compartments,),
-        )
-        await conn.execute("set search_path = ag_catalog, '$user', public")
-
+    async with get_connection(caller) as conn:
         # Execute via AGE with parameter binding
         agtype_params = json.dumps(params)
         sql = (

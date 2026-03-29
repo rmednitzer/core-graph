@@ -14,8 +14,9 @@ router = APIRouter()
 @router.post("/events")
 async def post_event(body: dict[str, Any], request: Request) -> dict:
     """Ingest an OCSF-normalised security event via NATS JetStream."""
+    identity = getattr(request.state, "identity", None)
     caller = {
-        "actor": "rest_api",
+        "actor": identity.sub if identity is not None else "rest_api",
     }
     result = await ingest_event(body, caller_identity=caller)
     if result.get("status") == "error":

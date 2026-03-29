@@ -7,11 +7,10 @@ import logging
 import uuid
 from typing import Any
 
-import psycopg
-from psycopg.rows import dict_row
 from pydantic import BaseModel
 
-from api.config import DEFAULT_TLP, PG_DSN
+from api.config import DEFAULT_TLP
+from api.db import get_connection
 from ingest.canonical import canonical_key
 
 logger = logging.getLogger(__name__)
@@ -63,14 +62,9 @@ async def entity_resolve(
 
     ckey = canonical_key(ioc_type, value)
 
-    max_tlp = str(DEFAULT_TLP)
-    if caller_identity:
-        max_tlp = str(caller_identity.get("max_tlp", DEFAULT_TLP))
+    caller = caller_identity or {"max_tlp": DEFAULT_TLP, "allowed_compartments": []}
 
-    async with await psycopg.AsyncConnection.connect(PG_DSN, row_factory=dict_row) as conn:
-        await conn.execute("select set_config('app.max_tlp', %s, true)", (max_tlp,))
-        await conn.execute("set search_path = ag_catalog, '$user', public")
-
+    async with get_connection(caller) as conn:
         # Query the graph for the canonical entity
         sql = f"""
             select * from ag_catalog.cypher('core_graph', $$

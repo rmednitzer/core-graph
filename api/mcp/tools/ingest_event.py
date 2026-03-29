@@ -8,11 +8,11 @@ import uuid
 from typing import Any
 
 import nats
-import psycopg
 from nats.js.api import StreamConfig
 from pydantic import BaseModel
 
-from api.config import NATS_URL, PG_DSN
+from api.config import NATS_URL
+from api.db import get_connection
 
 logger = logging.getLogger(__name__)
 
@@ -99,7 +99,7 @@ async def ingest_event(
         logger.info("Event ingested: stream=%s seq=%d", ack.stream, ack.seq)
 
         # Write audit log entry
-        async with await psycopg.AsyncConnection.connect(PG_DSN) as conn:
+        async with get_connection() as conn:
             await conn.execute(
                 """
                 insert into audit_log

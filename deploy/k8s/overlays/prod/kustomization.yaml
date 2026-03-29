@@ -1,0 +1,79 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: core-graph
+
+resources:
+  - ../../base
+
+# Prod overlay: HA replicas, larger PVCs, full NetworkPolicy, security standards
+patches:
+  # HA replicas for API
+  - target:
+      kind: Deployment
+      name: api
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 3
+
+  # Larger PVC for PostgreSQL
+  - target:
+      kind: StatefulSet
+      name: postgres
+    patch: |
+      - op: replace
+        path: /spec/volumeClaimTemplates/0/spec/resources/requests/storage
+        value: 50Gi
+
+  # Larger PVC for NATS
+  - target:
+      kind: PersistentVolumeClaim
+      name: nats-jetstream
+    patch: |
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: 20Gi
+
+  # Larger PVC for Valkey
+  - target:
+      kind: PersistentVolumeClaim
+      name: valkey-data
+    patch: |
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: 5Gi
+
+  # Enforce resource limits on API
+  - target:
+      kind: Deployment
+      name: api
+    patch: |
+      - op: add
+        path: /spec/template/spec/containers/0/resources/limits
+        value:
+          cpu: "1"
+          memory: 512Mi
+
+  # Enforce resource limits on graph-writer
+  - target:
+      kind: Deployment
+      name: graph-writer
+    patch: |
+      - op: add
+        path: /spec/template/spec/containers/0/resources/limits
+        value:
+          cpu: "1"
+          memory: 512Mi
+
+  # Pod security: restricted profile
+  - target:
+      kind: Namespace
+      name: core-graph
+    patch: |
+      - op: add
+        path: /metadata/labels/pod-security.kubernetes.io~1enforce
+        value: restricted
+      - op: add
+        path: /metadata/labels/pod-security.kubernetes.io~1warn
+        value: restricted

@@ -6,11 +6,10 @@ import logging
 import uuid
 from typing import Any
 
-import psycopg
-from psycopg.rows import dict_row
 from pydantic import BaseModel
 
-from api.config import DEFAULT_TLP, PG_DSN
+from api.config import DEFAULT_TLP
+from api.db import get_connection
 
 logger = logging.getLogger(__name__)
 
@@ -69,16 +68,10 @@ async def vector_search(
     else:
         raise ValueError("Either 'text' or 'vector' must be provided")
 
-    max_tlp = str(DEFAULT_TLP)
-    if caller_identity:
-        max_tlp = str(caller_identity.get("max_tlp", DEFAULT_TLP))
-
     correlation_id = uuid.uuid4()
+    caller = caller_identity or {"max_tlp": DEFAULT_TLP, "allowed_compartments": []}
 
-    async with await psycopg.AsyncConnection.connect(PG_DSN, row_factory=dict_row) as conn:
-        # Set RLS session variables
-        await conn.execute("select set_config('app.max_tlp', %s, true)", (max_tlp,))
-
+    async with get_connection(caller) as conn:
         cursor = await conn.execute(
             """
             select graph_id, label, content,

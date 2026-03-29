@@ -20,9 +20,9 @@ spec:
     spec:
       {{- include "core-graph.imagePullSecrets" . | nindent 6 }}
       initContainers:
-        {{- include "core-graph.waitFor" (dict "name" "postgres" "host" (include "core-graph.postgresHost" .) "port" (include "core-graph.postgresPort" . | trimAll " ")) | nindent 8 }}
+        {{- include "core-graph.waitFor" (dict "name" "postgres" "host" (include "core-graph.postgresHost" .) "port" (include "core-graph.postgresPort" . | trimAll " ") "waitForImage" .Values.global.waitForImage) | nindent 8 }}
         {{- if .Values.nats.enabled }}
-        {{- include "core-graph.waitFor" (dict "name" "nats" "host" (include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "nats")) "port" "4222") | nindent 8 }}
+        {{- include "core-graph.waitFor" (dict "name" "nats" "host" (include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "nats")) "port" "4222" "waitForImage" .Values.global.waitForImage) | nindent 8 }}
         {{- end }}
       containers:
         - name: graph-writer
@@ -30,13 +30,11 @@ spec:
           imagePullPolicy: {{ .Values.api.image.pullPolicy }}
           command: ["python", "-m", "ingest.graph_writer"]
           env:
-            - name: _PG_PASSWORD
+            - name: CG_PG_DSN
               valueFrom:
                 secretKeyRef:
                   name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "api") }}-secret
-                  key: pg-password
-            - name: CG_PG_DSN
-              value: {{ include "core-graph.postgresDSN" . | quote }}
+                  key: pg-dsn
           envFrom:
             - configMapRef:
                 name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "api") }}-config

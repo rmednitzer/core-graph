@@ -39,7 +39,7 @@ components:
       # Core-graph API + graph-writer
       - ghcr.io/rmednitzer/core-graph:0.1.0-alpha
       # PostgreSQL 16 (with AGE, pgvector, pgaudit, pg_cron)
-      - docker.io/library/postgres:16
+      - ghcr.io/rmednitzer/core-graph-postgres:16-extensions
       # NATS JetStream
       - docker.io/library/nats:2.10
       # Valkey (Redis-compatible cache)

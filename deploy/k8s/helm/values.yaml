@@ -7,6 +7,7 @@ global:
   imagePullSecrets: []
   nodeSelector: {}
   tolerations: []
+  waitForImage: "busybox:1.37"  # Override for air-gapped registries
 
 # ---------------------------------------------------------------------------
 # API — FastAPI REST server (port 8000)
@@ -61,9 +62,11 @@ graphWriter:
 # ---------------------------------------------------------------------------
 postgres:
   enabled: true
+  # Image must bundle Apache AGE, pgvector, pgaudit, and pg_cron.
+  # Built from deploy/docker/Dockerfile.postgres.
   image:
-    repository: postgres
-    tag: "16"
+    repository: rmednitzer/core-graph-postgres
+    tag: "16-extensions"
   storage: 10Gi
   storageClass: ""
   resources:
@@ -76,7 +79,7 @@ postgres:
   auth:
     database: core_graph
     username: cg_admin
-    password: changeme  # Override via --set or existingSecret in production
+    password: changeme  # Override via --set in production
   external:
     host: ""
     port: 5432

@@ -88,10 +88,11 @@ topologySpreadConstraints:
 
 {{/*
 Init container: wait for a TCP service to become reachable.
+The image is configurable via .Values.global.waitForImage for air-gapped registries.
 */}}
 {{- define "core-graph.waitFor" -}}
 - name: wait-for-{{ .name }}
-  image: busybox:1.37
+  image: {{ .waitForImage | default "busybox:1.37" }}
   command: ['sh', '-c', 'until nc -z {{ .host }} {{ .port }} ; do echo "waiting for {{ .name }}..."; sleep 2; done']
   securityContext:
     allowPrivilegeEscalation: false
@@ -161,13 +162,16 @@ PostgreSQL port.
 {{- end }}
 
 {{/*
-PostgreSQL DSN using variable substitution for the password.
-Consumers must inject _PG_PASSWORD env var from the secret.
+PostgreSQL DSN including username, password, host, port, and database.
+The full DSN is stored in a Secret so that the password is never exposed
+in a ConfigMap. Kubernetes does not interpolate env-var references inside
+other env-var values, so the password must be baked into the DSN string.
 */}}
 {{- define "core-graph.postgresDSN" -}}
 {{- $host := include "core-graph.postgresHost" . -}}
 {{- $port := include "core-graph.postgresPort" . -}}
-{{- printf "postgresql://%s:$(_PG_PASSWORD)@%s:%s/%s" .Values.postgres.auth.username (trimAll " " $host) (trimAll " " $port) .Values.postgres.auth.database -}}
+{{- $password := ternary .Values.postgres.auth.password .Values.postgres.external.password .Values.postgres.enabled -}}
+{{- printf "postgresql://%s:%s@%s:%s/%s" .Values.postgres.auth.username $password (trimAll " " $host) (trimAll " " $port) .Values.postgres.auth.database -}}
 {{- end }}
 
 {{/*

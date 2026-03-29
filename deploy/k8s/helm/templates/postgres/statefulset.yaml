@@ -20,7 +20,7 @@ spec:
       {{- include "core-graph.imagePullSecrets" . | nindent 6 }}
       containers:
         - name: postgres
-          image: "{{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}"
+          image: "{{ .Values.global.imageRegistry }}/{{ .Values.postgres.image.repository }}:{{ .Values.postgres.image.tag }}"
           ports:
             - containerPort: 5432
               name: postgres

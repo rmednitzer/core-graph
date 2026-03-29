@@ -6,7 +6,6 @@ metadata:
     {{- include "core-graph.labels" . | nindent 4 }}
     {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "api") | nindent 4 }}
 data:
-  CG_PG_DSN: {{ include "core-graph.postgresDSN" . | quote }}
   CG_NATS_URL: {{ include "core-graph.natsURL" . | quote }}
   CG_VALKEY_URL: {{ include "core-graph.valkeyURL" . | quote }}
   {{- range $key, $value := .Values.api.config }}

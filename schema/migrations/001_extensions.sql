@@ -15,4 +15,7 @@ CREATE EXTENSION IF NOT EXISTS pgaudit;
 CREATE EXTENSION IF NOT EXISTS pg_cron;
 
 -- Load AGE into the search path for all sessions
-ALTER DATABASE current_database() SET search_path = ag_catalog, "$user", public;
+do $$
+begin
+    execute format('alter database %I set search_path = ag_catalog, "$user", public', current_database());
+end $$;

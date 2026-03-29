@@ -11,20 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    services:
-      postgres:
-        image: apache/age:release_PG16_1.6.0
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: core_graph_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
     env:
       PGHOST: localhost
       PGPORT: 5432
@@ -33,17 +19,32 @@ jobs:
       PGDATABASE: core_graph_test
     steps:
       - uses: actions/checkout@v4
-      - name: Install extensions in service container
+      - name: Start PostgreSQL with all extensions
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y postgresql-client
-          CONTAINER=$(docker ps -q --filter ancestor=apache/age:release_PG16_1.6.0)
-          docker exec "$CONTAINER" bash -c \
+          # Phase 1: start with AGE only, install extra packages
+          docker run -d --name pgsetup \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_DB=core_graph_test \
+            apache/age:release_PG16_1.6.0
+          until docker exec pgsetup pg_isready -U postgres; do sleep 1; done
+          docker exec pgsetup bash -c \
             "apt-get update -qq && apt-get install -y postgresql-16-pgvector postgresql-16-pgaudit postgresql-16-cron"
-          psql -c "ALTER SYSTEM SET shared_preload_libraries = 'age,pgaudit,pg_cron';"
-          docker exec "$CONTAINER" bash -c "echo \"cron.database_name = 'core_graph_test'\" >> /var/lib/postgresql/data/postgresql.auto.conf"
-          docker restart "$CONTAINER"
-          until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done
+          docker stop pgsetup
+
+          # Phase 2: commit image with packages, restart with full shared_preload_libraries
+          docker commit pgsetup age-full
+          docker rm pgsetup
+          docker run -d --name pgtest -p 5432:5432 \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_DB=core_graph_test \
+            age-full \
+            postgres -c shared_preload_libraries='age,pgaudit,pg_cron' \
+              -c cron.database_name=core_graph_test
+          until docker exec pgtest pg_isready -U postgres; do sleep 1; done
+      - name: Install PostgreSQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y postgresql-client
       - name: Run migrations
         run: bash tests/schema/test_migrations.sh
       - name: Verify extensions exist
@@ -56,20 +57,6 @@ jobs:
     needs: schema-test
     permissions:
       contents: read
-    services:
-      postgres:
-        image: apache/age:release_PG16_1.6.0
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: core_graph_test
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
     env:
       PGHOST: localhost
       PGPORT: 5432
@@ -78,17 +65,29 @@ jobs:
       PGDATABASE: core_graph_test
     steps:
       - uses: actions/checkout@v4
-      - name: Install extensions in service container
+      - name: Start PostgreSQL with all extensions
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y postgresql-client
-          CONTAINER=$(docker ps -q --filter ancestor=apache/age:release_PG16_1.6.0)
-          docker exec "$CONTAINER" bash -c \
+          docker run -d --name pgsetup \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_DB=core_graph_test \
+            apache/age:release_PG16_1.6.0
+          until docker exec pgsetup pg_isready -U postgres; do sleep 1; done
+          docker exec pgsetup bash -c \
             "apt-get update -qq && apt-get install -y postgresql-16-pgvector postgresql-16-pgaudit postgresql-16-cron"
-          psql -c "ALTER SYSTEM SET shared_preload_libraries = 'age,pgaudit,pg_cron';"
-          docker exec "$CONTAINER" bash -c "echo \"cron.database_name = 'core_graph_test'\" >> /var/lib/postgresql/data/postgresql.auto.conf"
-          docker restart "$CONTAINER"
-          until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done
+          docker stop pgsetup
+          docker commit pgsetup age-full
+          docker rm pgsetup
+          docker run -d --name pgtest -p 5432:5432 \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_DB=core_graph_test \
+            age-full \
+            postgres -c shared_preload_libraries='age,pgaudit,pg_cron' \
+              -c cron.database_name=core_graph_test
+          until docker exec pgtest pg_isready -U postgres; do sleep 1; done
+      - name: Install PostgreSQL client
+        run: sudo apt-get update -qq && sudo apt-get install -y postgresql-client
       - name: Run migrations
         run: bash tests/schema/test_migrations.sh
       - name: Run RLS tests

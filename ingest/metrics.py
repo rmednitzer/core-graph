@@ -6,7 +6,7 @@ pipeline, graph writer, dedup, and DLQ subsystems.
 
 from __future__ import annotations
 
-from prometheus_client import Counter, Histogram
+from prometheus_client import Counter, Gauge, Histogram
 
 ingest_events_total = Counter(
     "cg_ingest_events_total",
@@ -42,4 +42,24 @@ bloom_checks_total = Counter(
 audit_log_entries_total = Counter(
     "cg_audit_log_entries_total",
     "Total audit log entries written",
+)
+
+# -- Adapter-level metrics (used by AdapterBase) ----------------------------
+
+adapter_fetch_total = Counter(
+    "cg_adapter_fetch_total",
+    "Total adapter fetch operations",
+    ["adapter", "status"],
+)
+
+adapter_entities_total = Counter(
+    "cg_adapter_entities_total",
+    "Total entities published by adapters",
+    ["adapter", "label"],
+)
+
+adapter_delta_lag_seconds = Gauge(
+    "cg_adapter_delta_lag_seconds",
+    "Seconds since last successful delta sync",
+    ["adapter"],
 )

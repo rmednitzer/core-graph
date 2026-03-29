@@ -3,26 +3,19 @@
 Periodically polls the Netbox REST API for devices, VMs, prefixes, sites,
 interfaces, and services.  Publishes normalised entities to the NATS
 ``enriched.entity.*`` stream for direct graph writer consumption.
-Uses Valkey for delta-sync caching.
+Uses Valkey for delta-sync caching. Extends AdapterBase.
 """
 
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-import uuid
-from datetime import UTC, datetime
 from typing import Any
 
 import httpx
-import nats
-import psycopg
-import redis.asyncio as redis
-from nats.js.api import StreamConfig
 
-from api.config import NATS_URL, PG_DSN, VALKEY_URL
 from ingest.canonical import canonical_key
+from ingest.connectors.base import AdapterBase, AdapterConfig
 from ingest.connectors.netbox.config import NetboxConfig
 
 logger = logging.getLogger(__name__)
@@ -150,129 +143,141 @@ ENDPOINT_MAPPERS: dict[str, Any] = {
 }
 
 
-# -- Fetching ----------------------------------------------------------------
+class NetboxAdapter(AdapterBase):
+    """Netbox CMDB/IPAM adapter using AdapterBase."""
 
-
-async def _fetch_endpoint(
-    client: httpx.AsyncClient,
-    base_url: str,
-    endpoint: str,
-    token: str,
-    cache: redis.Redis,
-) -> list[dict[str, Any]]:
-    """Fetch all objects from a paginated Netbox endpoint.
-
-    Uses Valkey to cache the last sync timestamp per endpoint so only
-    objects modified since the last run are returned.
-    """
-    cache_key = f"netbox:sync:{endpoint}:last_modified"
-    last_modified = await cache.get(cache_key)
-
-    url = f"{base_url.rstrip('/')}{endpoint}"
-    params: dict[str, Any] = {"limit": 100, "offset": 0}
-    if last_modified:
-        params["modified_after"] = last_modified.decode()
-
-    headers = {"Authorization": f"Token {token}", "Accept": "application/json"}
-    results: list[dict[str, Any]] = []
-
-    while True:
-        try:
-            resp = await client.get(url, params=params, headers=headers, timeout=30)
-            resp.raise_for_status()
-        except httpx.HTTPError:
-            logger.warning("Netbox %s: fetch failed", endpoint, exc_info=True)
-            break
-
-        body = resp.json()
-        page_results = body.get("results", [])
-        results.extend(page_results)
-
-        if not body.get("next"):
-            break
-        params["offset"] += params["limit"]
-
-    # Update cache timestamp for next delta sync.
-    if results:
-        await cache.set(cache_key, datetime.now(UTC).isoformat())
-
-    return results
-
-
-# -- Publishing --------------------------------------------------------------
-
-
-async def _publish_entities(
-    js: nats.js.JetStreamContext,
-    endpoint: str,
-    objects: list[dict[str, Any]],
-) -> int:
-    """Map Netbox objects to graph entities and publish to NATS."""
-    mapper = ENDPOINT_MAPPERS.get(endpoint)
-    if not mapper:
-        return 0
-
-    count = 0
-    for obj in objects:
-        entity = mapper(obj)
-        await js.publish(
-            NATS_SUBJECT,
-            json.dumps(entity, default=str).encode(),
+    def __init__(self, config: NetboxConfig | None = None) -> None:
+        self.netbox_config = config or NetboxConfig()
+        super().__init__(
+            AdapterConfig(
+                name="netbox",
+                nats_subject=NATS_SUBJECT,
+                nats_stream="ENRICHED",
+                poll_interval=self.netbox_config.interval,
+                default_tlp=DEFAULT_TLP,
+                delta_sync=True,
+            )
         )
-        count += 1
+        self._http_client: httpx.AsyncClient | None = None
+
+    async def fetch(self, since: str | None) -> list[dict[str, Any]]:
+        """Fetch all objects from all Netbox endpoints."""
+        if self._http_client is None:
+            self._http_client = httpx.AsyncClient(
+                verify=self.netbox_config.verify_ssl
+            )
+
+        all_objects: list[dict[str, Any]] = []
+        for endpoint in ENDPOINT_MAPPERS:
+            objects = await self._fetch_endpoint(endpoint, since)
+            # Tag each object with its source endpoint for map()
+            for obj in objects:
+                obj["_endpoint"] = endpoint
+            all_objects.extend(objects)
+        return all_objects
+
+    def map(self, raw: dict[str, Any]) -> dict[str, Any] | None:
+        """Map a Netbox object to a graph entity payload."""
+        endpoint = raw.pop("_endpoint", "")
+        mapper = ENDPOINT_MAPPERS.get(endpoint)
+        if mapper is None:
+            return None
+        entity = mapper(raw)
 
         # Also publish a CanonicalIP if the entity has a primary IP.
+        # The base class publish handles a single entity, so we store
+        # extra entities to be published by the overridden run loop.
         primary_ip = entity.get("properties", {}).get("primary_ip", "")
         if primary_ip:
-            ip_entity = {
+            self._pending_ip_entities.append({
                 "label": "CanonicalIP",
                 "properties": {
                     "value": primary_ip,
                     "tlp": DEFAULT_TLP,
                 },
-            }
-            await js.publish(
-                NATS_SUBJECT,
-                json.dumps(ip_entity, default=str).encode(),
-            )
+            })
+        return entity
 
-    return count
+    async def run(
+        self,
+        nats_url: str | None = None,
+        valkey_url: str | None = None,
+        pg_dsn: str | None = None,
+    ) -> None:
+        """Override run to handle CanonicalIP side-publishing."""
+        self._pending_ip_entities: list[dict[str, Any]] = []
 
+        # Store original _publish to wrap it
+        original_publish = self._publish
 
-# -- Audit -------------------------------------------------------------------
+        async def _publish_with_ips(entity: dict[str, Any]) -> None:
+            await original_publish(entity)
+            # Publish any pending IP entities
+            while self._pending_ip_entities:
+                ip_entity = self._pending_ip_entities.pop(0)
+                await original_publish(ip_entity)
 
+        self._publish = _publish_with_ips  # type: ignore[assignment]
 
-async def _write_audit_entry(
-    pg_dsn: str,
-    entity_count: int,
-    endpoint: str,
-) -> None:
-    """Log sync cycle to the audit trail."""
-    try:
-        async with await psycopg.AsyncConnection.connect(pg_dsn) as conn:
-            await conn.execute(
-                """
-                insert into audit_log
-                    (entity_label, operation, actor, correlation_id)
-                values (%s, %s, %s, %s)
-                """,
-                (
-                    f"netbox:{endpoint}",
-                    "SYNC",
-                    "netbox_adapter",
-                    uuid.uuid4(),
-                ),
-            )
-            await conn.commit()
-    except Exception:
-        logger.warning(
-            "Failed to write audit entry for endpoint %s",
-            endpoint,
-            exc_info=True,
-        )
+        try:
+            await super().run(nats_url, valkey_url, pg_dsn)
+        finally:
+            if self._http_client:
+                await self._http_client.aclose()
 
+    async def _fetch_endpoint(
+        self,
+        endpoint: str,
+        since: str | None,
+    ) -> list[dict[str, Any]]:
+        """Fetch all objects from a paginated Netbox endpoint."""
+        if self._http_client is None:
+            return []
 
-# -- Main loop ---------------------------------------------------------------
+        # Use per-endpoint delta sync from Valkey
+        cache_key = f"netbox:sync:{endpoint}:last_modified"
+        last_modified = None
+        if self._cache and since:
+            raw = await self._cache.get(cache_key)
+            if raw:
+                last_modified = raw.decode()
+
+        url = f"{self.netbox_config.url.rstrip('/')}{endpoint}"
+        params: dict[str, Any] = {"limit": 100, "offset": 0}
+        if last_modified:
+            params["modified_after"] = last_modified
+
+        headers = {
+            "Authorization": f"Token {self.netbox_config.token}",
+            "Accept": "application/json",
+        }
+        results: list[dict[str, Any]] = []
+
+        while True:
+            try:
+                resp = await self._http_client.get(
+                    url, params=params, headers=headers, timeout=30
+                )
+                resp.raise_for_status()
+            except httpx.HTTPError:
+                self._logger.warning("Netbox %s: fetch failed", endpoint, exc_info=True)
+                break
+
+            body = resp.json()
+            page_results = body.get("results", [])
+            results.extend(page_results)
+
+            if not body.get("next"):
+                break
+            params["offset"] += params["limit"]
+
+        # Update per-endpoint cache timestamp
+        if results and self._cache:
+            from datetime import UTC, datetime
+
+            await self._cache.set(cache_key, datetime.now(UTC).isoformat())
+
+        return results
 
 
 async def run(
@@ -281,60 +286,9 @@ async def run(
     valkey_url: str | None = None,
     pg_dsn: str | None = None,
 ) -> None:
-    """Main loop: periodically sync Netbox objects into the graph."""
-    cfg = config or NetboxConfig()
-    nats_addr = nats_url or NATS_URL
-    valkey_addr = valkey_url or VALKEY_URL
-    dsn = pg_dsn or PG_DSN
-
-    nc = await nats.connect(nats_addr)
-    js = nc.jetstream()
-
-    await js.add_stream(
-        StreamConfig(
-            name="ENRICHED",
-            subjects=["enriched.entity.>"],
-            retention="work_queue",
-            max_bytes=1_073_741_824,
-        )
-    )
-
-    cache = redis.from_url(valkey_addr)
-
-    logger.info(
-        "Netbox adapter started, url=%s, interval=%ds, NATS=%s",
-        cfg.url,
-        cfg.interval,
-        nats_addr,
-    )
-
-    try:
-        async with httpx.AsyncClient(verify=cfg.verify_ssl) as client:
-            while True:
-                total = 0
-                for endpoint in ENDPOINT_MAPPERS:
-                    objects = await _fetch_endpoint(
-                        client,
-                        cfg.url,
-                        endpoint,
-                        cfg.token,
-                        cache,
-                    )
-                    if objects:
-                        count = await _publish_entities(js, endpoint, objects)
-                        total += count
-                        await _write_audit_entry(dsn, count, endpoint)
-                        logger.info(
-                            "Netbox %s: published %d entities",
-                            endpoint,
-                            count,
-                        )
-
-                logger.info("Netbox sync cycle complete: %d entities total", total)
-                await asyncio.sleep(cfg.interval)
-    finally:
-        await cache.aclose()
-        await nc.close()
+    """Backward-compatible entry point."""
+    adapter = NetboxAdapter(config)
+    await adapter.run(nats_url, valkey_url, pg_dsn)
 
 
 if __name__ == "__main__":

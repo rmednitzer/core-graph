@@ -3,8 +3,8 @@
 core-graph is a converged graph-vector knowledge platform built on PostgreSQL.
 It ingests structured entities from satellite security systems through NATS
 JetStream, stores them in a graph (Apache AGE) and vector (pgvector) enabled
-PostgreSQL instance, and exposes them to AI agents via MCP and to humans via
-REST and GraphQL APIs.
+PostgreSQL instance, and exposes them to AI agents via MCP, to humans via
+REST API, and to partner organisations via TAXII 2.1.
 
 Design goals: EU-sovereign, single-engineer operable, auditable,
 evidence-producing.
@@ -42,38 +42,38 @@ authorization at every tier.
   +-----------+   |              |               |  +---------------+  |
                   |              |               |                     |
   +-----------+   |              v               |  Entity Resolution  |
-  |  Syslog / |---+      +------+-------+       |  + Graph Writer     |
-  |  Logs     |          | Dead-letter  |       +----------+----------+
-  +-----------+          | queue (DLQ)  |                  |
-                         +--------------+                  |
-                                                           v
-                                              +------------+-------------+
-          +-------------------+               |                          |
-          |   Valkey Cache    |<------------->|       PostgreSQL 16+     |
-          |                   |               |                          |
-          | - Session state   |               |  +--------------------+  |
-          | - Rate limiting   |               |  | Apache AGE         |  |
-          | - Hot query cache |               |  | (openCypher graph) |  |
-          +-------------------+               |  +--------------------+  |
-                                              |  +--------------------+  |
-                                              |  | pgvector (HNSW)    |  |
-  +-------------------+                       |  | (embeddings)       |  |
-  |  Cerbos (ABAC)    |---+                   |  +--------------------+  |
-  |  TLP clearance,   |   |                   |  +--------------------+  |
-  |  role policies    |   |                   |  | RLS engine         |  |
-  +-------------------+   |                   |  | TLP + compartment  |  |
-                          v                   |  | enforcement        |  |
-  +-------------------+  ++----------+        |  +--------------------+  |
-  |  SpiceDB (ReBAC)  |->| API Layer |<------+|  +--------------------+  |
-  |  Compartments,    |  | (FastAPI) |        |  | Bitemporal model   |  |
-  |  team ownership   |  +--+--+--+--+        |  | t_valid/t_invalid  |  |
-  +-------------------+     |  |  |           |  | t_recorded/t_super |  |
-                            |  |  |           |  +--------------------+  |
-               +------------+  |  +------+    +-------------------------+
+  |  Netbox   |---+      +------+-------+       |  + Graph Writer     |
+  |  (CMDB)   |   |      | Dead-letter  |       +----------+----------+
+  +-----------+   |      | queue (DLQ)  |                  |
+                  |      +--------------+                  |
+  +-----------+   |                                        v
+  |Prometheus |---+                          +------------+-------------+
+  |(Alerting) |        +-------------------+ |                          |
+  +-----------+        |   Valkey Cache    |<|       PostgreSQL 16+     |
+                       |                   | |                          |
+                       | - Session state   | |  +--------------------+  |
+                       | - Rate limiting   | |  | Apache AGE         |  |
+                       | - Hot query cache | |  | (openCypher graph) |  |
+                       +-------------------+ |  +--------------------+  |
+                                             |  +--------------------+  |
+                                             |  | pgvector (HNSW)    |  |
+  +-------------------+                      |  | (embeddings)       |  |
+  |  Cerbos (ABAC)    |---+                  |  +--------------------+  |
+  |  TLP clearance,   |   |                  |  +--------------------+  |
+  |  role policies    |   |                  |  | RLS engine         |  |
+  +-------------------+   |                  |  | TLP + compartment  |  |
+                          v                  |  | enforcement        |  |
+  +-------------------+  ++----------+       |  +--------------------+  |
+  |  SpiceDB (ReBAC)  |->| API Layer |<-----+|  +--------------------+  |
+  |  Compartments,    |  | (FastAPI) |       |  | Bitemporal model   |  |
+  |  team ownership   |  +--+--+--+--+       |  | t_valid/t_invalid  |  |
+  +-------------------+     |  |  |          |  | t_recorded/t_super |  |
+                            |  |  |          |  +--------------------+  |
+               +------------+  |  +------+   +-------------------------+
                |               |         |
          +-----+------+ +-----+----+ +--+--------+
-         | MCP Server | | REST API | | GraphQL   |
-         | (AI agents)| | (humans) | | (optional)|
+         | MCP Server | | REST API | | TAXII 2.1 |
+         | (AI agents)| | (humans) | | (sharing) |
          +------------+ +----------+ +-----------+
 
   Evidence Chain
@@ -101,9 +101,9 @@ authorization at every tier.
 | Valkey 8+ | In-memory cache for session state, rate limiting, and hot query results; Redis-compatible fork | BSD 3-Clause |
 | Harbor 2+ | Self-hosted OCI container registry for EU data residency compliance; no Docker Hub pulls in production | Apache 2.0 |
 
-## Six ontology layers
+## Seven ontology layers
 
-core-graph organises knowledge into six typed layers. Each layer has its own
+core-graph organises knowledge into seven typed layers. Each layer has its own
 AGE graph label namespace, standards mapping, and retention policy. All layers
 share the bitemporal model described below.
 
@@ -115,6 +115,7 @@ share the bitemporal model described below.
 | **Audit and compliance** | Policy evaluations, compliance check results, control mappings for NIS2, DORA, and ISO 27001. Machine-readable evidence for auditors. | OSCAL, custom schemas | 10 years (regulatory minimum per DORA Art. 17) |
 | **AI memory** | Agent conversation context, reasoning traces, tool invocations, semantic embeddings. Enables continuity across MCP sessions. | Custom (MCP-aligned) | 90 days hot, 2 years archive |
 | **Forensic timeline** | Ordered evidence chains for incident response. Immutable once sealed. Backed by MinIO WORM and cosign signatures. | CASE/UCO, STIX 2.1 | Indefinite (sealed, WORM-backed) |
+| **Infrastructure and assets** | Hosts, networks, sites, interfaces, services, and monitoring alerts. Populated from Netbox (CMDB) and Prometheus (alerting). | Custom (Netbox/Prometheus aligned) | Indefinite (bitemporally versioned) |
 
 ### Bitemporal model
 
@@ -204,43 +205,43 @@ python -m evidence.verify_chain --from-audit-log --check-minio
 
 ## Phased implementation roadmap
 
-### Phase 1 -- Foundation
+### Phase 1 -- Foundation ✅
 
 Target: local development environment fully functional, schema stable.
 
-- PostgreSQL schema: bitemporal tables, AGE graph labels, pgvector HNSW indexes
-- Local development stack: Docker Compose with PostgreSQL, NATS, Valkey, MinIO
-- Ingest foundation: NATS consumer skeleton, tier-1 NER (regex + STIX pattern matching)
-- MCP server skeleton: tool registration, basic graph query, semantic search stubs
-- RLS policies: TLP enforcement at the engine level, session variable pipeline
-- Seed data: MITRE ATT&CK (Enterprise, ICS, Mobile), STIX vocabularies, role definitions
-- Migration framework: numbered SQL files, idempotent execution, rollback support
-- Basic test suite: schema validation, RLS enforcement tests, migration idempotency
+- ✅ PostgreSQL schema: bitemporal tables, AGE graph labels, pgvector HNSW indexes
+- ✅ Local development stack: Docker Compose with PostgreSQL, NATS, Valkey, MinIO
+- ✅ Ingest foundation: NATS consumer skeleton, tier-1 NER (regex + STIX pattern matching)
+- ✅ MCP server skeleton: tool registration, basic graph query, semantic search stubs
+- ✅ RLS policies: TLP enforcement at the engine level, session variable pipeline
+- ✅ Seed data: MITRE ATT&CK (Enterprise, ICS, Mobile), STIX vocabularies, role definitions
+- ✅ Migration framework: numbered SQL files, idempotent execution, rollback support
+- ✅ Basic test suite: schema validation, RLS enforcement tests, migration idempotency
 
-### Phase 2 -- Ingest pipeline and evidence
+### Phase 2 -- Ingest pipeline and evidence ✅
 
 Target: satellite systems connected, evidence chain operational.
 
-- Full satellite connectors: Wazuh, OpenCTI, MISP, OSINT feeds, syslog
-- NER tiers 2 and 3: spaCy NER models, LLM-assisted entity extraction
-- Entity resolution: deduplication, merging, confidence scoring, provenance tracking
-- Graph writer: batch upsert with bitemporal versioning, conflict resolution
-- Evidence signing pipeline: cosign integration, Rekor log submission
-- MinIO WORM configuration: object-lock policies, retention rules, lifecycle management
-- Cerbos policy library: TLP, role, time-based, and source-IP policies
-- SpiceDB schema: investigation compartments, team ownership, delegation relations
-- Dead-letter queue processing: retry logic, alerting, manual review workflow
+- ✅ Full satellite connectors: Wazuh, OpenCTI, MISP, OSINT feeds, Netbox, Prometheus
+- ✅ Entity resolution: deduplication, merging, confidence scoring, provenance tracking
+- ✅ Graph writer: batch upsert with bitemporal versioning, conflict resolution
+- ✅ Evidence signing pipeline: cosign integration, Rekor log submission
+- ✅ MinIO WORM configuration: object-lock policies, retention rules, lifecycle management
+- ✅ Cerbos policy library: TLP, role, time-based, and source-IP policies
+- ✅ SpiceDB schema: investigation compartments, team ownership, delegation relations
+- ✅ Dead-letter queue processing: retry logic, alerting, manual review workflow
+- NER tiers 2 and 3: spaCy NER models, LLM-assisted entity extraction (planned)
 
-### Phase 3 -- Deployment and federation
+### Phase 3 -- Deployment and federation (in progress)
 
 Target: production-grade Kubernetes deployment, inter-organisational sharing.
 
-- Kubernetes deployment: Kustomize overlays for lab and production environments
-- TAXII 2.1 server: federated threat intelligence sharing with partner organisations
-- GraphQL API: optional query interface for complex graph traversals and aggregations
+- ✅ Kubernetes deployment: Helm chart with lab and production profiles, ArgoCD manifests
+- ✅ TAXII 2.1 server: federated threat intelligence sharing with partner organisations
+- ✅ Air-gapped deployment: Zarf package for disconnected clusters
+- ✅ Monitoring stack: Prometheus metrics, Grafana dashboards
 - Horizontal read scaling: PostgreSQL streaming replicas with read routing
 - NATS cluster: multi-node JetStream for message bus resilience
-- Monitoring stack: Prometheus metrics, Grafana dashboards, PagerDuty alerting
 - EU data residency controls: Harbor registry, self-hosted package proxies, DNS/NTP sovereignty
 - Backup and restore: automated PostgreSQL backups to Hetzner Object Storage (EU)
 

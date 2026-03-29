@@ -4,9 +4,8 @@ A converged graph-vector knowledge platform built on PostgreSQL with Apache AGE
 and pgvector. Designed for EU-sovereign deployment with security, compliance,
 and operational assurance as structural properties.​
 
-<!-- Badges placeholder -->
-<!-- ![CI](https://github.com/rmednitzer/core-graph/actions/workflows/test.yml/badge.svg) -->
-<!-- ![License](https://img.shields.io/badge/license-Apache--2.0-blue) -->
+![CI](https://github.com/rmednitzer/core-graph/actions/workflows/test.yml/badge.svg)
+![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 
 ## What it does
 
@@ -15,9 +14,10 @@ core-graph is a canonical convergence point for heterogeneous data domains:
 - **Threat intelligence** (STIX 2.1 native, OpenCTI/MISP integration)
 - **Security events** (OCSF-normalised, Wazuh SIEM feed)
 - **OSINT** (feed aggregation, entity extraction, deduplication)
-- **Standards and legal** (regulatory frameworks, internal documentation, laws)
 - **Audit and compliance** (evidence chains, control mapping, NIS2/CRA/GDPR/AI Act)
+- **AI memory** (agent conversation context, reasoning traces, semantic embeddings)
 - **Forensic timelines** (bitemporal facts, chain of custody)
+- **Infrastructure and assets** (CMDB, network inventory, monitoring alerts via Netbox/Prometheus)
 
 ## Status
 
@@ -95,6 +95,11 @@ zarf package deploy zarf-package-core-graph-amd64-0.1.0.tar.zst \
 │   (SIEM)    │   │  (ThreatI.) │   │  (Sharing)  │
 └──────┬──────┘   └──────┬──────┘   └──────┬──────┘
        │                 │                 │
+┌──────┴──────┐   ┌──────┴──────┐          │
+│  Netbox     │   │ Prometheus  │          │
+│  (CMDB)     │   │ (Alerting)  │          │
+└──────┬──────┘   └──────┬──────┘          │
+       │                 │                 │
        └────────┬────────┴────────┬────────┘
                 │  NATS JetStream │
                 └────────┬────────┘
@@ -109,7 +114,7 @@ zarf package deploy zarf-package-core-graph-amd64-0.1.0.tar.zst \
            └─────────────┬─────────────┘
                          │
               ┌──────────┴──────────┐
-              │    REST + MCP API   │
+              │  REST + MCP + TAXII │
               │  Cerbos · SpiceDB   │
               └─────────────────────┘
 ```
@@ -137,7 +142,7 @@ core-graph/
 ├── schema/         SQL migrations (numbered) and seed data
 ├── policies/       Authorization policies (Cerbos YAML)
 ├── ingest/         Satellite connectors, NER pipeline, graph writer, DLQ
-├── api/            MCP server, REST API, authz (SpiceDB/Cerbos), connection pool
+├── api/            MCP server, REST API, TAXII 2.1 server, authz (SpiceDB/Cerbos)
 ├── deploy/         Docker Compose (dev), Kustomize, Helm chart, ArgoCD manifests
 ├── evidence/       Signing, hash chains, MinIO WORM, Rekor integration
 ├── tests/          Schema, RLS, ingest, and auth tests

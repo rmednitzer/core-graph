@@ -1,16 +1,17 @@
-# Schema design: six-layer unified ontology
+# Schema design: seven-layer unified ontology
 
 ## Introduction
 
-core-graph consolidates six distinct knowledge domains into a single PostgreSQL
+core-graph consolidates seven distinct knowledge domains into a single PostgreSQL
 graph powered by Apache AGE (openCypher) and pgvector (HNSW embeddings). Rather
 than maintaining separate databases per domain, a unified graph lets analysts
 traverse from a STIX threat actor through the security events it generated,
 into the OSINT articles that first reported it, across the compliance controls
-it violates, through any AI-assisted investigation sessions, and along the
-forensic timeline that reconstructs the full incident narrative.
+it violates, through any AI-assisted investigation sessions, along the
+forensic timeline that reconstructs the full incident narrative, and into the
+infrastructure assets affected.
 
-All six layers share one set of bitemporal columns, one entity-resolution
+All seven layers share one set of bitemporal columns, one entity-resolution
 pattern, one Row-Level Security policy hierarchy (TLP-based), and one
 authorization stack (Cerbos ABAC + SpiceDB ReBAC). This means a single query
 can cross layer boundaries without federation, and every fact in the graph
@@ -236,6 +237,48 @@ extracts) stored in MinIO WORM buckets with integrity guarantees.
 
 10 years minimum from `t_recorded`. Forensic evidence chains must outlast any
 plausible litigation or regulatory inquiry window.
+
+---
+
+## Layer 7: Infrastructure and assets
+
+Infrastructure data arrives from Netbox (CMDB/IPAM) and Prometheus
+(AlertManager webhook). This layer models the physical and logical environment:
+hosts, networks, sites, interfaces, services, and monitoring alerts. Linking
+infrastructure vertices to threat intelligence and security event layers enables
+impact analysis queries such as "which hosts are affected by this vulnerability?"
+or "what services run on the compromised network segment?"
+
+### Vertex labels
+
+| Label | Purpose |
+|---|---|
+| `Host` | Physical or virtual machine (server, workstation, VM, container host) |
+| `Network` | IP subnet or VLAN |
+| `Site` | Physical location (data centre, office, campus) |
+| `Interface` | Network interface on a host (NIC, bond, VLAN subinterface) |
+| `Service` | Application or daemon running on a host (HTTP, DNS, database) |
+| `MonitoringAlert` | Alert from Prometheus AlertManager or equivalent monitoring system |
+
+### Edge labels
+
+| Label | Typical source | Typical target | Meaning |
+|---|---|---|---|
+| `hosted_on` | Service, Interface | Host | Service runs on or interface belongs to this host |
+| `member_of` | Host, Interface | Network | Host or interface is a member of this network segment |
+| `connects_to` | Host, Service | Host, Service | Network connectivity or dependency between entities |
+| `located_at` | Host, Network | Site | Physical location of infrastructure |
+| `monitors` | MonitoringAlert | Host, Service, Network | Alert targets this infrastructure entity |
+
+### Retention
+
+Indefinite (bitemporally versioned). Infrastructure facts are superseded when
+Netbox syncs report changes, but historical state is preserved for forensic
+reconstruction.
+
+### Reference
+
+See `schema/migrations/009_infra_layer.sql` for the graph label definitions.
 
 ---
 

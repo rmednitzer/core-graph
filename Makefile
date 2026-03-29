@@ -1,4 +1,4 @@
-.PHONY: help up down migrate seed validate test lint clean reset psql
+.PHONY: help up down migrate seed validate test lint clean reset psql serve mcp graph-writer integration-test verify-chain
 
 # Database connection defaults (override via environment)
 PGHOST   ?= localhost
@@ -72,3 +72,18 @@ reset: ## Drop and recreate database, rerun migrations and seeds
 
 psql: ## Connect to local dev database interactively
 	psql
+
+serve: ## Run REST API locally via uvicorn
+	uvicorn api.rest.main:app --reload --port 8000
+
+mcp: ## Run the MCP server
+	python -m api.mcp.server
+
+graph-writer: ## Run the graph writer worker
+	python -m ingest.graph_writer
+
+integration-test: ## Run integration tests only
+	pytest -m integration -v
+
+verify-chain: ## Run audit log hash chain verification
+	python -m evidence.chain.verify

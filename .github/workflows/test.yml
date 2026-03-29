@@ -21,7 +21,6 @@ jobs:
       - uses: actions/checkout@v6
       - name: Start PostgreSQL with all extensions
         run: |
-          # Phase 1: start with AGE only, install extra packages
           docker run -d --name pgsetup \
             -e POSTGRES_USER=postgres \
             -e POSTGRES_PASSWORD=postgres \
@@ -32,7 +31,6 @@ jobs:
             "apt-get update -qq && apt-get install -y postgresql-16-pgvector postgresql-16-pgaudit postgresql-16-cron"
           docker stop pgsetup
 
-          # Phase 2: commit image with packages, restart with full shared_preload_libraries
           docker commit pgsetup age-full
           docker rm pgsetup
           docker run -d --name pgtest -p 5432:5432 \
@@ -130,6 +128,21 @@ jobs:
         run: pip install '.[test]'
       - name: Run pytest
         run: pytest -m "not integration"
+
+  taxii-test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install '.[test]'
+      - name: Run TAXII endpoint tests
+        run: pytest tests/taxii/ -v
 
   integration-test:
     runs-on: ubuntu-latest

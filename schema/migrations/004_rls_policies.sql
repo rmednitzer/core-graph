@@ -80,9 +80,10 @@ begin
         execute format('drop policy if exists ciso_full_access on core_graph.%I', tbl.relname);
 
         -- Create TLP-based read policy for general roles
+        -- AGE stores properties as agtype; cast to text first, then to jsonb
         execute format(
             'create policy tlp_read_policy on core_graph.%I for select using (
-                coalesce((properties::jsonb->>''tlp_level'')::int, 1)
+                coalesce(((properties::text)::jsonb->>''tlp_level'')::int, 1)
                 <= coalesce(current_setting(''app.max_tlp'', true)::int, 1)
             )',
             tbl.relname

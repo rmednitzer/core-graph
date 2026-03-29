@@ -28,6 +28,7 @@ ssl_min_protocol_version = 'TLSv1.3'
 ```
 
 Certificate files must be provisioned at:
+
 - `/etc/ssl/certs/server.crt` (server certificate)
 - `/etc/ssl/private/server.key` (private key, mode 0600)
 
@@ -58,6 +59,7 @@ pgaudit.log_statement_once = on
 ### Log Review
 
 Review pgAudit logs for:
+
 - Unexpected DDL (schema changes outside migration windows)
 - Write operations from unexpected roles
 - Bulk DELETE or TRUNCATE operations

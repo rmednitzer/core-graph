@@ -89,13 +89,13 @@ team.
 psql -f tests/rls/test_tlp_enforcement.sql
 ```
 
-3. Run the Cerbos policy tests:
+1. Run the Cerbos policy tests:
 
 ```bash
 cerbos compile --tests=tests/auth policies/
 ```
 
-4. Verify with manual spot checks at each TLP level:
+1. Verify with manual spot checks at each TLP level:
 
 ```sql
 begin;
@@ -112,6 +112,7 @@ rollback;
 ## Post-Incident Documentation
 
 File an incident report covering:
+
 - Timeline of the misconfiguration (when introduced, when detected)
 - Scope of exposure (which data, which users)
 - Root cause and fix applied

@@ -9,6 +9,7 @@
 ## Severity Assessment
 
 A broken hash chain is a **high-severity** event. It indicates either:
+
 1. A software bug in the hash chain computation
 2. Unauthorized modification of the audit log
 3. Database-level corruption or improper restore
@@ -117,6 +118,7 @@ would itself be an integrity violation. Options:
 ### NIS2 Art. 23 Timeline
 
 If the chain break indicates a security incident:
+
 - **24 hours**: Early warning to competent authority (BSI for DE)
 - **72 hours**: Incident notification with initial assessment
 - **1 month**: Final report with root cause and remediation
@@ -124,6 +126,7 @@ If the chain break indicates a security incident:
 ### Evidence Preservation
 
 All artifacts must be:
+
 1. Signed with cosign (`python -m evidence.signing.sign <file>`)
 2. Uploaded to MinIO WORM bucket (object lock prevents deletion)
 3. Registered in Rekor transparency log

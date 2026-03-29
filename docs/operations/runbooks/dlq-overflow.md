@@ -23,8 +23,8 @@ from dlq_archive;
 ```sql
 select original_subject,
        count(*) as count,
-       min(first_failed_at) as earliest,
-       max(first_failed_at) as latest
+       min(first_failed) as earliest,
+       max(first_failed) as latest
 from dlq_archive
 where resolved = false
 group by original_subject
@@ -61,6 +61,7 @@ retries cannot resolve.
 ### 1. Identify the root cause
 
 Common causes:
+
 - **Schema mismatch**: Incoming data does not match expected graph labels
 - **Upstream data quality**: Malformed payloads from satellite connectors
 - **PostgreSQL errors**: Connection issues, constraint violations

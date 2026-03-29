@@ -20,6 +20,7 @@
 | Policy integrity and non-repudiation | Evidence integrity via SHA-256 hash chain + MinIO WORM storage. Each policy revision is signed with cosign and recorded in the Rekor transparency log. |
 
 **Evidence artefacts:**
+
 - `audit_log` entries with `action = 'risk_assessment_updated'`
 - Graph query: `MATCH (r:RiskAssessment)-[:AFFECTS]->(a:Asset) RETURN r, a`
 - MinIO WORM bucket `evidence/risk-assessments/`
@@ -38,6 +39,7 @@
 | Incident timeline | Forensic timeline (Layer 6) maintains strict temporal ordering with nanosecond-precision timestamps (ISO 8601, UTC). |
 
 **Evidence artefacts:**
+
 - NATS stream `INGEST.*` consumer lag metrics
 - Graph query: `MATCH path = (root)-[:CAUSED_BY*]->(effect) RETURN path`
 - `audit_log` entries with `action = 'incident_created'`
@@ -56,6 +58,7 @@
 | Recovery testing | Monthly restore tests executed and documented as compliance evidence in Layer 4 (audit/compliance). |
 
 **Evidence artefacts:**
+
 - pgBackRest backup manifests in MinIO `backups/`
 - WAL archive lag monitoring (must be 0 for evidence chain)
 - Graph query: `MATCH (s:Service)-[:DEPENDS_ON*]->(d) RETURN s, d`
@@ -74,6 +77,7 @@
 | Image signing | cosign enforces image signature verification before deployment. Unsigned images are rejected by admission policy. |
 
 **Evidence artefacts:**
+
 - Harbor scan reports per image tag
 - Graph query: `MATCH (c:Component)-[:AFFECTED_BY]->(v:Vulnerability) RETURN c, v`
 - Dependabot alert ingest log in NATS stream `INGEST.dependabot`
@@ -92,6 +96,7 @@
 | Schema management | Numbered SQL migrations (`001_`, `002_`, ...) with idempotent application. No ORM. Schema changes are reviewed and tested in CI. |
 
 **Evidence artefacts:**
+
 - CI pipeline logs (ruff, schema validation, RLS test results)
 - pgAudit log entries in PostgreSQL log stream
 - Migration files in `schema/migrations/`
@@ -110,6 +115,7 @@
 | Effectiveness measurement | Graph queries aggregate control coverage, evidence freshness, and finding resolution rates for management reporting. |
 
 **Evidence artefacts:**
+
 - Graph query: `MATCH (f:Framework)-[:REQUIRES]->(c:Control)-[:EVIDENCED_BY]->(e:Evidence) RETURN f, c, e`
 - pg_cron job definitions for scheduled evidence production
 - MinIO WORM bucket `evidence/compliance/`
@@ -127,6 +133,7 @@
 | Awareness | Role definitions and access policies are documented as Cerbos YAML policies in `policies/`, serving as executable security documentation. |
 
 **Evidence artefacts:**
+
 - Cerbos policy files in `policies/`
 - RLS policy definitions in `schema/migrations/`
 - Role assignment audit trail in `audit_log`
@@ -146,6 +153,7 @@
 | Certificate management | step-ca for internal PKI. Certificates are short-lived and automatically rotated. |
 
 **Evidence artefacts:**
+
 - Hash chain verification query: `SELECT verify_hash_chain() FROM audit_log`
 - Rekor log entries for all signed artefacts
 - NTS configuration in `deploy/` overlay
@@ -165,6 +173,7 @@
 | Break-glass access | Shamir secret sharing for emergency access. Break-glass sessions are time-limited with automatic expiry and full audit logging. |
 
 **Evidence artefacts:**
+
 - Cerbos policy evaluation logs
 - SpiceDB relationship tuples
 - RLS policy definitions with TLP predicates
@@ -184,6 +193,7 @@
 | API security | All API endpoints require valid OIDC tokens. Cerbos policy evaluation occurs before any data access. |
 
 **Evidence artefacts:**
+
 - OIDC provider MFA policy configuration
 - TLS certificate inventory managed by step-ca
 - NATS TLS configuration in `deploy/production/`

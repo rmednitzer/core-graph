@@ -14,9 +14,11 @@ import logging
 import uuid
 from typing import Any
 
+import nats
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
+from api.config import NATS_URL
 from api.db import get_connection
 from api.taxii.collections import COLLECTIONS
 from api.taxii.models import (
@@ -382,10 +384,6 @@ async def add_objects(
 
     # Publish each object to NATS for ingestion
     try:
-        import nats
-
-        from api.config import NATS_URL
-
         nc = await nats.connect(NATS_URL)
         js = nc.jetstream()
 

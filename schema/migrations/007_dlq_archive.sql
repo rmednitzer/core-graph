@@ -11,7 +11,8 @@ create table if not exists dlq_archive (
     last_failed     timestamptz not null default now(),
     resolved        boolean not null default false,
     resolved_at     timestamptz,
-    resolved_by     text
+    resolved_by     text,
+    resolution_note text
 );
 
 create index if not exists idx_dlq_archive_resolved

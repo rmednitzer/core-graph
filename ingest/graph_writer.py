@@ -198,14 +198,39 @@ async def run(
 
     logger.info("Graph writer started, consuming enriched.entity.>")
 
+    # Ensure DLQ stream exists
+    await js.add_stream(
+        StreamConfig(
+            name="DLQ",
+            subjects=["dlq.>"],
+            retention="work_queue",
+            max_bytes=1_073_741_824,
+        )
+    )
+
     try:
         async for msg in sub.messages:
             try:
                 await _process_message(conn, msg)
-            except Exception:
-                logger.exception("Error processing message")
+            except Exception as exc:
+                logger.exception("Error processing message, publishing to DLQ")
                 await conn.rollback()
-                await msg.nak()
+                # Publish to DLQ with error details
+                try:
+                    dlq_payload = {
+                        "original_subject": msg.subject,
+                        "payload": json.loads(msg.data.decode()) if msg.data else {},
+                        "error": str(exc),
+                        "retry_count": 0,
+                        "first_failed": datetime.now(UTC).isoformat(),
+                    }
+                    await js.publish(
+                        f"dlq.{msg.subject}",
+                        json.dumps(dlq_payload, default=str).encode(),
+                    )
+                except Exception:
+                    logger.exception("Failed to publish to DLQ, nacking message")
+                await msg.ack()  # Ack original since it's now in DLQ
     finally:
         await conn.close()
         await nc.close()

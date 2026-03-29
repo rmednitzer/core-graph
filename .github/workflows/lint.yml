@@ -82,7 +82,7 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - uses: DavidAnson/markdownlint-cli2-action@v19
+      - uses: DavidAnson/markdownlint-cli2-action@v23
         with:
           config: .markdownlint.yml
           globs: "**/*.md"

@@ -86,13 +86,13 @@ def test_domain_case_insensitive() -> None:
 
 
 def test_apt28_fancy_bear_similarity() -> None:
-    """APT28 and Fancy Bear are known aliases; similarity must exceed 0.5."""
+    """APT28 and Fancy Bear are known aliases; similarity should be positive."""
     import jellyfish
 
     score = jellyfish.jaro_winkler_similarity("apt28", "fancy bear")
     # They are quite different strings; the test documents expected behaviour
     # (not a strict threshold) — any positive similarity is expected.
-    assert 0.0 <= score <= 1.0
+    assert score > 0.0
 
 
 def test_identical_strings_have_similarity_one() -> None:

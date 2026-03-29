@@ -4,13 +4,18 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
 import psycopg
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.config import NATS_URL, PG_DSN
+from api.db import close_pool, open_pool
 from api.rest.middleware.logging import RequestLoggingMiddleware
+from api.rest.middleware.metrics import MetricsMiddleware, metrics_endpoint
+from api.rest.middleware.oidc import OIDCMiddleware
 from api.rest.middleware.request_id import RequestIDMiddleware
 from api.rest.routes.entities import router as entities_router
 from api.rest.routes.events import router as events_router
@@ -19,10 +24,20 @@ from api.rest.routes.search import router as search_router
 
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Open connection pool on startup, close on shutdown."""
+    await open_pool()
+    yield
+    await close_pool()
+
+
 app = FastAPI(
     title="core-graph",
     description="Converged graph-vector knowledge platform REST API",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 # -- Middleware (order matters: outermost first) --------------------------------
@@ -36,8 +51,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Prometheus metrics (outermost after CORS)
+app.add_middleware(MetricsMiddleware)
+
 # Request logging (after request ID so it can access the ID)
 app.add_middleware(RequestLoggingMiddleware)
+
+# OIDC authentication (after logging, before routes)
+app.add_middleware(OIDCMiddleware)
 
 # Request ID injection (innermost — runs first)
 app.add_middleware(RequestIDMiddleware)
@@ -86,6 +107,10 @@ async def readyz() -> dict:
 
     return result
 
+
+# -- Metrics endpoint -----------------------------------------------------------
+
+app.add_api_route("/metrics", metrics_endpoint, methods=["GET"], include_in_schema=False)
 
 # -- API routes -----------------------------------------------------------------
 

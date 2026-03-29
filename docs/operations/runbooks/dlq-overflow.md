@@ -23,8 +23,8 @@ from dlq_archive;
 ```sql
 select original_subject,
        count(*) as count,
-       min(first_failed_at) as earliest,
-       max(first_failed_at) as latest
+       min(first_failed) as earliest,
+       max(first_failed) as latest
 from dlq_archive
 where resolved = false
 group by original_subject

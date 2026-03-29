@@ -1,0 +1,24 @@
+definition user {}
+
+definition team {
+    relation member: user
+    relation lead: user
+    permission view = member + lead
+    permission manage = lead
+}
+
+definition investigation {
+    relation owner: team
+    relation member: user
+    relation lead: user
+    permission view = member + lead + owner->view
+    permission contribute = member + lead + owner->manage
+    permission manage = lead
+}
+
+definition entity {
+    relation investigation: investigation
+    relation shared_with: user | team#member
+    permission view = investigation->view + shared_with
+    permission edit = investigation->contribute
+}

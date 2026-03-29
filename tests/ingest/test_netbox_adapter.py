@@ -158,4 +158,4 @@ class TestMapService:
         assert entity["label"] == "Service"
         assert entity["properties"]["name"] == "ssh"
         assert entity["properties"]["protocol"] == "tcp"
-        assert "22" in entity["properties"]["ports"]
+        assert entity["properties"]["ports"] == [22]

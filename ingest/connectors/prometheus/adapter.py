@@ -1,14 +1,17 @@
 """ingest.connectors.prometheus.adapter — Prometheus AlertManager webhook adapter.
 
 Receives AlertManager webhook POST payloads and publishes MonitoringAlert
-entities to NATS JetStream for graph writer consumption.
+entities to the NATS ``enriched.entity.*`` stream for direct graph writer
+consumption.  Supports optional shared-secret authentication.
 """
 
 from __future__ import annotations
 
 import asyncio
+import hmac
 import json
 import logging
+import os
 import re
 from typing import Any
 
@@ -25,11 +28,17 @@ from ingest.connectors.prometheus.config import PrometheusConfig
 
 logger = logging.getLogger(__name__)
 
-NATS_SUBJECT = "ingest.monitoring.prometheus"
+NATS_SUBJECT = "enriched.entity.monitoring.prometheus"
 DEFAULT_TLP = 1  # TLP:GREEN — monitoring alerts
+
+# AlertManager uses this as a sentinel for "no end yet" on firing alerts.
+_ALERTMANAGER_SENTINEL_END = "0001-01-01T00:00:00Z"
 
 # Matches an IP (v4) optionally followed by :port
 _IP_RE = re.compile(r"(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})(?::\d+)?")
+
+# Optional shared secret for webhook authentication.
+WEBHOOK_SECRET = os.environ.get("CG_PROMETHEUS_WEBHOOK_SECRET", "")
 
 
 def _extract_instance_ip(instance: str) -> str | None:
@@ -41,19 +50,40 @@ def _extract_instance_ip(instance: str) -> str | None:
 def _map_alert(alert: dict[str, Any]) -> dict[str, Any]:
     """Map a single AlertManager alert to a MonitoringAlert entity."""
     labels = alert.get("labels", {})
+
+    # Normalize endsAt: treat the AlertManager sentinel as None.
+    raw_ends_at = alert.get("endsAt")
+    if not raw_ends_at or raw_ends_at == _ALERTMANAGER_SENTINEL_END:
+        ends_at: str | None = None
+    else:
+        ends_at = raw_ends_at
+
+    properties: dict[str, Any] = {
+        "fingerprint": alert.get("fingerprint", ""),
+        "alertname": labels.get("alertname", ""),
+        "severity": labels.get("severity", "warning"),
+        "status": alert.get("status", "firing"),
+        "instance": labels.get("instance", ""),
+        "tlp": DEFAULT_TLP,
+        "starts_at": alert.get("startsAt"),
+    }
+
+    if ends_at is not None:
+        properties["ends_at"] = ends_at
+
     return {
         "label": "MonitoringAlert",
-        "properties": {
-            "fingerprint": alert.get("fingerprint", ""),
-            "alertname": labels.get("alertname", ""),
-            "severity": labels.get("severity", "warning"),
-            "status": alert.get("status", "firing"),
-            "instance": labels.get("instance", ""),
-            "tlp": DEFAULT_TLP,
-            "starts_at": alert.get("startsAt"),
-            "ends_at": alert.get("endsAt"),
-        },
+        "properties": properties,
     }
+
+
+def _verify_secret(request: Request) -> bool:
+    """Verify the shared-secret Authorization header if configured."""
+    if not WEBHOOK_SECRET:
+        return True  # No secret configured — allow all.
+    auth = request.headers.get("Authorization", "")
+    expected = f"Bearer {WEBHOOK_SECRET}"
+    return hmac.compare_digest(auth, expected)
 
 
 def _build_app(js_holder: dict[str, Any]) -> Starlette:
@@ -61,6 +91,9 @@ def _build_app(js_holder: dict[str, Any]) -> Starlette:
 
     async def webhook(request: Request) -> JSONResponse:
         """Handle AlertManager webhook POST."""
+        if not _verify_secret(request):
+            return JSONResponse({"error": "unauthorized"}, status_code=401)
+
         try:
             payload = await request.json()
         except Exception:
@@ -91,8 +124,13 @@ def _build_app(js_holder: dict[str, Any]) -> Starlette:
                     NATS_SUBJECT,
                     json.dumps(ip_entity, default=str).encode(),
                 )
+                published += 1
 
-        logger.info("Webhook received %d alerts, published %d entities", len(alerts), published)
+        logger.info(
+            "Webhook received %d alerts, published %d entities",
+            len(alerts),
+            published,
+        )
         return JSONResponse({"accepted": published})
 
     async def health(request: Request) -> JSONResponse:
@@ -120,9 +158,9 @@ async def run(
 
     await js.add_stream(
         StreamConfig(
-            name="INGEST_MONITORING",
-            subjects=["ingest.monitoring.>"],
-            retention="limits",
+            name="ENRICHED",
+            subjects=["enriched.entity.>"],
+            retention="work_queue",
             max_bytes=1_073_741_824,
         )
     )

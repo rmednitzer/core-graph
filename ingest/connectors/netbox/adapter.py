@@ -1,8 +1,9 @@
 """ingest.connectors.netbox.adapter — Netbox CMDB/IPAM ingest adapter.
 
 Periodically polls the Netbox REST API for devices, VMs, prefixes, sites,
-interfaces, and services.  Publishes normalised entities to NATS JetStream
-for graph writer consumption.  Uses Valkey for delta-sync caching.
+interfaces, and services.  Publishes normalised entities to the NATS
+``enriched.entity.*`` stream for direct graph writer consumption.
+Uses Valkey for delta-sync caching.
 """
 
 from __future__ import annotations
@@ -22,11 +23,11 @@ from nats.js.api import StreamConfig
 
 from api.config import NATS_URL, PG_DSN, VALKEY_URL
 from ingest.canonical import canonical_key
-from ingest.connectors.netbox.config import ENDPOINT_LABEL_MAP, NetboxConfig
+from ingest.connectors.netbox.config import NetboxConfig
 
 logger = logging.getLogger(__name__)
 
-NATS_SUBJECT = "ingest.infra.netbox"
+NATS_SUBJECT = "enriched.entity.infra.netbox"
 DEFAULT_TLP = 1  # TLP:GREEN — infrastructure inventory
 
 
@@ -124,7 +125,7 @@ def _map_service(obj: dict[str, Any]) -> dict[str, Any]:
             "canonical_key": canonical_key("service", f"netbox-{netbox_id}"),
             "name": obj.get("name", ""),
             "protocol": (obj.get("protocol") or {}).get("value", ""),
-            "ports": json.dumps(obj.get("ports", [])),
+            "ports": obj.get("ports") or [],
             "tlp": DEFAULT_TLP,
         },
     }
@@ -139,7 +140,7 @@ def _extract_ip(ip_obj: dict[str, Any] | None) -> str:
     return addr.split("/")[0] if addr else ""
 
 
-_ENDPOINT_MAPPERS: dict[str, Any] = {
+ENDPOINT_MAPPERS: dict[str, Any] = {
     "/api/dcim/devices/": _map_device,
     "/api/virtualization/virtual-machines/": _map_vm,
     "/api/ipam/prefixes/": _map_prefix,
@@ -207,7 +208,7 @@ async def _publish_entities(
     objects: list[dict[str, Any]],
 ) -> int:
     """Map Netbox objects to graph entities and publish to NATS."""
-    mapper = _ENDPOINT_MAPPERS.get(endpoint)
+    mapper = ENDPOINT_MAPPERS.get(endpoint)
     if not mapper:
         return 0
 
@@ -291,9 +292,9 @@ async def run(
 
     await js.add_stream(
         StreamConfig(
-            name="INGEST_INFRA",
-            subjects=["ingest.infra.>"],
-            retention="limits",
+            name="ENRICHED",
+            subjects=["enriched.entity.>"],
+            retention="work_queue",
             max_bytes=1_073_741_824,
         )
     )
@@ -311,7 +312,7 @@ async def run(
         async with httpx.AsyncClient(verify=cfg.verify_ssl) as client:
             while True:
                 total = 0
-                for endpoint in ENDPOINT_LABEL_MAP:
+                for endpoint in ENDPOINT_MAPPERS:
                     objects = await _fetch_endpoint(
                         client,
                         cfg.url,

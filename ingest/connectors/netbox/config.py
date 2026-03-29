@@ -14,14 +14,3 @@ class NetboxConfig(BaseModel):
     token: str = os.environ.get("NETBOX_TOKEN", "")
     interval: int = 300
     verify_ssl: bool = True
-
-
-# Netbox API endpoints to sync and their graph label mappings.
-ENDPOINT_LABEL_MAP: dict[str, str] = {
-    "/api/dcim/devices/": "Host",
-    "/api/virtualization/virtual-machines/": "Host",
-    "/api/ipam/prefixes/": "Network",
-    "/api/dcim/sites/": "Site",
-    "/api/dcim/interfaces/": "Interface",
-    "/api/ipam/services/": "Service",
-}

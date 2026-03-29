@@ -66,9 +66,11 @@ MERGE_TEMPLATES: dict[str, str] = {
             on create set v.name = $name, v.host_type = $host_type,
                           v.platform = $platform, v.status = $status,
                           v.site = $site, v.tlp_level = $tlp,
+                          v.primary_ip = $primary_ip, v.netbox_id = $netbox_id,
                           v.first_seen = $now
             on match set v.last_seen = $now, v.status = $status,
-                         v.platform = $platform
+                         v.platform = $platform,
+                         v.primary_ip = $primary_ip, v.netbox_id = $netbox_id
             return id(v)
         $$, $1) as (id agtype)
     """,
@@ -116,7 +118,8 @@ MERGE_TEMPLATES: dict[str, str] = {
             merge (v:MonitoringAlert {fingerprint: $fingerprint})
             on create set v.alertname = $alertname, v.severity = $severity,
                           v.status = $status, v.instance = $instance,
-                          v.tlp_level = $tlp, v.starts_at = $starts_at
+                          v.tlp_level = $tlp, v.starts_at = $starts_at,
+                          v.ends_at = $ends_at, v.first_seen = $now
             on match set v.status = $status, v.ends_at = $ends_at,
                          v.last_seen = $now
             return id(v)

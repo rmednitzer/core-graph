@@ -44,6 +44,8 @@ class TestMapAlert:
         assert props["status"] == "firing"
         assert props["instance"] == "10.0.0.5:9100"
         assert props["starts_at"] == "2026-03-29T12:00:00Z"
+        # Sentinel endsAt should be normalized to absent.
+        assert "ends_at" not in props
 
     def test_resolved_alert(self) -> None:
         alert = {
@@ -74,7 +76,8 @@ class TestMapAlert:
         props = entity["properties"]
         assert props["severity"] == "warning"  # default
         assert props["instance"] == ""
-        assert props["ends_at"] is None
+        # None endsAt should be normalized to absent.
+        assert "ends_at" not in props
 
     def test_alert_tlp_is_green(self) -> None:
         alert = {
@@ -86,3 +89,15 @@ class TestMapAlert:
         }
         entity = _map_alert(alert)
         assert entity["properties"]["tlp"] == 1  # TLP:GREEN
+
+    def test_sentinel_ends_at_normalized(self) -> None:
+        """AlertManager sentinel 0001-01-01T00:00:00Z should become absent."""
+        alert = {
+            "status": "firing",
+            "labels": {"alertname": "Test"},
+            "fingerprint": "sentinel",
+            "startsAt": "2026-03-29T12:00:00Z",
+            "endsAt": "0001-01-01T00:00:00Z",
+        }
+        entity = _map_alert(alert)
+        assert "ends_at" not in entity["properties"]

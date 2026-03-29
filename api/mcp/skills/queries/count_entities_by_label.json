@@ -1,0 +1,13 @@
+{
+  "description": "Count all vertices with a given label",
+  "parameters": {
+    "label": {
+      "type": "string",
+      "required": true,
+      "description": "The vertex label to count"
+    }
+  },
+  "returns": "scalar",
+  "max_depth": 0,
+  "estimated_ms": 100
+}

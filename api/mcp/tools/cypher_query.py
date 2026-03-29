@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 import uuid
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel
@@ -19,6 +21,8 @@ from api.config import DEFAULT_TLP
 from api.db import get_connection
 
 logger = logging.getLogger(__name__)
+
+QUERIES_DIR = Path(__file__).resolve().parent.parent / "skills" / "queries"
 
 
 class CypherQueryInput(BaseModel):
@@ -35,22 +39,59 @@ class CypherQueryResult(BaseModel):
     count: int
 
 
-# Named query templates — only these are permitted.
-# Keys are template names; values are parameterised Cypher strings.
-QUERY_TEMPLATES: dict[str, str] = {
-    "get_entity_by_value": ("match (v {value: $value}) return v"),
-    "get_entity_by_label_and_value": ("match (v {value: $value}) where label(v) = $label return v"),
-    "get_neighbours": ("match (v {value: $value})-[e]-(n) return v, e, n"),
-    "get_threat_actor_campaigns": (
-        "match (ta:ThreatActor {name: $name})-[r:attributed_to]-(c:Campaign) return ta, r, c"
-    ),
-    "get_indicator_relationships": ("match (i:Indicator {value: $value})-[r]-(n) return i, r, n"),
-    "get_stix_by_id": ("match (v {stix_id: $stix_id}) return v"),
-    "get_attack_pattern_usage": (
-        "match (a:AttackPattern {name: $name})-[r:uses]-(n) return a, r, n"
-    ),
-    "count_entities_by_label": ("match (v) where label(v) = $label return count(v) as cnt"),
-}
+def load_query_templates(queries_dir: Path) -> dict[str, str]:
+    """Load all .cypher files from the queries directory.
+
+    Returns a dict mapping template name (file stem) to Cypher string.
+    """
+    templates: dict[str, str] = {}
+    if not queries_dir.is_dir():
+        logger.warning("Queries directory not found: %s", queries_dir)
+        return templates
+    for cypher_file in sorted(queries_dir.glob("*.cypher")):
+        name = cypher_file.stem
+        templates[name] = cypher_file.read_text().strip()
+    logger.info("Loaded %d query templates from %s", len(templates), queries_dir)
+    return templates
+
+
+def load_parameter_schemas(queries_dir: Path) -> dict[str, dict[str, Any]]:
+    """Load companion .json parameter schema files.
+
+    Returns a dict mapping template name to its parameter schema.
+    """
+    schemas: dict[str, dict[str, Any]] = {}
+    if not queries_dir.is_dir():
+        return schemas
+    for json_file in sorted(queries_dir.glob("*.json")):
+        name = json_file.stem
+        schemas[name] = json.loads(json_file.read_text())
+    return schemas
+
+
+def validate_params(
+    template_name: str,
+    params: dict[str, Any],
+    schemas: dict[str, dict[str, Any]],
+) -> None:
+    """Validate parameters against the companion schema.
+
+    Raises ValueError if required parameters are missing.
+    """
+    schema = schemas.get(template_name)
+    if schema is None:
+        return  # No schema available; skip validation
+    param_defs = schema.get("parameters", {})
+    for param_name, param_def in param_defs.items():
+        if param_def.get("required", False) and param_name not in params:
+            raise ValueError(
+                f"Missing required parameter {param_name!r} for template {template_name!r}"
+            )
+
+
+# Named query templates — loaded from .cypher files at import time.
+QUERY_TEMPLATES: dict[str, str] = load_query_templates(QUERIES_DIR)
+PARAMETER_SCHEMAS: dict[str, dict[str, Any]] = load_parameter_schemas(QUERIES_DIR)
 
 
 async def cypher_query(
@@ -74,8 +115,12 @@ async def cypher_query(
             f"Unknown query template: {template!r}. Available: {sorted(QUERY_TEMPLATES)}"
         )
 
+    validate_params(template, params, PARAMETER_SCHEMAS)
+
     correlation_id = uuid.uuid4()
     caller = caller_identity or {"max_tlp": DEFAULT_TLP, "allowed_compartments": []}
+
+    t_start = time.perf_counter()
 
     async with get_connection(caller) as conn:
         # Execute via AGE with parameter binding
@@ -105,10 +150,14 @@ async def cypher_query(
         )
         await conn.commit()
 
+        elapsed_ms = (time.perf_counter() - t_start) * 1000
         logger.info(
-            "Cypher query executed: template=%s correlation=%s rows=%d",
+            "Cypher query executed: template=%s params=%d correlation=%s "
+            "rows=%d elapsed_ms=%.1f",
             template,
+            len(params),
             correlation_id,
             len(rows),
+            elapsed_ms,
         )
         return [dict(r) for r in rows]

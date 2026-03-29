@@ -1,0 +1,13 @@
+{
+  "description": "Get campaigns attributed to a threat actor",
+  "parameters": {
+    "name": {
+      "type": "string",
+      "required": true,
+      "description": "Name of the threat actor"
+    }
+  },
+  "returns": "list",
+  "max_depth": 2,
+  "estimated_ms": 100
+}

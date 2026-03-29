@@ -19,7 +19,7 @@ class AssetActiveAlertsSkill(SkillBase):
         caller_identity: dict[str, Any] | None = None,
     ) -> SkillResult:
         query_params = {
-            "canonical_key": params["canonical_key"],
+            "canonical_key": self._require_param(params, "canonical_key"),
             "limit": params.get("limit", 20),
         }
         rows = await cypher_query("asset_active_alerts", query_params, caller_identity)

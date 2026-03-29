@@ -341,7 +341,15 @@ async def _process_message(
         label = payload.get("label", "")
         params = payload.get("properties", {})
         params["now"] = datetime.now(UTC).isoformat()
-        params.setdefault("tlp", 1)
+
+        # IAM entities enforce TLP:AMBER floor at the application layer.
+        # This is defense-in-depth alongside the RESTRICTIVE RLS policy in 010.
+        _IAM_LABELS = {"Principal", "Group", "Role", "Permission", "AccessPolicy"}
+        if label in _IAM_LABELS:
+            params["tlp"] = max(params.get("tlp", 2), 2)
+        else:
+            params.setdefault("tlp", 1)
+
         vertex_id = await _merge_entity(conn, label, params)
 
     # Write temporal fact if applicable

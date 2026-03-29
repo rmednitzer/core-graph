@@ -109,22 +109,11 @@ async def assert_identity_attribution(
 
     principal_key = canonical_key("principal", principal_id)
 
-    async with get_connection(caller) as conn:
-        # Create same_as edge with TLP:RED and compartment
-        cypher = """
-            match (p:Principal {canonical_key: $principal_key})
-            match (ta:ThreatActor {stix_id: $threat_actor_stix_id})
-            merge (p)-[e:same_as {
-                investigation_id: $investigation_id,
-                justification: $justification,
-                tlp_level: 4,
-                compartment: $investigation_id,
-                t_recorded: $now
-            }]->(ta)
-            return id(e)
-        """
-        from datetime import UTC, datetime
+    from datetime import UTC, datetime
 
+    async with get_connection(caller) as conn:
+        # Create same_as edge with TLP:RED and compartment.
+        # Cypher is a constant string — parameters bound via AGE JSON mechanism.
         params = {
             "principal_key": principal_key,
             "threat_actor_stix_id": threat_actor_stix_id,
@@ -134,11 +123,20 @@ async def assert_identity_attribution(
         }
         agtype_params = json.dumps(params)
 
-        sql = (
-            "select * from ag_catalog.cypher('core_graph', $cypher$\n"
-            f"            {cypher}\n"
-            "        $cypher$, %s) as (id agtype)"
-        )
+        sql = """
+            select * from ag_catalog.cypher('core_graph', $cypher$
+                match (p:Principal {canonical_key: $principal_key})
+                match (ta:ThreatActor {stix_id: $threat_actor_stix_id})
+                merge (p)-[e:same_as {
+                    investigation_id: $investigation_id,
+                    justification: $justification,
+                    tlp_level: 4,
+                    compartment: $investigation_id,
+                    t_recorded: $now
+                }]->(ta)
+                return id(e)
+            $cypher$, %s) as (id agtype)
+        """
         cursor = await conn.execute(sql, (agtype_params,))
         result = await cursor.fetchone()
         edge_id = int(str(result["id"]).strip('"')) if result else None

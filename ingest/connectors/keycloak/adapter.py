@@ -136,6 +136,7 @@ class KeycloakAdapter(AdapterBase):
                     "principal_key": canonical_key("principal", user_id),
                     "role_key": canonical_key("role", f"{self.kc_config.realm}:{role['name']}"),
                     "source": "keycloak",
+                    "tlp": IAM_TLP_FLOOR,
                 })
 
             # Fetch user group memberships
@@ -146,6 +147,7 @@ class KeycloakAdapter(AdapterBase):
                     "principal_key": canonical_key("principal", user_id),
                     "group_key": canonical_key("group", group["id"]),
                     "source": "keycloak",
+                    "tlp": IAM_TLP_FLOOR,
                 })
 
         # Fetch groups
@@ -177,6 +179,7 @@ class KeycloakAdapter(AdapterBase):
                     "principal_key": canonical_key("group", sub["id"]),
                     "group_key": canonical_key("group", group["id"]),
                     "source": "keycloak",
+                    "tlp": IAM_TLP_FLOOR,
                 })
             flat.extend(self._flatten_groups(subgroups))
         return flat
@@ -207,7 +210,7 @@ class KeycloakAdapter(AdapterBase):
                 "created_at": _ms_to_iso(created_ms),
                 "last_login": _ms_to_iso(user.get("lastLogin")),
                 "source": "keycloak",
-                "tlp": max(IAM_TLP_FLOOR, IAM_TLP_FLOOR),  # Enforce floor
+                "tlp": IAM_TLP_FLOOR,
             },
         }
 
@@ -247,130 +250,40 @@ class KeycloakAdapter(AdapterBase):
         valkey_url: str | None = None,
         pg_dsn: str | None = None,
     ) -> None:
-        """Override run to also publish relationship payloads after entities."""
+        """Override run to disable adapter when client_secret is missing."""
         if not self.kc_config.client_secret:
             self._logger.warning(
                 "Keycloak client_secret is empty, adapter disabled"
             )
             return
 
-        # Store original _publish
-        original_publish = self._publish
-
-        # Publish collected relationships after all entities
-        async def _publish_with_relationships(entity: dict[str, Any]) -> None:
-            await original_publish(entity)
-
-        self._publish = _publish_with_relationships  # type: ignore[assignment]
-
         try:
-            # Use a modified loop that publishes relationships after each cycle
-            await self._run_with_relationships(nats_url, valkey_url, pg_dsn)
+            await super().run(nats_url, valkey_url, pg_dsn)
         finally:
             if self._http_client:
                 await self._http_client.aclose()
 
-    async def _run_with_relationships(
-        self,
-        nats_url: str | None,
-        valkey_url: str | None,
-        pg_dsn: str | None,
-    ) -> None:
-        """Run the adapter with relationship publishing."""
-        import nats as nats_lib
-        import redis.asyncio as redis_mod
+    async def _post_cycle_hook(self, count: int, errors: int) -> None:
+        """Publish collected relationship payloads after each entity cycle."""
+        if not self._relationships or self._js is None:
+            return
 
-        from api.config import NATS_URL as default_nats
-        from api.config import PG_DSN as default_pg
-        from api.config import VALKEY_URL as default_valkey
-        from ingest.metrics import adapter_entities_total, adapter_fetch_total
-
-        nats_addr = nats_url or default_nats
-        valkey_addr = valkey_url or default_valkey
-        dsn = pg_dsn or default_pg
-
-        self._nc = await nats_lib.connect(nats_addr)
-        self._js = self._nc.jetstream()
-        self._cache = redis_mod.from_url(valkey_addr)
-
-        await self._ensure_stream()
+        rel_count = 0
+        for rel in self._relationships:
+            try:
+                await self._js.publish(
+                    RELATIONSHIP_SUBJECT,
+                    json.dumps(rel, default=str).encode(),
+                )
+                rel_count += 1
+            except Exception:
+                self._logger.warning("Relationship publish failed", exc_info=True)
 
         self._logger.info(
-            "Keycloak adapter started, realm=%s, interval=%ds",
-            self.kc_config.realm,
-            self.config.poll_interval,
+            "Keycloak relationships published: %d/%d",
+            rel_count,
+            len(self._relationships),
         )
-
-        try:
-            while True:
-                since = (
-                    await self._get_cached_timestamp()
-                    if self.config.delta_sync
-                    else None
-                )
-                try:
-                    raw_objects = await self.fetch(since)
-                    adapter_fetch_total.labels(
-                        adapter=self.config.name, status="success"
-                    ).inc()
-                except Exception:
-                    adapter_fetch_total.labels(
-                        adapter=self.config.name, status="error"
-                    ).inc()
-                    self._logger.exception("Fetch failed")
-                    await asyncio.sleep(self.config.poll_interval or 60)
-                    continue
-
-                count = 0
-                for raw in raw_objects:
-                    entity = self.map(raw)
-                    if entity is None:
-                        continue
-                    try:
-                        if self._js:
-                            await self._js.publish(
-                                ENTITY_SUBJECT,
-                                json.dumps(entity, default=str).encode(),
-                            )
-                        label = entity.get("label", "unknown")
-                        adapter_entities_total.labels(
-                            adapter=self.config.name, label=label
-                        ).inc()
-                        count += 1
-                    except Exception:
-                        self._logger.warning("Entity publish failed", exc_info=True)
-
-                # Publish relationships
-                rel_count = 0
-                for rel in self._relationships:
-                    try:
-                        if self._js:
-                            await self._js.publish(
-                                RELATIONSHIP_SUBJECT,
-                                json.dumps(rel, default=str).encode(),
-                            )
-                        rel_count += 1
-                    except Exception:
-                        self._logger.warning("Relationship publish failed", exc_info=True)
-
-                if count > 0:
-                    await self._cache_timestamp()
-                    await self._audit(count, dsn)
-
-                self._logger.info(
-                    "Keycloak sync: entities=%d relationships=%d",
-                    count,
-                    rel_count,
-                )
-
-                if self.config.poll_interval <= 0:
-                    break
-                await asyncio.sleep(self.config.poll_interval)
-        finally:
-            if self._cache:
-                await self._cache.aclose()
-            if self._nc:
-                await self._nc.close()
 
 
 def _ms_to_iso(ms: int | None) -> str:

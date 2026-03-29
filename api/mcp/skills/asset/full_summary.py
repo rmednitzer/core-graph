@@ -19,7 +19,7 @@ class AssetFullSummarySkill(SkillBase):
         params: dict[str, Any],
         caller_identity: dict[str, Any] | None = None,
     ) -> SkillResult:
-        canonical_key = params["canonical_key"]
+        canonical_key = self._require_param(params, "canonical_key")
         base = {"canonical_key": canonical_key}
 
         # Execute sub-queries in parallel
@@ -59,7 +59,6 @@ class AssetFullSummarySkill(SkillBase):
             if ctrl.get("evidence_status") == "stale":
                 gaps.append(f"Stale evidence for control {ctrl.get('control_id', 'unknown')}")
                 confidence -= 0.1
-                break
 
         confidence = max(confidence, 0.0)
 

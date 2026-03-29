@@ -131,6 +131,9 @@ class AdapterBase(ABC):
                     await self._cache_timestamp()
                     await self._audit(count, dsn)
 
+                # Hook for subclasses to publish additional data (e.g. relationships)
+                await self._post_cycle_hook(count, errors)
+
                 self._logger.info(
                     "%s sync: published=%d errors=%d",
                     self.config.name,
@@ -154,7 +157,7 @@ class AdapterBase(ABC):
         await self._js.add_stream(
             StreamConfig(
                 name=self.config.nats_stream,
-                subjects=[f"{self.config.nats_subject.rsplit('.', 1)[0]}.>"],
+                subjects=["enriched.entity.>", "enriched.relationship.>"],
                 retention="work_queue",
                 max_bytes=1_073_741_824,
             )
@@ -189,6 +192,13 @@ class AdapterBase(ABC):
                 await conn.commit()
         except Exception:
             self._logger.warning("Failed to write audit entry", exc_info=True)
+
+    async def _post_cycle_hook(self, count: int, errors: int) -> None:
+        """Hook called after each fetch/map/publish cycle.
+
+        Subclasses can override to publish additional data such as
+        relationship payloads.  Default implementation is a no-op.
+        """
 
     async def _get_cached_timestamp(self) -> str | None:
         """Get the last sync timestamp from Valkey."""

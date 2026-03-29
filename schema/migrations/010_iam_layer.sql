@@ -166,10 +166,12 @@ begin
         );
 
         -- IAM TLP floor: never visible below TLP:AMBER (app.max_tlp >= 2)
-        -- Stacked on top of tlp_read_policy as a second enforcement layer.
+        -- RESTRICTIVE policy: AND'd with permissive policies, not OR'd.
+        -- Without AS RESTRICTIVE, PostgreSQL OR's multiple permissive policies,
+        -- which would defeat the floor (tlp_read_policy alone could grant access).
         execute format('drop policy if exists iam_tlp_floor on core_graph.%I', iam_label);
         execute format(
-            'create policy iam_tlp_floor on core_graph.%I for select using (
+            'create policy iam_tlp_floor on core_graph.%I as restrictive for select using (
                 coalesce(current_setting(''app.max_tlp'', true)::int, 1) >= 2
             )',
             iam_label
@@ -206,7 +208,7 @@ begin
 
             execute format('drop policy if exists iam_tlp_floor on core_graph.%I', iam_edge);
             execute format(
-                'create policy iam_tlp_floor on core_graph.%I for select using (
+                'create policy iam_tlp_floor on core_graph.%I as restrictive for select using (
                     coalesce(current_setting(''app.max_tlp'', true)::int, 1) >= 2
                 )',
                 iam_edge

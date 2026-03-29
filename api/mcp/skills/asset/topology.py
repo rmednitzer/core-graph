@@ -18,6 +18,7 @@ class AssetTopologySkill(SkillBase):
         params: dict[str, Any],
         caller_identity: dict[str, Any] | None = None,
     ) -> SkillResult:
+        self._require_param(params, "canonical_key")
         rows = await cypher_query("asset_topology", params, caller_identity)
 
         confidence = 1.0

@@ -19,7 +19,7 @@ class IdentityAuditTrailSkill(SkillBase):
         caller_identity: dict[str, Any] | None = None,
     ) -> SkillResult:
         query_params = {
-            "principal_id": params["principal_id"],
+            "principal_id": self._require_param(params, "principal_id"),
             "hours_back": params.get("hours_back", 72),
         }
         rows = await cypher_query("identity_audit_trail", query_params, caller_identity)

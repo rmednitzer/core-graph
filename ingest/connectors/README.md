@@ -30,6 +30,7 @@ All adapters using `AdapterBase` automatically emit:
 ## Migrated Adapters
 
 - [x] Netbox (`ingest/connectors/netbox/adapter.py`)
+- [x] Keycloak (`ingest/connectors/keycloak/adapter.py`)
 - [ ] Prometheus
 - [ ] Wazuh
 - [ ] MISP

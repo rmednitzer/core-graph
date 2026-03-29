@@ -46,9 +46,6 @@ Target: EU-sovereign, single-engineer operable, auditable, evidence-producing.
   `AdapterBase`.
 - Embedding provider is configured via `CG_EMBEDDING_PROVIDER`. Default is
   `none`.
-- Eight ontology layers: threat intel, security events, OSINT, audit/compliance,
-  AI memory, forensic timeline, infrastructure & assets, identity & access
-  management.
 
 ## Coding conventions
 

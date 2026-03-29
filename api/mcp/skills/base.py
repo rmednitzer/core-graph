@@ -35,6 +35,14 @@ class SkillBase(ABC):
     description: str
     version: str
 
+    def _require_param(self, params: dict[str, Any], key: str) -> Any:
+        """Extract a required parameter, raising ValueError if absent."""
+        if key not in params:
+            raise ValueError(
+                f"Skill {self.name!r} requires parameter {key!r}"
+            )
+        return params[key]
+
     @abstractmethod
     async def execute(
         self,

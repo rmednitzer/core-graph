@@ -99,18 +99,30 @@ async def tool_assert_identity_attribution(
     threat_actor_stix_id: str,
     justification: str,
     investigation_id: str,
+    caller_roles: list[str] | None = None,
+    caller_actor: str | None = None,
 ) -> dict[str, Any]:
     """Assert that a Principal is the same entity as a ThreatActor.
 
     Creates a same_as edge with TLP:RED compartmented to the investigation.
     Requires cg_ciso role — denied for all other roles including cg_ai_agent.
     Writes a mandatory audit log entry with the justification.
+
+    caller_roles and caller_actor must be provided for Cerbos authorization.
+    Without them the request will be denied (fail closed).
     """
+    caller_identity: dict[str, Any] = {
+        "roles": caller_roles or [],
+        "actor": caller_actor or "unknown",
+        "max_tlp": 4,  # TLP:RED required for this operation
+        "allowed_compartments": [investigation_id],
+    }
     return await assert_identity_attribution(
         principal_id=principal_id,
         threat_actor_stix_id=threat_actor_stix_id,
         justification=justification,
         investigation_id=investigation_id,
+        caller_identity=caller_identity,
     )
 
 

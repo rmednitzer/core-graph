@@ -18,6 +18,7 @@ class ThreatActorToAssetSkill(SkillBase):
         params: dict[str, Any],
         caller_identity: dict[str, Any] | None = None,
     ) -> SkillResult:
+        self._require_param(params, "threat_actor_name")
         rows = await cypher_query("threat_actor_to_asset", params, caller_identity)
 
         confidence = 1.0

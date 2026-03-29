@@ -18,6 +18,7 @@ class AlertToComplianceGapSkill(SkillBase):
         params: dict[str, Any],
         caller_identity: dict[str, Any] | None = None,
     ) -> SkillResult:
+        self._require_param(params, "alertname")
         rows = await cypher_query("alert_to_compliance_gap", params, caller_identity)
 
         confidence = 1.0

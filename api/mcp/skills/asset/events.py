@@ -19,7 +19,7 @@ class AssetSecurityEventsSkill(SkillBase):
         caller_identity: dict[str, Any] | None = None,
     ) -> SkillResult:
         query_params = {
-            "canonical_key": params["canonical_key"],
+            "canonical_key": self._require_param(params, "canonical_key"),
             "hours_back": params.get("hours_back", 24),
         }
         rows = await cypher_query("asset_security_events", query_params, caller_identity)

@@ -18,6 +18,7 @@ class IdentityAccessMapSkill(SkillBase):
         params: dict[str, Any],
         caller_identity: dict[str, Any] | None = None,
     ) -> SkillResult:
+        self._require_param(params, "principal_id")
         rows = await cypher_query("identity_access_map", params, caller_identity)
 
         confidence = 1.0

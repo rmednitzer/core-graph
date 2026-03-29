@@ -4,15 +4,16 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
 from pydantic import BaseModel
 
-logger = logging.getLogger(__name__)
+from api.config import DEFAULT_TLP, PG_DSN
 
-PG_DSN = "postgresql://cg_admin:cg_dev_only@localhost:5432/core_graph"
+logger = logging.getLogger(__name__)
 
 # STIX SDO types mapped to AGE vertex labels
 STIX_LABEL_MAP: dict[str, str] = {
@@ -41,12 +42,17 @@ class StixLookupResult(BaseModel):
     properties: dict[str, Any]
 
 
-async def stix_lookup(stix_type: str, stix_id: str) -> dict[str, Any] | None:
+async def stix_lookup(
+    stix_type: str,
+    stix_id: str,
+    caller_identity: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
     """Query a STIX 2.1 object stored as a graph vertex.
 
     Args:
         stix_type: STIX type (e.g., 'threat-actor', 'malware').
         stix_id: STIX identifier (e.g., 'threat-actor--uuid').
+        caller_identity: MCP session context for RLS enforcement.
 
     Returns:
         STIX JSON representation if found, None otherwise.
@@ -55,8 +61,12 @@ async def stix_lookup(stix_type: str, stix_id: str) -> dict[str, Any] | None:
     if label is None:
         raise ValueError(f"Unknown STIX type: {stix_type}")
 
+    max_tlp = str(DEFAULT_TLP)
+    if caller_identity:
+        max_tlp = str(caller_identity.get("max_tlp", DEFAULT_TLP))
+
     async with await psycopg.AsyncConnection.connect(PG_DSN, row_factory=dict_row) as conn:
-        await conn.execute("select set_config('app.max_tlp', '2', true)")
+        await conn.execute("select set_config('app.max_tlp', %s, true)", (max_tlp,))
         await conn.execute("set search_path = ag_catalog, '$user', public")
 
         sql = f"""
@@ -74,6 +84,22 @@ async def stix_lookup(stix_type: str, stix_id: str) -> dict[str, Any] | None:
             logger.info("STIX object not found: %s/%s", stix_type, stix_id)
             return None
 
-        # TODO: log to audit trail
+        # Write audit log entry
+        correlation_id = uuid.uuid4()
+        await conn.execute(
+            """
+            insert into audit_log
+                (entity_label, operation, actor, correlation_id)
+            values (%s, %s, %s, %s)
+            """,
+            (
+                f"{label}:{stix_id}",
+                "LOOKUP",
+                caller_identity.get("actor", "mcp") if caller_identity else "mcp",
+                correlation_id,
+            ),
+        )
+        await conn.commit()
+
         logger.info("STIX object found: %s/%s", stix_type, stix_id)
         return dict(row)

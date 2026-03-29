@@ -27,13 +27,13 @@ mcp = FastMCP(
 
 
 @mcp.tool()
-async def tool_cypher_query(query: str, params: dict | None = None) -> list[dict]:
+async def tool_cypher_query(template: str, params: dict | None = None) -> list[dict]:
     """Execute a validated Cypher query against the core graph.
 
-    Only queries matching pre-approved templates are permitted.
-    Results are filtered by the caller's TLP clearance via RLS.
+    Only named query templates are permitted. Pass the template name
+    and parameters to bind. Results are filtered by TLP clearance via RLS.
     """
-    return await cypher_query(query, params or {})
+    return await cypher_query(template, params or {})
 
 
 @mcp.tool()
@@ -44,7 +44,7 @@ async def tool_vector_search(text: str, limit: int = 10) -> list[dict]:
     HNSW index. Returns ranked results with graph_id, distance, and
     content preview.
     """
-    return await vector_search(text, limit)
+    return await vector_search(text=text, limit=limit)
 
 
 @mcp.tool()

@@ -129,4 +129,66 @@ jobs:
       - name: Install dependencies
         run: pip install '.[test]'
       - name: Run pytest
-        run: pytest
+        run: pytest -m "not integration"
+
+  integration-test:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+    env:
+      PGHOST: localhost
+      PGPORT: 5432
+      PGUSER: cg_admin
+      PGPASSWORD: cg_dev_only
+      PGDATABASE: core_graph
+      CG_PG_DSN: postgresql://cg_admin:cg_dev_only@localhost:5432/core_graph
+      CG_NATS_URL: nats://localhost:4222
+      CG_VALKEY_URL: redis://localhost:6379
+    steps:
+      - uses: actions/checkout@v6
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: pip install '.[test]'
+      - name: Start Docker Compose stack
+        run: docker compose -f deploy/docker/docker-compose.yml up -d
+      - name: Wait for health checks
+        run: |
+          echo "Waiting for PostgreSQL..."
+          for i in $(seq 1 30); do
+            if docker compose -f deploy/docker/docker-compose.yml exec -T postgres pg_isready -U cg_admin -d core_graph 2>/dev/null; then
+              break
+            fi
+            sleep 2
+          done
+          echo "Waiting for NATS..."
+          for i in $(seq 1 15); do
+            if curl -sf http://localhost:8222/healthz >/dev/null 2>&1; then
+              break
+            fi
+            sleep 2
+          done
+          echo "Waiting for Valkey..."
+          for i in $(seq 1 15); do
+            if docker compose -f deploy/docker/docker-compose.yml exec -T valkey valkey-cli ping 2>/dev/null | grep -q PONG; then
+              break
+            fi
+            sleep 2
+          done
+      - name: Run migrations and seeds
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y postgresql-client
+          for f in $(ls schema/migrations/*.sql | sort); do
+            psql -v ON_ERROR_STOP=1 -f "$f"
+          done
+          for f in $(ls schema/seed/*.sql 2>/dev/null | sort); do
+            psql -v ON_ERROR_STOP=1 -f "$f"
+          done
+      - name: Run integration tests
+        run: pytest -m integration -v
+      - name: Tear down stack
+        if: always()
+        run: docker compose -f deploy/docker/docker-compose.yml down -v

@@ -1,0 +1,21 @@
+feeds:
+  - name: abuse-ch-urlhaus
+    url: https://urlhaus-api.abuse.ch/v1/urls/recent/
+    format: json
+    interval: 300
+    subject: ingest.osint.urlhaus
+  - name: abuse-ch-feodotracker
+    url: https://feodotracker.abuse.ch/downloads/ipblocklist.json
+    format: json
+    interval: 3600
+    subject: ingest.osint.feodotracker
+  - name: circl-misp-feed
+    url: https://www.circl.lu/doc/misp/feed-osint/
+    format: json
+    interval: 3600
+    subject: ingest.osint.circl
+  - name: botvrij-eu
+    url: https://www.botvrij.eu/data/feed-osint/
+    format: json
+    interval: 3600
+    subject: ingest.osint.botvrij

@@ -3,21 +3,23 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
 from pydantic import BaseModel
 
-logger = logging.getLogger(__name__)
+from api.config import DEFAULT_TLP, PG_DSN
 
-PG_DSN = "postgresql://cg_admin:cg_dev_only@localhost:5432/core_graph"
+logger = logging.getLogger(__name__)
 
 
 class VectorSearchInput(BaseModel):
     """Input model for vector_search tool."""
 
-    text: str
+    text: str | None = None
+    vector: list[float] | None = None
     limit: int = 10
 
 
@@ -30,41 +32,84 @@ class VectorSearchResult(BaseModel):
     distance: float
 
 
-async def vector_search(text: str, limit: int = 10) -> list[dict[str, Any]]:
+async def generate_embedding(text: str) -> list[float]:
+    """Generate an embedding vector from text.
+
+    Raises NotImplementedError until an embedding model is configured.
+    """
+    raise NotImplementedError("Embedding model not configured")
+
+
+async def vector_search(
+    text: str | None = None,
+    limit: int = 10,
+    *,
+    vector: list[float] | None = None,
+    caller_identity: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
     """Search embeddings by cosine similarity.
 
+    Accepts either a pre-computed vector or raw text. For raw text,
+    calls generate_embedding() which currently raises NotImplementedError.
+
     Args:
-        text: Query text (or pre-computed vector in future).
+        text: Query text (requires embedding model to be configured).
         limit: Maximum number of results to return.
+        vector: Pre-computed embedding vector (list of floats).
+        caller_identity: MCP session context for RLS enforcement.
 
     Returns:
         List of matching entities ranked by distance.
     """
-    # TODO: generate embedding from text using configured model
-    # For now, accept a pre-computed vector or return empty results
-    # placeholder_embedding = await generate_embedding(text)
+    # Determine the query vector
+    if vector is not None:
+        query_vector = vector
+    elif text is not None:
+        query_vector = await generate_embedding(text)
+    else:
+        raise ValueError("Either 'text' or 'vector' must be provided")
+
+    max_tlp = str(DEFAULT_TLP)
+    if caller_identity:
+        max_tlp = str(caller_identity.get("max_tlp", DEFAULT_TLP))
+
+    correlation_id = uuid.uuid4()
 
     async with await psycopg.AsyncConnection.connect(PG_DSN, row_factory=dict_row) as conn:
         # Set RLS session variables
-        await conn.execute("select set_config('app.max_tlp', '2', true)")
+        await conn.execute("select set_config('app.max_tlp', %s, true)", (max_tlp,))
 
-        # TODO: replace placeholder with actual embedding vector
-        # The query below is the production pattern; it requires a real embedding
-        #
-        # cursor = await conn.execute(
-        #     """
-        #     select graph_id, label, content,
-        #            embedding <=> %s::vector as distance
-        #     from embeddings
-        #     order by embedding <=> %s::vector
-        #     limit %s
-        #     """,
-        #     (placeholder_embedding, placeholder_embedding, limit),
-        # )
-        # rows = await cursor.fetchall()
-        # return [dict(r) for r in rows]
+        cursor = await conn.execute(
+            """
+            select graph_id, label, content,
+                   embedding <=> %s::vector as distance
+            from embeddings
+            order by embedding <=> %s::vector
+            limit %s
+            """,
+            (str(query_vector), str(query_vector), limit),
+        )
+        rows = await cursor.fetchall()
 
-        logger.info("vector_search called with text=%r limit=%d", text[:50], limit)
+        # Write audit log entry
+        await conn.execute(
+            """
+            insert into audit_log
+                (entity_label, operation, actor, correlation_id)
+            values (%s, %s, %s, %s)
+            """,
+            (
+                "vector_search",
+                "SEARCH",
+                caller_identity.get("actor", "mcp") if caller_identity else "mcp",
+                correlation_id,
+            ),
+        )
+        await conn.commit()
 
-        # TODO: implement embedding generation and search
-        return []
+        logger.info(
+            "Vector search: correlation=%s results=%d",
+            correlation_id,
+            len(rows),
+        )
+        return [dict(r) for r in rows]

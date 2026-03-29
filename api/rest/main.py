@@ -21,6 +21,7 @@ from api.rest.routes.entities import router as entities_router
 from api.rest.routes.events import router as events_router
 from api.rest.routes.query import router as query_router
 from api.rest.routes.search import router as search_router
+from api.taxii.server import taxii_router
 
 logger = logging.getLogger(__name__)
 
@@ -118,3 +119,4 @@ app.include_router(entities_router, prefix="/api/v1")
 app.include_router(search_router, prefix="/api/v1")
 app.include_router(events_router, prefix="/api/v1")
 app.include_router(query_router, prefix="/api/v1")
+app.include_router(taxii_router, prefix="/taxii2")

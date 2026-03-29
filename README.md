@@ -1,8 +1,8 @@
-# core-graph
+# Core-Graph
 
 A converged graph-vector knowledge platform built on PostgreSQL with Apache AGE
 and pgvector. Designed for EU-sovereign deployment with security, compliance,
-and operational assurance as structural properties.
+and operational assurance as structural properties.​
 
 ## What it does
 

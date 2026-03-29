@@ -39,7 +39,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: core-graph/api:latest
+          image: ghcr.io/rmednitzer/core-graph:latest
           ports:
             - containerPort: 8000
               name: http

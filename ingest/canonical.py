@@ -17,5 +17,5 @@ def canonical_key(ioc_type: str, value: str) -> str:
     * leading / trailing whitespace is stripped
     * the value is lowercased
     """
-    normalised = f"{ioc_type}:{value.strip().lower()}"
+    normalised = f"{ioc_type.strip().lower()}:{value.strip().lower()}"
     return hashlib.sha256(normalised.encode()).hexdigest()

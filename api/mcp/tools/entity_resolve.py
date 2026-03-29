@@ -4,17 +4,17 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from typing import Any
 
 import psycopg
 from psycopg.rows import dict_row
 from pydantic import BaseModel
 
+from api.config import DEFAULT_TLP, PG_DSN
 from ingest.canonical import canonical_key
 
 logger = logging.getLogger(__name__)
-
-PG_DSN = "postgresql://cg_admin:cg_dev_only@localhost:5432/core_graph"
 
 # Map IOC types to AGE vertex labels
 IOC_LABEL_MAP: dict[str, str] = {
@@ -42,12 +42,17 @@ class EntityResolveResult(BaseModel):
     properties: dict[str, Any]
 
 
-async def entity_resolve(ioc_type: str, value: str) -> dict[str, Any] | None:
+async def entity_resolve(
+    ioc_type: str,
+    value: str,
+    caller_identity: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
     """Look up a canonical entity by deterministic key.
 
     Args:
         ioc_type: The type of IOC (ip, domain, etc.).
         value: The IOC value to resolve.
+        caller_identity: MCP session context for RLS enforcement.
 
     Returns:
         Vertex properties if found, None otherwise.
@@ -58,8 +63,12 @@ async def entity_resolve(ioc_type: str, value: str) -> dict[str, Any] | None:
 
     ckey = canonical_key(ioc_type, value)
 
+    max_tlp = str(DEFAULT_TLP)
+    if caller_identity:
+        max_tlp = str(caller_identity.get("max_tlp", DEFAULT_TLP))
+
     async with await psycopg.AsyncConnection.connect(PG_DSN, row_factory=dict_row) as conn:
-        await conn.execute("select set_config('app.max_tlp', '2', true)")
+        await conn.execute("select set_config('app.max_tlp', %s, true)", (max_tlp,))
         await conn.execute("set search_path = ag_catalog, '$user', public")
 
         # Query the graph for the canonical entity
@@ -78,6 +87,22 @@ async def entity_resolve(ioc_type: str, value: str) -> dict[str, Any] | None:
             logger.info("Entity not found: %s/%s (key=%s)", ioc_type, value, ckey[:16])
             return None
 
-        # TODO: log to audit trail
+        # Write audit log entry on successful resolution
+        correlation_id = uuid.uuid4()
+        await conn.execute(
+            """
+            insert into audit_log
+                (entity_label, operation, actor, correlation_id)
+            values (%s, %s, %s, %s)
+            """,
+            (
+                f"{label}:{value}",
+                "RESOLVE",
+                caller_identity.get("actor", "mcp") if caller_identity else "mcp",
+                correlation_id,
+            ),
+        )
+        await conn.commit()
+
         logger.info("Entity resolved: %s/%s (key=%s)", ioc_type, value, ckey[:16])
         return dict(row)

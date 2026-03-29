@@ -106,6 +106,16 @@ IGNORE_DIRS = {".git", "__pycache__", ".pytest_cache", "node_modules", ".venv", 
 IGNORE_EXTENSIONS = {".pyc", ".pyo", ".so", ".dylib", ".png", ".jpg", ".gif", ".ico"}
 
 
+def format_secret_warning(name: str, path: Path) -> str:
+    """Return a non-sensitive warning message about a potential secret.
+
+    The message intentionally omits any actual secret contents and only
+    includes a descriptive label and the repository-relative file path.
+    """
+    rel_path = path.relative_to(REPO_ROOT)
+    return f"Potential secret ({name}) found in {rel_path} (secret contents not logged)"
+
+
 def check_secrets() -> None:
     """Scan for potential secrets in the codebase."""
     print("==> Checking for potential secrets")
@@ -125,10 +135,7 @@ def check_secrets() -> None:
 
         for name, pattern in SECRET_PATTERNS:
             if pattern.search(content):
-                fail(
-                    f"Potential secret ({name}) found in {path.relative_to(REPO_ROOT)} "
-                    "(secret contents not logged)"
-                )
+                fail(format_secret_warning(name, path))
 
     ok("No obvious secrets detected")
 

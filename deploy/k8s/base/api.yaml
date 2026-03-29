@@ -1,0 +1,79 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: api-config
+  namespace: core-graph
+data:
+  CG_PG_DSN: "postgresql://cg_admin@postgres:5432/core_graph"
+  CG_NATS_URL: "nats://nats:4222"
+  CG_VALKEY_URL: "redis://valkey:6379"
+  CG_DEFAULT_TLP: "2"
+  CG_OIDC_ENABLED: "false"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: api-secret
+  namespace: core-graph
+type: Opaque
+stringData:
+  CG_PG_DSN: "postgresql://cg_admin:changeme@postgres:5432/core_graph"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: core-graph
+  labels:
+    app.kubernetes.io/name: api
+    app.kubernetes.io/part-of: core-graph
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: api
+    spec:
+      containers:
+        - name: api
+          image: core-graph/api:latest
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - configMapRef:
+                name: api-config
+            - secretRef:
+                name: api-secret
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: core-graph
+spec:
+  selector:
+    app.kubernetes.io/name: api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000

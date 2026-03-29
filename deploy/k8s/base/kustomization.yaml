@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: core-graph
+
+resources:
+  - namespace.yaml
+  - postgres.yaml
+  - nats.yaml
+  - valkey.yaml
+  - api.yaml
+  - graph-writer.yaml
+  - networkpolicy.yaml

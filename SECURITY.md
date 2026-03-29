@@ -18,7 +18,7 @@ You will receive an acknowledgement within 48 hours.
 
 ## Supported versions
 
-Only the latest commit on `main` is supported. This project is pre-alpha.
+Only the latest commit on `main` is supported. This project is in alpha.
 
 ## Security design
 

@@ -1,0 +1,70 @@
+# Local development stack for core-graph.
+# Usage: docker compose -f deploy/docker/docker-compose.yml up -d
+
+services:
+  postgres:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.postgres
+    container_name: cg-postgres
+    environment:
+      POSTGRES_USER: cg_admin
+      POSTGRES_PASSWORD: cg_dev_only
+      POSTGRES_DB: core_graph
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    command: >
+      postgres
+      -c shared_preload_libraries='age,pgaudit,pg_cron'
+      -c cron.database_name=core_graph
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cg_admin -d core_graph"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - core-graph
+
+  nats:
+    image: nats:latest
+    container_name: cg-nats
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - ../nats/nats-server.conf:/etc/nats/nats-server.conf:ro
+      - natsdata:/data
+    command: ["--config", "/etc/nats/nats-server.conf"]
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8222/healthz || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - core-graph
+
+  valkey:
+    image: valkey/valkey:latest
+    container_name: cg-valkey
+    ports:
+      - "6379:6379"
+    volumes:
+      - valkeydata:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - core-graph
+
+volumes:
+  pgdata:
+  natsdata:
+  valkeydata:
+
+networks:
+  core-graph:
+    driver: bridge

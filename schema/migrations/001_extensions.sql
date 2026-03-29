@@ -8,6 +8,9 @@ CREATE EXTENSION IF NOT EXISTS age;
 -- pgvector: HNSW vector similarity search
 CREATE EXTENSION IF NOT EXISTS vector;
 
+-- pgcrypto: hash chain computation for audit log
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 -- pgAudit: audit logging for compliance
 CREATE EXTENSION IF NOT EXISTS pgaudit;
 

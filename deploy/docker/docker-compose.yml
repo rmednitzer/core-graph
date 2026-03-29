@@ -2,6 +2,33 @@
 # Usage: docker compose -f deploy/docker/docker-compose.yml up -d
 
 services:
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.app
+    container_name: cg-api
+    ports:
+      - "8000:8000"
+    environment:
+      CG_PG_DSN: postgresql://cg_admin:cg_dev_only@postgres:5432/core_graph
+      CG_NATS_URL: nats://nats:4222
+      CG_VALKEY_URL: redis://valkey:6379
+      CG_OIDC_ENABLED: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      nats:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8000/healthz || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - core-graph
+
   postgres:
     build:
       context: ../..
@@ -107,6 +134,22 @@ services:
       - "9090:9090"
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - core-graph
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: cg-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: cg_dev_only
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
     networks:
       - core-graph
 

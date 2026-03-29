@@ -1,4 +1,15 @@
-.PHONY: help up down migrate seed validate test lint clean
+.PHONY: help up down migrate seed validate test lint clean reset psql
+
+# Database connection defaults (override via environment)
+PGHOST   ?= localhost
+PGPORT   ?= 5432
+PGUSER   ?= cg_admin
+PGPASSWORD ?= cg_dev_only
+PGDATABASE ?= core_graph
+
+export PGHOST PGPORT PGUSER PGPASSWORD PGDATABASE
+
+PSQL := psql -v ON_ERROR_STOP=1
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -11,21 +22,53 @@ down: ## Stop local development stack
 	docker compose -f deploy/docker/docker-compose.yml down
 
 migrate: ## Run database migrations
-	@echo "TODO: implement migration runner"
+	@echo "==> Running migrations"
+	@for f in $$(ls schema/migrations/*.sql | sort); do \
+		echo "  -> Applying $$(basename $$f)"; \
+		$(PSQL) -f "$$f"; \
+	done
+	@echo "==> Migrations complete"
 
 seed: ## Load reference data (MITRE ATT&CK, STIX vocabularies, roles)
-	@echo "TODO: implement seed loader"
+	@echo "==> Loading seed data"
+	@for f in $$(ls schema/seed/*.sql 2>/dev/null | sort); do \
+		echo "  -> Loading $$(basename $$f)"; \
+		$(PSQL) -f "$$f"; \
+	done
+	@echo "==> Seed data loaded"
 
-validate: ## Validate schema and policies
-	@echo "TODO: implement validation"
+validate: ## Validate schema, Python, and policies
+	@echo "==> Validating Python (ruff)"
+	ruff check .
+	ruff format --check .
+	@echo "==> Validating YAML policies"
+	yamllint -d relaxed policies/
+	@echo "==> Checking migration numbering"
+	@python3 scripts/validate.py
+	@echo "==> All validations passed"
 
 test: ## Run all tests
-	@echo "TODO: implement test runner"
+	@echo "==> Running pytest"
+	pytest
+	@echo "==> Running RLS enforcement tests"
+	$(PSQL) -f tests/rls/test_tlp_enforcement.sql
+	@echo "==> All tests passed"
 
-lint: ## Lint Python and SQL
-	@echo "TODO: implement linting"
+lint: validate ## Lint Python and SQL (alias for validate)
 
 clean: ## Remove build artifacts and caches
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true
 	find . -type d -name .pytest_cache -exec rm -rf {} + 2>/dev/null || true
 	find . -name '*.pyc' -delete 2>/dev/null || true
+
+reset: ## Drop and recreate database, rerun migrations and seeds
+	@echo "==> Dropping database $(PGDATABASE)"
+	dropdb --if-exists $(PGDATABASE)
+	@echo "==> Creating database $(PGDATABASE)"
+	createdb $(PGDATABASE)
+	@$(MAKE) migrate
+	@$(MAKE) seed
+	@echo "==> Reset complete"
+
+psql: ## Connect to local dev database interactively
+	psql

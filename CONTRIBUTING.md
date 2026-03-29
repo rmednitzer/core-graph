@@ -8,6 +8,7 @@ Scopes: `feat:`, `fix:`, `docs:`, `schema:`, `policy:`, `deploy:`, `test:`,
 `chore:`
 
 Examples:
+
 - `schema: add bitemporal columns to threat_actor`
 - `policy: restrict external_auditor to TLP:GREEN`
 - `fix: parameterise Cypher query in entity_resolve`

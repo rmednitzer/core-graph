@@ -108,6 +108,42 @@ tests:
           read: EFFECT_DENY
 
   # ------------------------------------------------------------------
+  # identity_attribution
+  # ------------------------------------------------------------------
+  - name: identity_attribution — CISO can assert attribution
+    input:
+      principals: [ciso_user]
+      resources: [identity_attribution_target]
+      actions: [assert]
+    expected:
+      - principal: ciso_user
+        resource: identity_attribution_target
+        actions:
+          assert: EFFECT_ALLOW
+
+  - name: identity_attribution — AI agent cannot assert attribution
+    input:
+      principals: [ai_user]
+      resources: [identity_attribution_target]
+      actions: [assert]
+    expected:
+      - principal: ai_user
+        resource: identity_attribution_target
+        actions:
+          assert: EFFECT_DENY
+
+  - name: identity_attribution — SOC analyst cannot assert attribution
+    input:
+      principals: [soc_user]
+      resources: [identity_attribution_target]
+      actions: [assert]
+    expected:
+      - principal: soc_user
+        resource: identity_attribution_target
+        actions:
+          assert: EFFECT_DENY
+
+  # ------------------------------------------------------------------
   # incident
   # ------------------------------------------------------------------
   - name: incident — SOC analyst can read own assigned incident
@@ -188,6 +224,11 @@ resources:
     id: ev-001
     attr:
       record_type: audit_log
+
+  identity_attribution_target:
+    kind: identity_attribution
+    id: ia-001
+    attr: {}
 
   incident_assigned_to_soc:
     kind: incident

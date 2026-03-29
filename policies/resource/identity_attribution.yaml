@@ -1,0 +1,23 @@
+---
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: identity_attribution
+  version: default
+  importDerivedRoles:
+    - core_graph_roles
+  rules:
+    # Only CISO can assert identity attributions
+    - actions: ["assert"]
+      effect: EFFECT_ALLOW
+      derivedRoles: [ciso]
+
+    # Explicitly deny all other roles
+    - actions: ["assert"]
+      effect: EFFECT_DENY
+      derivedRoles:
+        - soc_analyst
+        - compliance_officer
+        - it_operations
+        - dpo
+        - external_auditor
+        - ai_agent

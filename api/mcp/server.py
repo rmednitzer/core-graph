@@ -16,6 +16,7 @@ from mcp.server.fastmcp import FastMCP
 from api.mcp.skills.registry import registry
 from api.mcp.tools.cypher_query import cypher_query
 from api.mcp.tools.entity_resolve import entity_resolve
+from api.mcp.tools.identity_attribution import assert_identity_attribution
 from api.mcp.tools.ingest_event import ingest_event
 from api.mcp.tools.stix_lookup import stix_lookup
 from api.mcp.tools.vector_search import vector_search
@@ -90,6 +91,27 @@ async def tool_execute_skill(skill_name: str, params: dict | None = None) -> dic
     skill = registry.get_skill(skill_name)
     result = await skill.execute(params or {})
     return asdict(result)
+
+
+@mcp.tool()
+async def tool_assert_identity_attribution(
+    principal_id: str,
+    threat_actor_stix_id: str,
+    justification: str,
+    investigation_id: str,
+) -> dict[str, Any]:
+    """Assert that a Principal is the same entity as a ThreatActor.
+
+    Creates a same_as edge with TLP:RED compartmented to the investigation.
+    Requires cg_ciso role — denied for all other roles including cg_ai_agent.
+    Writes a mandatory audit log entry with the justification.
+    """
+    return await assert_identity_attribution(
+        principal_id=principal_id,
+        threat_actor_stix_id=threat_actor_stix_id,
+        justification=justification,
+        investigation_id=investigation_id,
+    )
 
 
 @mcp.tool()

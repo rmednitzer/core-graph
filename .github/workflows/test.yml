@@ -33,14 +33,18 @@ jobs:
       PGDATABASE: core_graph_test
     steps:
       - uses: actions/checkout@v4
-      - name: Install pgvector
+      - name: Install extensions in service container
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y postgresql-client
-          docker exec $(docker ps -q --filter ancestor=apache/age:release_PG16_1.6.0) \
-            bash -c "apt-get update -qq && apt-get install -y postgresql-16-pgvector"
-      - name: Wait for PostgreSQL
-        run: |
+          CONTAINER=$(docker ps -q --filter ancestor=apache/age:release_PG16_1.6.0)
+          docker exec "$CONTAINER" bash -c \
+            "apt-get update -qq && apt-get install -y postgresql-16-pgvector postgresql-16-pgaudit postgresql-16-cron"
+          docker exec "$CONTAINER" bash -c \
+            "echo \"shared_preload_libraries = 'age,pgaudit,pg_cron'\" >> /var/lib/postgresql/data/postgresql.conf"
+          docker exec "$CONTAINER" bash -c \
+            "echo \"cron.database_name = 'core_graph_test'\" >> /var/lib/postgresql/data/postgresql.conf"
+          docker restart "$CONTAINER"
           until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done
       - name: Run migrations
         run: bash tests/schema/test_migrations.sh
@@ -76,14 +80,18 @@ jobs:
       PGDATABASE: core_graph_test
     steps:
       - uses: actions/checkout@v4
-      - name: Install pgvector
+      - name: Install extensions in service container
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y postgresql-client
-          docker exec $(docker ps -q --filter ancestor=apache/age:release_PG16_1.6.0) \
-            bash -c "apt-get update -qq && apt-get install -y postgresql-16-pgvector"
-      - name: Wait for PostgreSQL
-        run: |
+          CONTAINER=$(docker ps -q --filter ancestor=apache/age:release_PG16_1.6.0)
+          docker exec "$CONTAINER" bash -c \
+            "apt-get update -qq && apt-get install -y postgresql-16-pgvector postgresql-16-pgaudit postgresql-16-cron"
+          docker exec "$CONTAINER" bash -c \
+            "echo \"shared_preload_libraries = 'age,pgaudit,pg_cron'\" >> /var/lib/postgresql/data/postgresql.conf"
+          docker exec "$CONTAINER" bash -c \
+            "echo \"cron.database_name = 'core_graph_test'\" >> /var/lib/postgresql/data/postgresql.conf"
+          docker restart "$CONTAINER"
           until pg_isready -h localhost -p 5432 -U postgres; do sleep 1; done
       - name: Run migrations
         run: bash tests/schema/test_migrations.sh

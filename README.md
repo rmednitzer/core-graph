@@ -162,10 +162,3 @@ The core path (PostgreSQL + AGE + pgvector + NATS + Cerbos + cosign) is
 entirely Apache 2.0 / MIT / BSD / PostgreSQL Licence. Satellite components
 carry their own licences (GPL, AGPL) and operate as external services, not
 embedded in redistributable code.
-
-## Related projects
-
-- [platform-assurance](https://github.com/rmednitzer/platform-assurance) -
-  Governance-as-code framework (NIS2/CRA/GDPR/AI Act)
-- [cps-assurance](https://github.com/rmednitzer/cps-assurance) -
-  Cyber-physical systems assurance

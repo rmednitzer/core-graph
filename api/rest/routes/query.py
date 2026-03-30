@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
 
 from api.mcp.tools.cypher_query import cypher_query
+from api.rest.routes.helpers import caller_from_request
 
 router = APIRouter()
 
@@ -20,22 +21,7 @@ class QueryRequest(BaseModel):
 @router.post("/query")
 async def post_query(body: QueryRequest, request: Request) -> dict:
     """Execute a named Cypher query template."""
-    identity = getattr(request.state, "identity", None)
-    if identity is not None:
-        caller = {
-            "max_tlp": identity.max_tlp,
-            "actor": identity.sub,
-            "allowed_compartments": identity.allowed_compartments,
-        }
-    else:
-        from api.config import DEFAULT_TLP
-
-        tlp = int(request.headers.get("X-CG-TLP", "0") or "0")
-        caller = {
-            "max_tlp": tlp or DEFAULT_TLP,
-            "actor": "rest_api",
-            "allowed_compartments": [],
-        }
+    caller = caller_from_request(request)
     try:
         rows = await cypher_query(body.template, body.params, caller_identity=caller)
     except ValueError as exc:

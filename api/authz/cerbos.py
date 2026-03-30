@@ -16,6 +16,19 @@ from api.rest.middleware.oidc import CallerIdentity
 
 logger = logging.getLogger(__name__)
 
+_http_client: httpx.AsyncClient | None = None
+
+
+def _get_http_client() -> httpx.AsyncClient:
+    """Return a shared httpx client for Cerbos API calls."""
+    global _http_client
+    if _http_client is None:
+        _http_client = httpx.AsyncClient(
+            base_url=config.CERBOS_ENDPOINT,
+            timeout=5,
+        )
+    return _http_client
+
 
 async def check_resource(
     principal: CallerIdentity,
@@ -48,14 +61,13 @@ async def check_resource(
     }
 
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f"{config.CERBOS_ENDPOINT}/api/check/resources",
-                json={"requestId": resource_id, "includeMeta": False, **payload},
-                timeout=5,
-            )
-            resp.raise_for_status()
-            result = resp.json()
+        client = _get_http_client()
+        resp = await client.post(
+            "/api/check/resources",
+            json={"requestId": resource_id, "includeMeta": False, **payload},
+        )
+        resp.raise_for_status()
+        result = resp.json()
 
         # Parse Cerbos response
         results = result.get("results", [])
@@ -96,14 +108,13 @@ async def plan_resources(
     }
 
     try:
-        async with httpx.AsyncClient() as client:
-            resp = await client.post(
-                f"{config.CERBOS_ENDPOINT}/api/plan/resources",
-                json={"requestId": "plan", **payload},
-                timeout=5,
-            )
-            resp.raise_for_status()
-            return resp.json()
+        client = _get_http_client()
+        resp = await client.post(
+            "/api/plan/resources",
+            json={"requestId": "plan", **payload},
+        )
+        resp.raise_for_status()
+        return resp.json()
     except Exception:
         logger.exception("Cerbos plan_resources failed, returning empty plan")
         return {}

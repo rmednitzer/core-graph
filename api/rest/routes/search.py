@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from api.mcp.tools.vector_search import vector_search
+from api.rest.routes.helpers import caller_from_request
 
 router = APIRouter()
 
@@ -19,22 +20,7 @@ class SearchRequest(BaseModel):
 @router.post("/search")
 async def post_search(body: SearchRequest, request: Request) -> list[dict]:
     """Semantic similarity search over graph embeddings."""
-    identity = getattr(request.state, "identity", None)
-    if identity is not None:
-        caller = {
-            "max_tlp": identity.max_tlp,
-            "actor": identity.sub,
-            "allowed_compartments": identity.allowed_compartments,
-        }
-    else:
-        from api.config import DEFAULT_TLP
-
-        tlp = int(request.headers.get("X-CG-TLP", "0") or "0")
-        caller = {
-            "max_tlp": tlp or DEFAULT_TLP,
-            "actor": "rest_api",
-            "allowed_compartments": [],
-        }
+    caller = caller_from_request(request)
     return await vector_search(
         text=body.text,
         limit=body.limit,

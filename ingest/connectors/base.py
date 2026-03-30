@@ -185,7 +185,7 @@ class AdapterBase(ABC):
         except Exception:
             self._logger.warning("Failed to write audit entry", exc_info=True)
 
-    async def _post_cycle_hook(self, count: int, errors: int) -> None:
+    async def _post_cycle_hook(self, count: int, errors: int) -> None:  # noqa: B027
         """Hook called after each fetch/map/publish cycle.
 
         Subclasses can override to publish additional data such as

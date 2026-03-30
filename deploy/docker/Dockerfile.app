@@ -33,7 +33,7 @@ RUN groupadd -g 10001 cg && useradd -u 10001 -g cg -s /usr/sbin/nologin cg
 
 WORKDIR /app
 
-COPY --from=build /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=build /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
 COPY --from=build /usr/local/bin /usr/local/bin
 COPY --from=build /app/api api/
 COPY --from=build /app/ingest ingest/

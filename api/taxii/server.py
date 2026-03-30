@@ -357,8 +357,8 @@ async def add_objects(
 
     try:
         body = await request.json()
-    except Exception:
-        raise HTTPException(status_code=422, detail="Invalid JSON body")
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail="Invalid JSON body") from exc
 
     # Validate STIX bundle structure
     if not isinstance(body, dict):

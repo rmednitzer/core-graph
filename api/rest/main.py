@@ -11,7 +11,16 @@ import psycopg
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from api.config import NATS_URL, PG_DSN
+from api.config import (
+    MINIO_ACCESS_KEY,
+    MINIO_ENDPOINT,
+    MINIO_EVIDENCE_BUCKET,
+    MINIO_SECRET_KEY,
+    MINIO_USE_SSL,
+    NATS_URL,
+    PG_DSN,
+    VALKEY_URL,
+)
 from api.db import close_pool, open_pool
 from api.rest.middleware.logging import RequestLoggingMiddleware
 from api.rest.middleware.metrics import MetricsMiddleware, metrics_endpoint
@@ -76,9 +85,11 @@ async def healthz() -> dict:
 
 @app.get("/readyz")
 async def readyz() -> dict:
-    """Readiness probe — checks PostgreSQL and NATS connectivity."""
+    """Readiness probe — checks PostgreSQL, NATS, Valkey, and MinIO connectivity."""
     pg_ok = False
     nats_ok = False
+    valkey_ok = False
+    minio_ok = False
 
     # Check PostgreSQL
     try:
@@ -98,10 +109,43 @@ async def readyz() -> dict:
     except Exception:
         logger.warning("readyz: NATS check failed", exc_info=True)
 
-    status = "ok" if pg_ok and nats_ok else "degraded"
-    result = {"status": status, "postgres": pg_ok, "nats": nats_ok}
+    # Check Valkey
+    try:
+        import redis.asyncio as aioredis
 
-    if not (pg_ok and nats_ok):
+        r = aioredis.from_url(VALKEY_URL)
+        await r.ping()
+        await r.aclose()
+        valkey_ok = True
+    except Exception:
+        logger.warning("readyz: Valkey check failed", exc_info=True)
+
+    # Check MinIO
+    try:
+        from minio import Minio
+
+        mc = Minio(
+            MINIO_ENDPOINT,
+            access_key=MINIO_ACCESS_KEY,
+            secret_key=MINIO_SECRET_KEY,
+            secure=MINIO_USE_SSL,
+        )
+        mc.bucket_exists(MINIO_EVIDENCE_BUCKET)
+        minio_ok = True
+    except Exception:
+        logger.warning("readyz: MinIO check failed", exc_info=True)
+
+    all_ok = pg_ok and nats_ok and valkey_ok and minio_ok
+    status = "ok" if all_ok else "degraded"
+    result = {
+        "status": status,
+        "postgres": pg_ok,
+        "nats": nats_ok,
+        "valkey": valkey_ok,
+        "minio": minio_ok,
+    }
+
+    if not all_ok:
         from fastapi.responses import JSONResponse
 
         return JSONResponse(content=result, status_code=503)

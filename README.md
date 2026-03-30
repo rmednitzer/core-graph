@@ -18,6 +18,7 @@ core-graph is a canonical convergence point for heterogeneous data domains:
 - **AI memory** (agent conversation context, reasoning traces, semantic embeddings)
 - **Forensic timelines** (bitemporal facts, chain of custody)
 - **Infrastructure and assets** (CMDB, network inventory, monitoring alerts via Netbox/Prometheus)
+- **Identity and access management** (IAM vertices, TLP:AMBER floor, Keycloak sync)
 
 ## Status
 
@@ -133,6 +134,8 @@ zarf package deploy zarf-package-core-graph-amd64-0.1.0.tar.zst \
 | `make test`         | Run all tests                            |
 | `make lint`         | Lint Python and YAML                     |
 | `make verify-chain` | Verify audit log hash chain              |
+| `make bench`        | Run performance benchmarks               |
+| `make deploy-lint`  | Validate all deployment artifacts         |
 
 ## Repository layout
 

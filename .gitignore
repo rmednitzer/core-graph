@@ -29,3 +29,6 @@ Thumbs.db
 *.key
 *.crt
 secrets/
+.env
+.env.*
+!.env.example

@@ -139,7 +139,7 @@ async def _consume_sse(
 
     while True:
         try:
-            async with httpx.AsyncClient(timeout=None) as client:
+            async with httpx.AsyncClient(timeout=httpx.Timeout(None)) as client:  # noqa: S113
                 async with client.stream("GET", url, headers=headers) as response:
                     response.raise_for_status()
                     logger.info("Connected to OpenCTI SSE stream")

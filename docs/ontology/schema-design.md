@@ -1,4 +1,4 @@
-# Schema design: seven-layer unified ontology
+# Schema design: eight-layer unified ontology
 
 ## Introduction
 
@@ -418,6 +418,50 @@ Layer 1 vertices and edges follow the STIX 2.1 specification. The complete
 property-level mapping from STIX Domain Objects (SDOs), STIX Relationship
 Objects (SROs), and STIX Cyber-observable Objects (SCOs) to graph elements is
 documented in [stix-mapping.md](stix-mapping.md).
+
+---
+
+## Layer 8: Identity & access management
+
+Identity and access management (IAM) data provides the organisational context
+for all security analysis. It answers "who has access to what" and "who did
+what" across the entire estate.
+
+### Vertex labels
+
+| Label           | Description                                    | Data source |
+| --------------- | ---------------------------------------------- | ----------- |
+| `Principal`     | Human user or service account                  | Keycloak    |
+| `Role`          | Named role (realm or client role)              | Keycloak    |
+| `Group`         | Organisational group                           | Keycloak    |
+| `Permission`    | Named permission on a resource                 | Cerbos      |
+| `AccessPolicy`  | Policy document binding principals to perms    | Cerbos      |
+
+### Edge labels
+
+| Label       | Source → Target                          | Description                        |
+| ----------- | ---------------------------------------- | ---------------------------------- |
+| `has_role`  | Principal → Role                         | Direct role assignment             |
+| `member_of` | Principal → Group, Group → Group         | Group membership (including nested)|
+| `grants`    | Role → Permission, AccessPolicy → Perm  | Permission grant                   |
+| `actor_in`  | Principal → SecurityEvent                | Cross-layer: L8 → L2              |
+| `manages`   | Principal → Principal                    | Manager relationship               |
+| `owns`      | Principal → Host / Service               | Asset ownership                    |
+
+### Retention policy
+
+IAM data is retained indefinitely under bitemporal modelling. Historical role
+assignments and group memberships are never deleted; they are invalidated via
+`t_invalid` and `t_superseded`.
+
+### Security constraints
+
+- **TLP floor**: All IAM vertices are published with `tlp >= 2` (AMBER).
+  The `iam_tlp_floor` RLS policy enforces this at the PostgreSQL engine level,
+  independent of the vertex `tlp_level` property.
+- **`same_as` edges** between Principal and ThreatActor require explicit
+  `cg_ciso` authorization via `tool_assert_identity_attribution`. These edges
+  are never created automatically by the ingest pipeline.
 
 ---
 

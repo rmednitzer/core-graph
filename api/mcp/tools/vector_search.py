@@ -8,7 +8,13 @@ from typing import Any
 
 from pydantic import BaseModel
 
-from api.config import DEFAULT_TLP
+from api.config import (
+    DEFAULT_TLP,
+    EMBEDDING_DIMENSIONS,
+    EMBEDDING_MODEL,
+    EMBEDDING_PROVIDER,
+    EMBEDDING_URL,
+)
 from api.db import get_connection
 
 logger = logging.getLogger(__name__)
@@ -34,9 +40,40 @@ class VectorSearchResult(BaseModel):
 async def generate_embedding(text: str) -> list[float]:
     """Generate an embedding vector from text.
 
-    Raises NotImplementedError until an embedding model is configured.
+    Uses the configured embedding provider (ollama or openai-compatible).
+    Raises NotImplementedError if provider is 'none'.
     """
-    raise NotImplementedError("Embedding model not configured")
+    if EMBEDDING_PROVIDER == "none":
+        raise NotImplementedError("Embedding model not configured (CG_EMBEDDING_PROVIDER=none)")
+
+    import httpx
+
+    if EMBEDDING_PROVIDER == "ollama":
+        url = f"{EMBEDDING_URL.rstrip('/')}/api/embed"
+        payload = {"model": EMBEDDING_MODEL, "input": text}
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(url, json=payload)
+            resp.raise_for_status()
+            body = resp.json()
+            embeddings = body.get("embeddings", [])
+            if not embeddings:
+                raise ValueError("Ollama returned no embeddings")
+            return embeddings[0][:EMBEDDING_DIMENSIONS]
+
+    elif EMBEDDING_PROVIDER == "openai":
+        url = f"{EMBEDDING_URL.rstrip('/')}/v1/embeddings"
+        payload = {"model": EMBEDDING_MODEL, "input": text}
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(url, json=payload)
+            resp.raise_for_status()
+            body = resp.json()
+            data = body.get("data", [])
+            if not data:
+                raise ValueError("OpenAI-compatible API returned no embeddings")
+            return data[0]["embedding"][:EMBEDDING_DIMENSIONS]
+
+    else:
+        raise ValueError(f"Unknown embedding provider: {EMBEDDING_PROVIDER}")
 
 
 async def vector_search(
@@ -49,7 +86,7 @@ async def vector_search(
     """Search embeddings by cosine similarity.
 
     Accepts either a pre-computed vector or raw text. For raw text,
-    calls generate_embedding() which currently raises NotImplementedError.
+    calls generate_embedding() which requires an embedding provider.
 
     Args:
         text: Query text (requires embedding model to be configured).

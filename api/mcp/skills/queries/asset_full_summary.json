@@ -1,0 +1,13 @@
+{
+  "description": "Full asset summary across all domains: alerts, events, vulnerabilities, compliance, topology",
+  "parameters": {
+    "canonical_key": {
+      "type": "string",
+      "required": true,
+      "description": "SHA-256 canonical key of the host entity"
+    }
+  },
+  "returns": "list",
+  "max_depth": 4,
+  "estimated_ms": 200
+}

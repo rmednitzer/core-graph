@@ -1,0 +1,19 @@
+{
+  "description": "Recent security events for an asset within a time window",
+  "parameters": {
+    "canonical_key": {
+      "type": "string",
+      "required": true,
+      "description": "SHA-256 canonical key of the host entity"
+    },
+    "hours_back": {
+      "type": "integer",
+      "required": false,
+      "description": "Hours to look back (default 24)",
+      "default": 24
+    }
+  },
+  "returns": "list",
+  "max_depth": 3,
+  "estimated_ms": 150
+}

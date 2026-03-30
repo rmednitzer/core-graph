@@ -1,0 +1,13 @@
+{
+  "description": "Look up a STIX object by its STIX ID",
+  "parameters": {
+    "stix_id": {
+      "type": "string",
+      "required": true,
+      "description": "STIX 2.1 identifier (e.g. threat-actor--uuid)"
+    }
+  },
+  "returns": "list",
+  "max_depth": 1,
+  "estimated_ms": 50
+}

@@ -1,0 +1,13 @@
+{
+  "description": "Get all neighbours of a vertex by value",
+  "parameters": {
+    "value": {
+      "type": "string",
+      "required": true,
+      "description": "The value of the source vertex"
+    }
+  },
+  "returns": "list",
+  "max_depth": 1,
+  "estimated_ms": 100
+}

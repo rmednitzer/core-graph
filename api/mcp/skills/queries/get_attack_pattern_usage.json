@@ -1,0 +1,13 @@
+{
+  "description": "Get entities using an ATT&CK technique",
+  "parameters": {
+    "name": {
+      "type": "string",
+      "required": true,
+      "description": "Name of the ATT&CK technique"
+    }
+  },
+  "returns": "list",
+  "max_depth": 2,
+  "estimated_ms": 100
+}

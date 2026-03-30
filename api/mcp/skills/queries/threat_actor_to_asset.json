@@ -1,0 +1,13 @@
+{
+  "description": "Assets affected by a threat actor via attack patterns and vulnerabilities",
+  "parameters": {
+    "threat_actor_name": {
+      "type": "string",
+      "required": true,
+      "description": "Name of the threat actor"
+    }
+  },
+  "returns": "list",
+  "max_depth": 5,
+  "estimated_ms": 200
+}

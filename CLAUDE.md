@@ -23,8 +23,9 @@ Target: EU-sovereign, single-engineer operable, auditable, evidence-producing.
   t_recorded, t_superseded). Facts invalidated, never deleted.
 - Evidence integrity via append-only audit log + MinIO WORM + cosign + Rekor.
 - MCP server is the primary AI agent interface.
-- Seven ontology layers: threat intel, security events, OSINT, audit/compliance,
-  AI memory, forensic timeline, infrastructure & assets.
+- Eight ontology layers: threat intel, security events, OSINT, audit/compliance,
+  AI memory, forensic timeline, infrastructure & assets, identity & access
+  management.
 - STIX 2.1 as canonical threat intelligence data model.
 - OCSF as event normalisation layer.
 - Connection pooling via psycopg-pool (not per-request connections).
@@ -32,12 +33,25 @@ Target: EU-sovereign, single-engineer operable, auditable, evidence-producing.
 - Cerbos for ABAC (YAML policies in `policies/`).
 - OIDC for authentication (pluggable IdP).
 - Dead-letter queue with retry and archive.
+- Skills live in `api/mcp/skills/`. Each skill implements `SkillBase`. New
+  capabilities are added as skills, not as raw Cypher templates.
+- Cross-domain Cypher templates live in `api/mcp/skills/queries/` as `.cypher`
+  files with companion `.json` parameter schemas.
+- IAM data (Layer 8) has a TLP:AMBER floor enforced at the RLS layer. No IAM
+  vertex is ever visible below TLP:AMBER.
+- `Principal--same_as--ThreatActor` edges require explicit `cg_ciso`
+  authorization via `tool_assert_identity_attribution`. Never created
+  automatically.
+- Adapter base class is `ingest/connectors/base.py`. New adapters must extend
+  `AdapterBase`.
+- Embedding provider is configured via `CG_EMBEDDING_PROVIDER`. Default is
+  `none`.
 
 ## Coding conventions
 
 - Python 3.12+, type hints required, ruff for linting
 - SQL migrations are numbered files (001_, 002_, ...). No ORM.
-- Conventional commits: feat:, fix:, docs:, schema:, policy:, deploy:, test:
+- Conventional commits: feat:, fix:, docs:, schema:, policy:, deploy:, test:, skill:
 - Smallest safe increments. Reversible-first.
 - No speculative features. Build what is needed now.
 - SI units, ISO 8601 dates, 24h time, UTC unless explicitly local
@@ -61,7 +75,9 @@ Target: EU-sovereign, single-engineer operable, auditable, evidence-producing.
 - `evidence/` - cosign signing, hash chain computation, Rekor config
 - `tests/` - Schema validation, RLS enforcement, ingest integration, auth decisions
 - `api/authz/` - SpiceDB and Cerbos client modules
+- `api/mcp/skills/` - Skill registry, base class, query templates, skill implementations
 - `api/db.py` - Shared connection pool
+- `ingest/connectors/base.py` - Shared adapter base class
 - `ingest/dlq/` - Dead-letter queue processor
 - `docs/` - Architecture, compliance mapping, ontology design, operations
 

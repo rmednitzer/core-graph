@@ -1,0 +1,13 @@
+{
+  "description": "Infrastructure topology of an asset: interfaces, networks, sites, services",
+  "parameters": {
+    "canonical_key": {
+      "type": "string",
+      "required": true,
+      "description": "SHA-256 canonical key of the host entity"
+    }
+  },
+  "returns": "list",
+  "max_depth": 3,
+  "estimated_ms": 100
+}

@@ -47,3 +47,15 @@ NETBOX_TOKEN = os.environ.get("NETBOX_TOKEN", "")
 # Prometheus AlertManager webhook
 PROMETHEUS_WEBHOOK_HOST = os.environ.get("CG_PROMETHEUS_WEBHOOK_HOST", "0.0.0.0")
 PROMETHEUS_WEBHOOK_PORT = int(os.environ.get("CG_PROMETHEUS_WEBHOOK_PORT", "9095"))
+
+# Embedding model
+EMBEDDING_PROVIDER = os.environ.get("CG_EMBEDDING_PROVIDER", "none")
+EMBEDDING_MODEL = os.environ.get("CG_EMBEDDING_MODEL", "nomic-embed-text")
+EMBEDDING_URL = os.environ.get("CG_EMBEDDING_URL", "http://localhost:11434")
+EMBEDDING_DIMENSIONS = int(os.environ.get("CG_EMBEDDING_DIMENSIONS", "768"))
+
+# Keycloak (IAM)
+KEYCLOAK_URL = os.environ.get("CG_KEYCLOAK_URL", "http://localhost:8080")
+KEYCLOAK_REALM = os.environ.get("CG_KEYCLOAK_REALM", "master")
+KEYCLOAK_CLIENT_ID = os.environ.get("CG_KEYCLOAK_CLIENT_ID", "admin-cli")
+KEYCLOAK_CLIENT_SECRET = os.environ.get("CG_KEYCLOAK_CLIENT_SECRET", "")

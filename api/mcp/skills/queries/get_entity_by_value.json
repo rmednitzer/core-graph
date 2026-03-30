@@ -1,0 +1,13 @@
+{
+  "description": "Look up any vertex by its value property",
+  "parameters": {
+    "value": {
+      "type": "string",
+      "required": true,
+      "description": "The value to search for"
+    }
+  },
+  "returns": "list",
+  "max_depth": 1,
+  "estimated_ms": 50
+}

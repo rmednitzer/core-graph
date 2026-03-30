@@ -125,6 +125,112 @@ MERGE_TEMPLATES: dict[str, str] = {
             return id(v)
         $$, $1) as (id agtype)
     """,
+    # -- Layer 8: IAM --------------------------------------------------------
+    "Principal": """
+        select * from ag_catalog.cypher('core_graph', $$
+            merge (v:Principal {canonical_key: $canonical_key})
+            on create set v.principal_id = $principal_id, v.username = $username,
+                          v.email = $email, v.enabled = $enabled,
+                          v.created_at = $created_at, v.last_login = $last_login,
+                          v.source = $source, v.tlp_level = $tlp,
+                          v.first_seen = $now
+            on match set v.last_login = $last_login, v.enabled = $enabled,
+                         v.last_seen = $now
+            return id(v)
+        $$, $1) as (id agtype)
+    """,
+    "Group": """
+        select * from ag_catalog.cypher('core_graph', $$
+            merge (v:Group {canonical_key: $canonical_key})
+            on create set v.group_id = $group_id, v.name = $name,
+                          v.path = $path, v.source = $source,
+                          v.tlp_level = $tlp, v.first_seen = $now
+            on match set v.last_seen = $now
+            return id(v)
+        $$, $1) as (id agtype)
+    """,
+    "Role": """
+        select * from ag_catalog.cypher('core_graph', $$
+            merge (v:Role {canonical_key: $canonical_key})
+            on create set v.role_name = $role_name, v.realm = $realm,
+                          v.client_id = $client_id, v.source = $source,
+                          v.tlp_level = $tlp, v.first_seen = $now
+            on match set v.last_seen = $now
+            return id(v)
+        $$, $1) as (id agtype)
+    """,
+    "Permission": """
+        select * from ag_catalog.cypher('core_graph', $$
+            merge (v:Permission {canonical_key: $canonical_key})
+            on create set v.name = $name, v.resource = $resource,
+                          v.source = $source, v.tlp_level = $tlp,
+                          v.first_seen = $now
+            on match set v.last_seen = $now
+            return id(v)
+        $$, $1) as (id agtype)
+    """,
+    "AccessPolicy": """
+        select * from ag_catalog.cypher('core_graph', $$
+            merge (v:AccessPolicy {canonical_key: $canonical_key})
+            on create set v.name = $name, v.source = $source,
+                          v.tlp_level = $tlp, v.first_seen = $now
+            on match set v.last_seen = $now
+            return id(v)
+        $$, $1) as (id agtype)
+    """,
+}
+
+# -- Relationship merge templates (parameterised, never concatenated) --------
+
+RELATIONSHIP_TEMPLATES: dict[str, str] = {
+    "has_role": """
+        select * from ag_catalog.cypher('core_graph', $$
+            match (p:Principal {canonical_key: $principal_key})
+            match (r:Role {canonical_key: $role_key})
+            merge (p)-[:has_role {source: $source, t_recorded: $now}]->(r)
+            return id(p)
+        $$, $1) as (id agtype)
+    """,
+    "member_of": """
+        select * from ag_catalog.cypher('core_graph', $$
+            match (a {canonical_key: $principal_key})
+            match (b {canonical_key: $group_key})
+            merge (a)-[:member_of {source: $source, t_recorded: $now}]->(b)
+            return id(a)
+        $$, $1) as (id agtype)
+    """,
+    "grants": """
+        select * from ag_catalog.cypher('core_graph', $$
+            match (r:Role {canonical_key: $role_key})
+            match (p:Permission {canonical_key: $permission_key})
+            merge (r)-[:grants {source: $source, t_recorded: $now}]->(p)
+            return id(r)
+        $$, $1) as (id agtype)
+    """,
+    "actor_in": """
+        select * from ag_catalog.cypher('core_graph', $$
+            match (p:Principal {canonical_key: $principal_key})
+            match (se:SecurityEvent {event_id: $event_id})
+            merge (p)-[:actor_in {source: $source, t_recorded: $now}]->(se)
+            return id(p)
+        $$, $1) as (id agtype)
+    """,
+    "manages": """
+        select * from ag_catalog.cypher('core_graph', $$
+            match (mgr:Principal {canonical_key: $manager_key})
+            match (sub:Principal {canonical_key: $subordinate_key})
+            merge (mgr)-[:manages {source: $source, t_recorded: $now}]->(sub)
+            return id(mgr)
+        $$, $1) as (id agtype)
+    """,
+    "owns": """
+        select * from ag_catalog.cypher('core_graph', $$
+            match (p:Principal {canonical_key: $principal_key})
+            match (a {canonical_key: $asset_key})
+            merge (p)-[:owns {source: $source, t_recorded: $now}]->(a)
+            return id(p)
+        $$, $1) as (id agtype)
+    """,
 }
 
 
@@ -135,11 +241,11 @@ def _hash_properties(params: dict) -> str:
 
 
 async def _ensure_stream(js: nats.js.JetStreamContext) -> None:
-    """Ensure the enriched entity stream exists."""
+    """Ensure the enriched entity and relationship streams exist."""
     await js.add_stream(
         StreamConfig(
             name="ENRICHED",
-            subjects=["enriched.entity.>"],
+            subjects=["enriched.entity.>", "enriched.relationship.>"],
             retention="work_queue",
             max_bytes=1_073_741_824,
         )
@@ -186,11 +292,31 @@ async def _merge_entity(
     return None
 
 
+async def _merge_relationship(
+    conn: psycopg.AsyncConnection[Any],
+    rel_type: str,
+    params: dict[str, Any],
+) -> int | None:
+    """Execute a parameterised Cypher MERGE for an edge and return a vertex id."""
+    template = RELATIONSHIP_TEMPLATES.get(rel_type)
+    if template is None:
+        logger.warning("No relationship template for type %s", rel_type)
+        return None
+
+    params["now"] = datetime.now(UTC).isoformat()
+    agtype_param = json.dumps(params)
+    row = await conn.execute(template, (agtype_param,))
+    result = await row.fetchone()
+    if result:
+        return int(str(result["id"]).strip('"'))
+    return None
+
+
 async def _process_message(
     conn: psycopg.AsyncConnection[Any],
     msg: Any,
 ) -> None:
-    """Process a single enriched entity message."""
+    """Process a single enriched entity or relationship message."""
     try:
         payload = json.loads(msg.data.decode())
     except (json.JSONDecodeError, UnicodeDecodeError):
@@ -198,17 +324,33 @@ async def _process_message(
         await msg.ack()
         return
 
-    label = payload.get("label", "")
-    params = payload.get("properties", {})
-    params["now"] = datetime.now(UTC).isoformat()
-    params.setdefault("tlp", 1)
-
-    correlation_id = uuid.uuid4()
-
     # Set RLS session variables
     await conn.execute("select set_config('app.max_tlp', '4', true)")
 
-    vertex_id = await _merge_entity(conn, label, params)
+    correlation_id = uuid.uuid4()
+
+    # Route by subject prefix
+    is_relationship = msg.subject.startswith("enriched.relationship.")
+
+    if is_relationship:
+        rel_type = payload.get("type", "")
+        params = {k: v for k, v in payload.items() if k != "type"}
+        vertex_id = await _merge_relationship(conn, rel_type, params)
+        label = f"rel:{rel_type}"
+    else:
+        label = payload.get("label", "")
+        params = payload.get("properties", {})
+        params["now"] = datetime.now(UTC).isoformat()
+
+        # IAM entities enforce TLP:AMBER floor at the application layer.
+        # This is defense-in-depth alongside the RESTRICTIVE RLS policy in 010.
+        _IAM_LABELS = {"Principal", "Group", "Role", "Permission", "AccessPolicy"}
+        if label in _IAM_LABELS:
+            params["tlp"] = max(params.get("tlp", 2), 2)
+        else:
+            params.setdefault("tlp", 1)
+
+        vertex_id = await _merge_entity(conn, label, params)
 
     # Write temporal fact if applicable
     if vertex_id and payload.get("temporal"):
@@ -264,12 +406,12 @@ async def run(
     await conn.execute("set search_path = ag_catalog, '$user', public")
 
     sub = await js.subscribe(
-        "enriched.entity.>",
+        "enriched.>",
         durable="graph_writer",
         config=ConsumerConfig(ack_wait=30),
     )
 
-    logger.info("Graph writer started, consuming enriched.entity.>")
+    logger.info("Graph writer started, consuming enriched.entity.> and enriched.relationship.>")
 
     # Ensure DLQ stream exists
     await js.add_stream(

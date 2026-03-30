@@ -18,19 +18,19 @@ from api.mcp.tools.cypher_query import (
 def queries_dir(tmp_path: Path) -> Path:
     """Create a temporary queries directory with test templates."""
     # Create a valid template
-    (tmp_path / "test_query.cypher").write_text(
-        "match (v {value: $value}) return v"
-    )
+    (tmp_path / "test_query.cypher").write_text("match (v {value: $value}) return v")
     (tmp_path / "test_query.json").write_text(
-        json.dumps({
-            "description": "Test query",
-            "parameters": {
-                "value": {"type": "string", "required": True, "description": "test value"}
-            },
-            "returns": "list",
-            "max_depth": 1,
-            "estimated_ms": 50,
-        })
+        json.dumps(
+            {
+                "description": "Test query",
+                "parameters": {
+                    "value": {"type": "string", "required": True, "description": "test value"}
+                },
+                "returns": "list",
+                "max_depth": 1,
+                "estimated_ms": 50,
+            }
+        )
     )
 
     # Create a template with optional params
@@ -38,16 +38,18 @@ def queries_dir(tmp_path: Path) -> Path:
         "match (v:Host {canonical_key: $key}) return v limit $limit"
     )
     (tmp_path / "optional_params.json").write_text(
-        json.dumps({
-            "description": "Query with optional params",
-            "parameters": {
-                "key": {"type": "string", "required": True, "description": "host key"},
-                "limit": {"type": "integer", "required": False, "description": "limit"},
-            },
-            "returns": "list",
-            "max_depth": 1,
-            "estimated_ms": 50,
-        })
+        json.dumps(
+            {
+                "description": "Query with optional params",
+                "parameters": {
+                    "key": {"type": "string", "required": True, "description": "host key"},
+                    "limit": {"type": "integer", "required": False, "description": "limit"},
+                },
+                "returns": "list",
+                "max_depth": 1,
+                "estimated_ms": 50,
+            }
+        )
     )
     return tmp_path
 

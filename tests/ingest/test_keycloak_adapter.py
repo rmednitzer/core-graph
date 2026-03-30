@@ -98,9 +98,7 @@ def test_tlp_floor_enforcement(adapter: KeycloakAdapter) -> None:
         }
         result = adapter.map(raw)
         assert result is not None
-        assert result["properties"]["tlp"] >= 2, (
-            f"IAM TLP floor violated for {kc_type}"
-        )
+        assert result["properties"]["tlp"] >= 2, f"IAM TLP floor violated for {kc_type}"
 
 
 def test_ms_to_iso() -> None:

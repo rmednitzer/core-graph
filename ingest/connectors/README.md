@@ -24,6 +24,7 @@ implementation.
 ## Metrics
 
 All adapters using `AdapterBase` automatically emit:
+
 - `cg_adapter_fetch_total{adapter, status}` — fetch success/error counts
 - `cg_adapter_entities_total{adapter, label}` — published entity counts
 

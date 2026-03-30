@@ -97,13 +97,9 @@ class AdapterBase(ABC):
                 since = await self._get_cached_timestamp() if self.config.delta_sync else None
                 try:
                     raw_objects = await self.fetch(since)
-                    adapter_fetch_total.labels(
-                        adapter=self.config.name, status="success"
-                    ).inc()
+                    adapter_fetch_total.labels(adapter=self.config.name, status="success").inc()
                 except Exception:
-                    adapter_fetch_total.labels(
-                        adapter=self.config.name, status="error"
-                    ).inc()
+                    adapter_fetch_total.labels(adapter=self.config.name, status="error").inc()
                     self._logger.exception("Fetch failed for %s", self.config.name)
                     await asyncio.sleep(self.config.poll_interval or 60)
                     continue
@@ -117,15 +113,11 @@ class AdapterBase(ABC):
                     try:
                         await self._publish(entity)
                         label = entity.get("label", "unknown")
-                        adapter_entities_total.labels(
-                            adapter=self.config.name, label=label
-                        ).inc()
+                        adapter_entities_total.labels(adapter=self.config.name, label=label).inc()
                         count += 1
                     except Exception:
                         errors += 1
-                        self._logger.warning(
-                            "Publish failed for entity", exc_info=True
-                        )
+                        self._logger.warning("Publish failed for entity", exc_info=True)
 
                 if count > 0:
                     await self._cache_timestamp()

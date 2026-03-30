@@ -18,10 +18,20 @@ def mock_cypher():
 async def test_alert_gap_found(mock_cypher: AsyncMock) -> None:
     """Alert with compliance gaps reports them."""
     mock_cypher.return_value = [
-        {"alertname": "HighCPU", "host_name": "web-01", "control_id": "CC-01",
-         "evidence_status": "stale", "last_evidence": "2024-01-01"},
-        {"alertname": "HighCPU", "host_name": "web-01", "control_id": "CC-02",
-         "evidence_status": "missing", "last_evidence": None},
+        {
+            "alertname": "HighCPU",
+            "host_name": "web-01",
+            "control_id": "CC-01",
+            "evidence_status": "stale",
+            "last_evidence": "2024-01-01",
+        },
+        {
+            "alertname": "HighCPU",
+            "host_name": "web-01",
+            "control_id": "CC-02",
+            "evidence_status": "missing",
+            "last_evidence": None,
+        },
     ]
 
     from api.mcp.skills.compliance.alert_gap import AlertToComplianceGapSkill

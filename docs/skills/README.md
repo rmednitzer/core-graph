@@ -33,30 +33,30 @@ AI Agent
 1. Create a module in the appropriate domain subpackage under
    `api/mcp/skills/` (e.g., `api/mcp/skills/asset/my_skill.py`).
 
-2. Create a class extending `SkillBase`:
+1. Create a class extending `SkillBase`:
 
-```python
-from api.mcp.skills.base import SkillBase, SkillResult
-from api.mcp.tools.cypher_query import cypher_query
+   ```python
+   from api.mcp.skills.base import SkillBase, SkillResult
+   from api.mcp.tools.cypher_query import cypher_query
 
-class MySkill(SkillBase):
-    name = "my_skill"
-    description = "What this skill does"
-    version = "1.0.0"
+   class MySkill(SkillBase):
+       name = "my_skill"
+       description = "What this skill does"
+       version = "1.0.0"
 
-    async def execute(self, params, caller_identity=None) -> SkillResult:
-        rows = await cypher_query("my_template", params, caller_identity)
-        return SkillResult(
-            skill_name=self.name,
-            confidence=1.0 if rows else 0.8,
-            data=rows,
-            summary=f"Found {len(rows)} result(s)",
-            gaps=[] if rows else ["No data found"],
-            sources=["layer_7_infrastructure"],
-        )
-```
+       async def execute(self, params, caller_identity=None) -> SkillResult:
+           rows = await cypher_query("my_template", params, caller_identity)
+           return SkillResult(
+               skill_name=self.name,
+               confidence=1.0 if rows else 0.8,
+               data=rows,
+               summary=f"Found {len(rows)} result(s)",
+               gaps=[] if rows else ["No data found"],
+               sources=["layer_7_infrastructure"],
+           )
+   ```
 
-3. The skill is auto-discovered at MCP server startup by the registry.
+1. The skill is auto-discovered at MCP server startup by the registry.
 
 ## Parameter schema format
 

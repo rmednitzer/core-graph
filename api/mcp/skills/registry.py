@@ -45,9 +45,7 @@ class SkillRegistry:
         try:
             return self._skills[name]
         except KeyError:
-            raise KeyError(
-                f"Unknown skill: {name!r}. Available: {sorted(self._skills)}"
-            ) from None
+            raise KeyError(f"Unknown skill: {name!r}. Available: {sorted(self._skills)}") from None
 
     def list_skills(self) -> list[dict[str, Any]]:
         """Return metadata for all registered skills."""
@@ -103,9 +101,7 @@ class SkillRegistry:
                             )
 
         if not self._skills:
-            logger.warning(
-                "No skills discovered from packages: %s", _SKILL_PACKAGES
-            )
+            logger.warning("No skills discovered from packages: %s", _SKILL_PACKAGES)
         else:
             logger.info(
                 "Discovered %d skill(s): %s",

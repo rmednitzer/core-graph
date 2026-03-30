@@ -12,6 +12,7 @@ def _template_router(**template_results: list) -> AsyncMock:
 
     This avoids relying on call ordering, which is fragile with asyncio.gather.
     """
+
     async def _side_effect(template: str, params: dict, caller_identity=None) -> list:
         return template_results.get(template, [])
 

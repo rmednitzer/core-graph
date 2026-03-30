@@ -129,9 +129,7 @@ async def test_iam_tlp_floor_enforced(pg_conn) -> None:
     )
     rows = await result.fetchall()
     count = int(str(rows[0]["cnt"])) if rows else 0
-    assert count == 0, (
-        f"IAM vertices visible at TLP:GREEN (app.max_tlp=1): found {count}"
-    )
+    assert count == 0, f"IAM vertices visible at TLP:GREEN (app.max_tlp=1): found {count}"
 
     # Restore to TLP:RED for other tests
     await pg_conn.execute("select set_config('app.max_tlp', '4', true)")

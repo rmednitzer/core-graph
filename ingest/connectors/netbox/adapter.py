@@ -163,9 +163,7 @@ class NetboxAdapter(AdapterBase):
     async def fetch(self, since: str | None) -> list[dict[str, Any]]:
         """Fetch all objects from all Netbox endpoints."""
         if self._http_client is None:
-            self._http_client = httpx.AsyncClient(
-                verify=self.netbox_config.verify_ssl
-            )
+            self._http_client = httpx.AsyncClient(verify=self.netbox_config.verify_ssl)
 
         all_objects: list[dict[str, Any]] = []
         for endpoint in ENDPOINT_MAPPERS:
@@ -189,13 +187,15 @@ class NetboxAdapter(AdapterBase):
         # extra entities to be published by the overridden run loop.
         primary_ip = entity.get("properties", {}).get("primary_ip", "")
         if primary_ip:
-            self._pending_ip_entities.append({
-                "label": "CanonicalIP",
-                "properties": {
-                    "value": primary_ip,
-                    "tlp": DEFAULT_TLP,
-                },
-            })
+            self._pending_ip_entities.append(
+                {
+                    "label": "CanonicalIP",
+                    "properties": {
+                        "value": primary_ip,
+                        "tlp": DEFAULT_TLP,
+                    },
+                }
+            )
         return entity
 
     async def run(
@@ -255,9 +255,7 @@ class NetboxAdapter(AdapterBase):
 
         while True:
             try:
-                resp = await self._http_client.get(
-                    url, params=params, headers=headers, timeout=30
-                )
+                resp = await self._http_client.get(url, params=params, headers=headers, timeout=30)
                 resp.raise_for_status()
             except httpx.HTTPError:
                 self._logger.warning("Netbox %s: fetch failed", endpoint, exc_info=True)

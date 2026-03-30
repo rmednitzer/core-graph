@@ -136,8 +136,7 @@ async def cypher_query(
 
         elapsed_ms = (time.perf_counter() - t_start) * 1000
         logger.info(
-            "Cypher query executed: template=%s params=%d correlation=%s "
-            "rows=%d elapsed_ms=%.1f",
+            "Cypher query executed: template=%s params=%d correlation=%s rows=%d elapsed_ms=%.1f",
             template,
             len(params),
             correlation_id,

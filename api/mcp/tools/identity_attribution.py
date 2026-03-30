@@ -44,9 +44,7 @@ async def _check_cerbos_authorization(
                 f"{CERBOS_ENDPOINT}/api/check/resources",
                 json={
                     "principal": principal,
-                    "resources": [
-                        {"resource": resource, "actions": ["assert"]}
-                    ],
+                    "resources": [{"resource": resource, "actions": ["assert"]}],
                 },
             )
             resp.raise_for_status()
@@ -99,8 +97,7 @@ async def assert_identity_attribution(
     authorized = await _check_cerbos_authorization(caller, resource_id)
     if not authorized:
         raise PermissionError(
-            "Identity attribution requires cg_ciso role. "
-            "Denied by Cerbos policy."
+            "Identity attribution requires cg_ciso role. Denied by Cerbos policy."
         )
 
     correlation_id = uuid.uuid4()

@@ -20,15 +20,17 @@ def mock_cypher():
 @pytest.mark.asyncio
 async def test_access_map_with_roles(mock_cypher: AsyncMock) -> None:
     """Access map with roles and permissions has high confidence."""
-    mock_cypher.return_value = [{
-        "username": "jdoe",
-        "last_active": "2024-01-01T00:00:00Z",
-        "direct_roles": ["admin"],
-        "direct_permissions": ["read", "write"],
-        "groups": ["staff"],
-        "inherited_roles": ["viewer"],
-        "inherited_permissions": ["read"],
-    }]
+    mock_cypher.return_value = [
+        {
+            "username": "jdoe",
+            "last_active": "2024-01-01T00:00:00Z",
+            "direct_roles": ["admin"],
+            "direct_permissions": ["read", "write"],
+            "groups": ["staff"],
+            "inherited_roles": ["viewer"],
+            "inherited_permissions": ["read"],
+        }
+    ]
 
     from api.mcp.skills.identity.access_map import IdentityAccessMapSkill
 

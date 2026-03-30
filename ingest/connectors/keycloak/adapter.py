@@ -113,9 +113,7 @@ class KeycloakAdapter(AdapterBase):
     async def fetch(self, since: str | None) -> list[dict[str, Any]]:
         """Fetch users, groups, and roles from Keycloak."""
         if self._http_client is None:
-            self._http_client = httpx.AsyncClient(
-                verify=self.kc_config.verify_ssl
-            )
+            self._http_client = httpx.AsyncClient(verify=self.kc_config.verify_ssl)
 
         self._relationships = []
         all_entities: list[dict[str, Any]] = []
@@ -128,28 +126,30 @@ class KeycloakAdapter(AdapterBase):
 
             # Fetch user role mappings
             user_id = user["id"]
-            role_mappings = await self._admin_get(
-                f"/users/{user_id}/role-mappings/realm/composite"
-            )
+            role_mappings = await self._admin_get(f"/users/{user_id}/role-mappings/realm/composite")
             for role in role_mappings:
-                self._relationships.append({
-                    "type": "has_role",
-                    "principal_key": canonical_key("principal", user_id),
-                    "role_key": canonical_key("role", f"{self.kc_config.realm}:{role['name']}"),
-                    "source": "keycloak",
-                    "tlp": IAM_TLP_FLOOR,
-                })
+                self._relationships.append(
+                    {
+                        "type": "has_role",
+                        "principal_key": canonical_key("principal", user_id),
+                        "role_key": canonical_key("role", f"{self.kc_config.realm}:{role['name']}"),
+                        "source": "keycloak",
+                        "tlp": IAM_TLP_FLOOR,
+                    }
+                )
 
             # Fetch user group memberships
             groups = await self._admin_get(f"/users/{user_id}/groups")
             for group in groups:
-                self._relationships.append({
-                    "type": "member_of",
-                    "principal_key": canonical_key("principal", user_id),
-                    "group_key": canonical_key("group", group["id"]),
-                    "source": "keycloak",
-                    "tlp": IAM_TLP_FLOOR,
-                })
+                self._relationships.append(
+                    {
+                        "type": "member_of",
+                        "principal_key": canonical_key("principal", user_id),
+                        "group_key": canonical_key("group", group["id"]),
+                        "source": "keycloak",
+                        "tlp": IAM_TLP_FLOOR,
+                    }
+                )
 
         # Fetch groups
         groups = await self._admin_get("/groups")
@@ -165,9 +165,7 @@ class KeycloakAdapter(AdapterBase):
 
         return all_entities
 
-    def _flatten_groups(
-        self, groups: list[dict[str, Any]]
-    ) -> list[dict[str, Any]]:
+    def _flatten_groups(self, groups: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """Flatten nested groups into a flat list, recording member_of edges."""
         flat: list[dict[str, Any]] = []
         for group in groups:
@@ -175,13 +173,15 @@ class KeycloakAdapter(AdapterBase):
             subgroups = group.get("subGroups", [])
             for sub in subgroups:
                 # Record nested group membership
-                self._relationships.append({
-                    "type": "member_of",
-                    "principal_key": canonical_key("group", sub["id"]),
-                    "group_key": canonical_key("group", group["id"]),
-                    "source": "keycloak",
-                    "tlp": IAM_TLP_FLOOR,
-                })
+                self._relationships.append(
+                    {
+                        "type": "member_of",
+                        "principal_key": canonical_key("group", sub["id"]),
+                        "group_key": canonical_key("group", group["id"]),
+                        "source": "keycloak",
+                        "tlp": IAM_TLP_FLOOR,
+                    }
+                )
             flat.extend(self._flatten_groups(subgroups))
         return flat
 
@@ -225,7 +225,7 @@ class KeycloakAdapter(AdapterBase):
                 "name": group.get("name", ""),
                 "path": group.get("path", ""),
                 "source": "keycloak",
-                "tlp": max(IAM_TLP_FLOOR, IAM_TLP_FLOOR),
+                "tlp": IAM_TLP_FLOOR,
             },
         }
 
@@ -234,14 +234,12 @@ class KeycloakAdapter(AdapterBase):
         return {
             "label": "Role",
             "properties": {
-                "canonical_key": canonical_key(
-                    "role", f"{self.kc_config.realm}:{role['name']}"
-                ),
+                "canonical_key": canonical_key("role", f"{self.kc_config.realm}:{role['name']}"),
                 "role_name": role["name"],
                 "realm": self.kc_config.realm,
                 "client_id": role.get("containerId", ""),
                 "source": "keycloak",
-                "tlp": max(IAM_TLP_FLOOR, IAM_TLP_FLOOR),
+                "tlp": IAM_TLP_FLOOR,
             },
         }
 
@@ -253,9 +251,7 @@ class KeycloakAdapter(AdapterBase):
     ) -> None:
         """Override run to disable adapter when client_secret is missing."""
         if not self.kc_config.client_secret:
-            self._logger.warning(
-                "Keycloak client_secret is empty, adapter disabled"
-            )
+            self._logger.warning("Keycloak client_secret is empty, adapter disabled")
             return
 
         try:

@@ -13,6 +13,7 @@ import asyncio
 import json
 import logging
 import time
+from datetime import UTC, datetime
 from typing import Any
 
 import httpx
@@ -290,8 +291,6 @@ def _ms_to_iso(ms: int | None) -> str:
     """Convert millisecond timestamp to ISO 8601 string."""
     if ms is None or ms == 0:
         return ""
-    from datetime import UTC, datetime
-
     return datetime.fromtimestamp(ms / 1000, tz=UTC).isoformat()
 
 

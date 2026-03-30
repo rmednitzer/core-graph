@@ -102,6 +102,17 @@ class SkillRegistry:
                                 exc_info=True,
                             )
 
+        if not self._skills:
+            logger.warning(
+                "No skills discovered from packages: %s", _SKILL_PACKAGES
+            )
+        else:
+            logger.info(
+                "Discovered %d skill(s): %s",
+                len(self._skills),
+                sorted(self._skills),
+            )
+
 
 # Module-level singleton; populated at MCP server startup.
 registry = SkillRegistry()

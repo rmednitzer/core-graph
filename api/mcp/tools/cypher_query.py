@@ -15,28 +15,12 @@ import uuid
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel
-
 from api.config import DEFAULT_TLP
 from api.db import get_connection
 
 logger = logging.getLogger(__name__)
 
 QUERIES_DIR = Path(__file__).resolve().parent.parent / "skills" / "queries"
-
-
-class CypherQueryInput(BaseModel):
-    """Input model for cypher_query tool."""
-
-    template: str
-    params: dict[str, Any] = {}
-
-
-class CypherQueryResult(BaseModel):
-    """Output model for cypher_query tool."""
-
-    rows: list[dict[str, Any]]
-    count: int
 
 
 def load_query_templates(queries_dir: Path) -> dict[str, str]:

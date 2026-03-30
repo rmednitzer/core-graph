@@ -24,16 +24,16 @@ class AssetComplianceStatusSkill(SkillBase):
         confidence = 1.0
         gaps: list[str] = []
         if not rows:
-            confidence -= 0.2
+            confidence -= 0.1
             gaps.append("No compliance controls mapped to this asset")
         else:
             stale = [r for r in rows if r.get("evidence_status") == "stale"]
             missing = [r for r in rows if r.get("evidence_status") == "missing"]
             if stale:
-                confidence -= 0.1 * min(len(stale), 3)
+                confidence -= 0.1 * len(stale)
                 gaps.append(f"{len(stale)} control(s) with stale evidence")
             if missing:
-                confidence -= 0.1 * min(len(missing), 3)
+                confidence -= 0.1 * len(missing)
                 gaps.append(f"{len(missing)} control(s) with missing evidence")
 
         confidence = max(confidence, 0.0)

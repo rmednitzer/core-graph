@@ -7,73 +7,103 @@ from unittest.mock import AsyncMock, patch
 import pytest
 
 
+def _template_router(**template_results: list) -> AsyncMock:
+    """Create a mock that returns results based on the template name argument.
+
+    This avoids relying on call ordering, which is fragile with asyncio.gather.
+    """
+    async def _side_effect(template: str, params: dict, caller_identity=None) -> list:
+        return template_results.get(template, [])
+
+    mock = AsyncMock(side_effect=_side_effect)
+    return mock
+
+
 @pytest.fixture
 def mock_cypher():
-    """Patch cypher_query to return controlled data."""
+    """Patch cypher_query at source — works for skills that import directly."""
     with patch("api.mcp.tools.cypher_query.cypher_query", new_callable=AsyncMock) as mock:
-        yield mock
+        # Also patch the bound name in each skill module
+        with (
+            patch("api.mcp.skills.asset.alerts.cypher_query", mock),
+            patch("api.mcp.skills.asset.compliance.cypher_query", mock),
+            patch("api.mcp.skills.asset.events.cypher_query", mock),
+            patch("api.mcp.skills.asset.topology.cypher_query", mock),
+            patch("api.mcp.skills.asset.vulnerabilities.cypher_query", mock),
+        ):
+            yield mock
 
 
 @pytest.mark.asyncio
-async def test_full_summary_all_data(mock_cypher: AsyncMock) -> None:
+async def test_full_summary_all_data() -> None:
     """Full summary with data in all sub-queries has high confidence."""
-    mock_cypher.side_effect = [
-        [{"alertname": "HighCPU", "severity": "critical"}],  # alerts
-        [{"event_id": "e1", "severity": "high"}],  # events
-        [{"cve_id": "CVE-2024-1234", "severity": "high"}],  # vulns
-        [{"control_id": "CC-01", "evidence_status": "current"}],  # compliance
-        [{"h": {}, "interfaces": []}],  # topology
-    ]
+    mock = _template_router(
+        asset_active_alerts=[{"alertname": "HighCPU", "severity": "critical"}],
+        asset_security_events=[{"event_id": "e1", "severity": "high"}],
+        asset_vulnerabilities=[{"cve_id": "CVE-2024-1234", "severity": "high"}],
+        asset_compliance_status=[{"control_id": "CC-01", "evidence_status": "current"}],
+        asset_topology=[{"h": {}, "interfaces": []}],
+    )
 
-    from api.mcp.skills.asset.full_summary import AssetFullSummarySkill
+    with patch("api.mcp.skills.asset.full_summary.cypher_query", mock):
+        from api.mcp.skills.asset.full_summary import AssetFullSummarySkill
 
-    skill = AssetFullSummarySkill()
-    result = await skill.execute({"canonical_key": "abc123"})
+        skill = AssetFullSummarySkill()
+        result = await skill.execute({"canonical_key": "abc123"})
 
     assert result.skill_name == "asset_full_summary"
     assert result.confidence == 1.0
     assert len(result.gaps) == 0
     assert "1 active alert(s)" in result.summary
+    # Verify flattened data with section tags
+    sections = {r["_section"] for r in result.data}
+    assert sections == {"alerts", "events", "vulnerabilities", "compliance", "topology"}
 
 
 @pytest.mark.asyncio
-async def test_full_summary_empty_subqueries(mock_cypher: AsyncMock) -> None:
+async def test_full_summary_empty_subqueries() -> None:
     """Empty sub-queries reduce confidence and add gaps."""
-    mock_cypher.side_effect = [
-        [],  # alerts
-        [],  # events
-        [],  # vulns
-        [],  # compliance
-        [],  # topology
-    ]
+    mock = _template_router()  # all templates return []
 
-    from api.mcp.skills.asset.full_summary import AssetFullSummarySkill
+    with patch("api.mcp.skills.asset.full_summary.cypher_query", mock):
+        from api.mcp.skills.asset.full_summary import AssetFullSummarySkill
 
-    skill = AssetFullSummarySkill()
-    result = await skill.execute({"canonical_key": "abc123"})
+        skill = AssetFullSummarySkill()
+        result = await skill.execute({"canonical_key": "abc123"})
 
     assert result.confidence == 0.5
     assert len(result.gaps) == 5
 
 
 @pytest.mark.asyncio
-async def test_full_summary_stale_evidence(mock_cypher: AsyncMock) -> None:
+async def test_full_summary_stale_evidence() -> None:
     """Stale compliance evidence reduces confidence."""
-    mock_cypher.side_effect = [
-        [{"alertname": "test"}],  # alerts
-        [{"event_id": "e1"}],  # events
-        [{"cve_id": "CVE-2024-1"}],  # vulns
-        [{"control_id": "CC-01", "evidence_status": "stale"}],  # stale!
-        [{"h": {}}],  # topology
-    ]
+    mock = _template_router(
+        asset_active_alerts=[{"alertname": "test"}],
+        asset_security_events=[{"event_id": "e1"}],
+        asset_vulnerabilities=[{"cve_id": "CVE-2024-1"}],
+        asset_compliance_status=[{"control_id": "CC-01", "evidence_status": "stale"}],
+        asset_topology=[{"h": {}}],
+    )
 
-    from api.mcp.skills.asset.full_summary import AssetFullSummarySkill
+    with patch("api.mcp.skills.asset.full_summary.cypher_query", mock):
+        from api.mcp.skills.asset.full_summary import AssetFullSummarySkill
 
-    skill = AssetFullSummarySkill()
-    result = await skill.execute({"canonical_key": "abc123"})
+        skill = AssetFullSummarySkill()
+        result = await skill.execute({"canonical_key": "abc123"})
 
     assert result.confidence == 0.9
     assert any("Stale evidence" in g for g in result.gaps)
+
+
+@pytest.mark.asyncio
+async def test_full_summary_missing_param() -> None:
+    """Missing canonical_key raises ValueError."""
+    from api.mcp.skills.asset.full_summary import AssetFullSummarySkill
+
+    skill = AssetFullSummarySkill()
+    with pytest.raises(ValueError, match="canonical_key"):
+        await skill.execute({})
 
 
 @pytest.mark.asyncio

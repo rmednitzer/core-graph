@@ -62,13 +62,20 @@ class AssetFullSummarySkill(SkillBase):
 
         confidence = max(confidence, 0.0)
 
-        data = {
-            "alerts": alerts,
-            "events": events,
-            "vulnerabilities": vulns,
-            "compliance": compliance,
-            "topology": topology,
-        }
+        # Flatten all sub-results into a single list with a "section" tag.
+        # This keeps SkillResult.data as a flat list[dict] consistent with
+        # other skills, while preserving the domain origin of each record.
+        data: list[dict[str, Any]] = []
+        for record in alerts:
+            data.append({**record, "_section": "alerts"})
+        for record in events:
+            data.append({**record, "_section": "events"})
+        for record in vulns:
+            data.append({**record, "_section": "vulnerabilities"})
+        for record in compliance:
+            data.append({**record, "_section": "compliance"})
+        for record in topology:
+            data.append({**record, "_section": "topology"})
 
         summary_parts = [
             f"{len(alerts)} active alert(s)",
@@ -80,7 +87,7 @@ class AssetFullSummarySkill(SkillBase):
         return SkillResult(
             skill_name=self.name,
             confidence=round(confidence, 1),
-            data=[data],
+            data=data,
             summary=f"Asset summary: {', '.join(summary_parts)}",
             gaps=gaps,
             sources=["layer_2_security", "layer_4_compliance", "layer_7_infrastructure"],

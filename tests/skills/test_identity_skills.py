@@ -10,7 +10,11 @@ import pytest
 @pytest.fixture
 def mock_cypher():
     with patch("api.mcp.tools.cypher_query.cypher_query", new_callable=AsyncMock) as mock:
-        yield mock
+        with (
+            patch("api.mcp.skills.identity.access_map.cypher_query", mock),
+            patch("api.mcp.skills.identity.audit_trail.cypher_query", mock),
+        ):
+            yield mock
 
 
 @pytest.mark.asyncio

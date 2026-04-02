@@ -60,14 +60,5 @@ COLLECTIONS: dict[str, CollectionDef] = {
     ),
 }
 
-# Query template for fetching objects from AGE graph.
-# Uses parameterised queries — never string concatenation.
-OBJECTS_QUERY_TEMPLATE = """
-    select * from ag_catalog.cypher('core_graph', $$
-        match (v:{label})
-        where v.t_recorded > $added_after
-        return properties(v)
-    $$, $1) as (props agtype)
-    order by props->>'t_recorded'
-    limit $2 offset $3
-"""
+# NOTE: Queries are constructed inline in server.py with parameterized
+# filters and validate_label() for safe label interpolation.

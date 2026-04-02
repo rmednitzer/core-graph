@@ -1,6 +1,7 @@
 """api.taxii.collections — TAXII 2.1 collection definitions.
 
-Maps collection IDs to AGE graph query templates and STIX type filters.
+Maps collection IDs to graph label filters and STIX type metadata.
+Queries are constructed inline in server.py with parameterized filters.
 """
 
 from __future__ import annotations

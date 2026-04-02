@@ -48,3 +48,5 @@ core.
 - All SQL uses parameterised queries (CVE-2022-45786 mitigation)
 - Cypher queries through AGE use query templates, not string concatenation
 - Bitemporal facts are invalidated, never deleted
+- Cypher labels interpolated into AGE queries must pass validate_label()
+  from api/utils/cypher_safety.py (regex: [a-zA-Z_][a-zA-Z0-9_]{0,62})

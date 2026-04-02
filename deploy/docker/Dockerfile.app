@@ -6,7 +6,7 @@
 # Pin to patch version for reproducible builds.
 # Update deliberately; do not use floating :3.14-slim tag.
 # Verify all dependencies (especially psycopg, AGE driver) on upgrade.
-FROM python:3.14.3-slim AS build
+FROM python:3.14.3-slim-bookworm AS build
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -25,7 +25,7 @@ COPY scripts/ scripts/
 # Pin to patch version for reproducible builds.
 # Update deliberately; do not use floating :3.14-slim tag.
 # Verify all dependencies (especially psycopg, AGE driver) on upgrade.
-FROM python:3.14.3-slim
+FROM python:3.14.3-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1

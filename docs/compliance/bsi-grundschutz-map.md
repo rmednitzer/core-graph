@@ -128,7 +128,7 @@ structured, documented manner.
 |---|---|
 | Alert normalisation | Wazuh alerts normalised to OCSF (Open Cybersecurity Schema Framework) via ingest adapter pattern. Raw alerts are transformed into a common schema before graph ingestion. |
 | IOC extraction | Tier 1 regex-based extraction for IP addresses, hashes, domains, and email addresses. Tier 2 CyNER (planned) for contextual named entity recognition of threat intelligence indicators. |
-| Cross-layer correlation | Graph-based correlation across six ontology layers. Analysts can traverse from a security event (Layer 2) to threat intelligence (Layer 1) to affected assets and back to forensic timeline (Layer 6). |
+| Cross-layer correlation | Graph-based correlation across eight ontology layers. Analysts can traverse from a security event (Layer 2) to threat intelligence (Layer 1) to affected assets (Layer 7) and back to forensic timeline (Layer 6). |
 | Forensic timeline | Forensic timeline (Layer 6) with `caused_by` and `preceded_by` edges. Events are ordered with nanosecond precision (ISO 8601, UTC) and linked causally. |
 | Deduplication | Bloom filter dedup prevents duplicate alert processing. Duplicate events are detected at ingest time, preventing alert fatigue and reducing graph noise. |
 

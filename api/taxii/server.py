@@ -29,6 +29,7 @@ from api.taxii.models import (
     StatusResource,
     STIXBundle,
 )
+from api.utils.cypher_safety import validate_label
 
 logger = logging.getLogger(__name__)
 
@@ -208,52 +209,79 @@ async def get_objects(
     after_ts = added_after or "1970-01-01T00:00:00Z"
 
     objects: list[dict] = []
+    more = False
 
     async with get_connection(caller) as conn:
         await _write_audit(conn, "TAXII_GET_OBJECTS", caller["actor"], collection_id)
 
+        # Build WHERE clauses — push filters into Cypher
+        where_clauses: list[str] = []
+        cypher_params: dict[str, Any] = {}
+
+        if after_ts != "1970-01-01T00:00:00Z":
+            where_clauses.append("v.t_recorded > $added_after")
+            cypher_params["added_after"] = after_ts
+
+        if match_type:
+            where_clauses.append("v.stix_type = $match_type")
+            cypher_params["match_type"] = match_type
+
+        if match_id:
+            where_clauses.append("v.stix_id = $match_id OR v.id = $match_id")
+            cypher_params["match_id"] = match_id
+
+        where_str = " AND ".join(where_clauses)
+        where_sql = f"WHERE {where_str}" if where_clauses else ""
+        params_json = json.dumps(cypher_params)
+
+        # Build a UNION ALL across all labels so pagination applies to the
+        # combined result set rather than per-label (fixes multi-label paging).
+        subqueries = []
         for label in coll.graph_label_filter:
-            query = f"""
-                select * from ag_catalog.cypher('core_graph', $$
-                    match (v:{label})
+            safe_label = validate_label(label)
+            subqueries.append(
+                f"""
+                select props from ag_catalog.cypher('core_graph', $$
+                    match (v:{safe_label})
+                    {where_sql}
                     return properties(v)
-                $$) as (props agtype)
-            """
-            result = await conn.execute(query)
-            rows = await result.fetchall()
-            for row in rows:
-                props = row["props"]
-                if isinstance(props, str):
-                    props = json.loads(props)
+                $$, %s) as (props agtype)
+                """
+            )
 
-                # Apply added_after filter
-                t_recorded = props.get("t_recorded", props.get("first_seen", ""))
-                if t_recorded and t_recorded <= after_ts:
-                    continue
+        union_sql = " UNION ALL ".join(subqueries)
+        # Wrap with ORDER BY / LIMIT / OFFSET at the SQL level so pagination
+        # is deterministic across the full result set.
+        query = f"""
+            select props from ({union_sql}) sub
+            order by props->>'t_recorded'
+            limit %s offset %s
+        """
 
-                # Apply match[type] filter
-                stix_type = props.get("stix_type", "")
-                if match_type and stix_type != match_type:
-                    continue
+        # Each subquery needs the same cypher params argument
+        params: list[Any] = [params_json] * len(subqueries)
+        params.extend([limit + 1, offset])
 
-                # Apply match[id] filter
-                stix_id = props.get("stix_id", props.get("id", ""))
-                if match_id and stix_id != match_id:
-                    continue
+        result = await conn.execute(query, tuple(params))
+        rows = await result.fetchall()
 
-                objects.append(props)
+        for row in rows:
+            props = row["props"]
+            if isinstance(props, str):
+                props = json.loads(props)
+            objects.append(props)
 
         await conn.commit()
 
-    # Pagination
-    total = len(objects)
-    page = objects[offset : offset + limit]
-    next_offset = offset + limit if offset + limit < total else None
+    # Determine pagination from limit+1 fetch
+    if len(objects) > limit:
+        more = True
+        objects = objects[:limit]
 
     date_first = None
     date_last = None
-    if page:
-        timestamps = [o.get("t_recorded", o.get("first_seen", "")) for o in page]
+    if objects:
+        timestamps = [o.get("t_recorded", o.get("first_seen", "")) for o in objects]
         timestamps = [t for t in timestamps if t]
         if timestamps:
             date_first = min(timestamps)
@@ -262,13 +290,13 @@ async def get_objects(
     bundle = STIXBundle(
         type="bundle",
         id=f"bundle--{uuid.uuid4()}",
-        objects=page,
+        objects=objects,
     )
 
     resp_content = bundle.model_dump()
-    if next_offset is not None:
+    if more:
         resp_content["more"] = True
-        resp_content["next"] = str(next_offset)
+        resp_content["next"] = str(offset + limit)
 
     return _stix_response(
         resp_content,
@@ -301,23 +329,22 @@ async def get_object_by_id(
         )
 
         for label in coll.graph_label_filter:
+            safe_label = validate_label(label)
             query = f"""
                 select * from ag_catalog.cypher('core_graph', $$
-                    match (v:{label})
+                    match (v:{safe_label})
+                    where v.stix_id = $object_id OR v.id = $object_id
                     return properties(v)
-                $$) as (props agtype)
+                $$, %s) as (props agtype)
+                limit 1
             """
-            result = await conn.execute(query)
-            rows = await result.fetchall()
-            for row in rows:
+            result = await conn.execute(query, (json.dumps({"object_id": object_id}),))
+            row = await result.fetchone()
+            if row is not None:
                 props = row["props"]
                 if isinstance(props, str):
                     props = json.loads(props)
-                stix_id = props.get("stix_id", props.get("id", ""))
-                if stix_id == object_id:
-                    found = props
-                    break
-            if found:
+                found = props
                 break
 
         await conn.commit()

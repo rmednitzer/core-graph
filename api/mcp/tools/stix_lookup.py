@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from api.config import DEFAULT_TLP
 from api.db import get_connection
+from api.utils.cypher_safety import validate_label
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +60,7 @@ async def stix_lookup(
     label = STIX_LABEL_MAP.get(stix_type.lower())
     if label is None:
         raise ValueError(f"Unknown STIX type: {stix_type}")
+    label = validate_label(label)
 
     caller = caller_identity or {"max_tlp": DEFAULT_TLP, "allowed_compartments": []}
 

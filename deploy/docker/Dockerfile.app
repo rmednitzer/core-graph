@@ -3,15 +3,20 @@
 # via command override.
 
 # ---------- Stage 1: build ----------
-FROM python:3.14-slim AS build
+# Pin to patch version for reproducible builds. Use bookworm (Debian 12
+# stable) for mature security patch cadence.
+# Update deliberately; do not use floating :3.14-slim tag.
+# Verify all dependencies (especially psycopg, AGE driver) on upgrade.
+FROM python:3.14.3-slim-bookworm AS build
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
+RUN pip install --no-cache-dir --upgrade pip setuptools
 COPY pyproject.toml .
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir --upgrade .
 
 COPY api/ api/
 COPY ingest/ ingest/
@@ -19,7 +24,7 @@ COPY evidence/ evidence/
 COPY scripts/ scripts/
 
 # ---------- Stage 2: runtime ----------
-FROM python:3.14-slim
+FROM python:3.14.3-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -28,6 +33,15 @@ RUN apt-get update -qq \
     && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Remove pip/setuptools/wheel from the runtime image — not needed and
+# frequently flagged by vulnerability scanners (reduces attack surface).
+RUN rm -rf /usr/local/lib/python3.14/site-packages/pip* \
+           /usr/local/lib/python3.14/site-packages/setuptools* \
+           /usr/local/lib/python3.14/site-packages/wheel* \
+           /usr/local/lib/python3.14/site-packages/_distutils_hack* \
+           /usr/local/lib/python3.14/site-packages/pkg_resources* \
+           /usr/local/bin/pip* /usr/local/bin/wheel*
 
 RUN groupadd -g 10001 cg && useradd -u 10001 -g cg -s /usr/sbin/nologin cg
 

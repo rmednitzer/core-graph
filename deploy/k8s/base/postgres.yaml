@@ -40,7 +40,11 @@ spec:
     spec:
       containers:
         - name: postgres
-          image: postgres:16
+          # This image must include Apache AGE, pgvector, pgaudit, and pg_cron.
+          # Built from deploy/docker/Dockerfile.postgres.
+          # The Helm chart (deploy/k8s/helm) uses the same image via
+          # postgres.image.repository and postgres.image.tag values.
+          image: ghcr.io/rmednitzer/core-graph-postgres:16-extensions
           ports:
             - containerPort: 5432
               name: postgres

@@ -48,12 +48,13 @@ authorization at every tier.
                   |      +--------------+                  |
   +-----------+   |                                        v
   |Prometheus |---+                          +------------+-------------+
-  |(Alerting) |        +-------------------+ |                          |
-  +-----------+        |   Valkey Cache    |<|       PostgreSQL 16+     |
-                       |                   | |                          |
-                       | - Session state   | |  +--------------------+  |
-                       | - Rate limiting   | |  | Apache AGE         |  |
-                       | - Hot query cache | |  | (openCypher graph) |  |
+  |(Alerting) |   |                          |                          |
+  +-----------+   |    +-------------------+ |                          |
+                  |    |   Valkey Cache    |<|       PostgreSQL 16+     |
+  +-----------+   |    |                   | |                          |
+  | Keycloak  |---+    | - Session state   | |  +--------------------+  |
+  |  (IdP)    |        | - Rate limiting   | |  | Apache AGE         |  |
+  +-----------+        | - Hot query cache | |  | (openCypher graph) |  |
                        +-------------------+ |  +--------------------+  |
                                              |  +--------------------+  |
                                              |  | pgvector (HNSW)    |  |
@@ -101,9 +102,9 @@ authorization at every tier.
 | Valkey 8+ | In-memory cache for session state, rate limiting, and hot query results; Redis-compatible fork | BSD 3-Clause |
 | Harbor 2+ | Self-hosted OCI container registry for EU data residency compliance; no Docker Hub pulls in production | Apache 2.0 |
 
-## Seven ontology layers
+## Eight ontology layers
 
-core-graph organises knowledge into seven typed layers. Each layer has its own
+core-graph organises knowledge into eight typed layers. Each layer has its own
 AGE graph label namespace, standards mapping, and retention policy. All layers
 share the bitemporal model described below.
 
@@ -116,6 +117,7 @@ share the bitemporal model described below.
 | **AI memory** | Agent conversation context, reasoning traces, tool invocations, semantic embeddings. Enables continuity across MCP sessions. | Custom (MCP-aligned) | 90 days hot, 2 years archive |
 | **Forensic timeline** | Ordered evidence chains for incident response. Immutable once sealed. Backed by MinIO WORM and cosign signatures. | CASE/UCO, STIX 2.1 | Indefinite (sealed, WORM-backed) |
 | **Infrastructure and assets** | Hosts, networks, sites, interfaces, services, and monitoring alerts. Populated from Netbox (CMDB) and Prometheus (alerting). | Custom (Netbox/Prometheus aligned) | Indefinite (bitemporally versioned) |
+| **Identity and access management** | Principals, roles, groups, permissions. Populated from Keycloak via delta-sync adapter. | Custom (Keycloak/Cerbos aligned) | Indefinite (bitemporally versioned) |
 
 ### Bitemporal model
 

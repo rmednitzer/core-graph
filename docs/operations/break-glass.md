@@ -67,20 +67,27 @@ After connecting as `breakglass_admin`, set the session context so that
 Row-Level Security policies grant full access:
 
 ```sql
-set session core.tlp_clearance = 'TLP:RED';
-set session core.breakglass = 'true';
-set session core.incident_ref = 'INC-2026-0042';
+select set_config('app.max_tlp', '4', false);
+select set_config('app.breakglass', 'true', false);
+select set_config('app.incident_ref', 'INC-2026-0042', false);
 ```
 
-All RLS policies check `core.breakglass` and allow unrestricted reads/writes
-when it is set to `'true'`.
+`app.max_tlp` is the only variable consumed by RLS policies; setting it to 4
+(TLP:RED) grants visibility to all rows that are not compartment-restricted.
+`app.breakglass` and `app.incident_ref` are not read by RLS policies — they
+exist for audit trail correlation. pgAudit captures all `set_config` calls,
+so post-incident review can verify when break-glass was activated and which
+incident reference was associated with the session. The `false` argument to
+`set_config` scopes the variable to the session (not just the current
+transaction), which is required because break-glass operates across multiple
+queries during the emergency.
 
 ### Step 6 -- Audit logging
 
 All SQL commands executed during the break-glass session are captured by
 pgAudit and written to:
 
-- The `core.audit_log` table (append-only, hash-chained)
+- The `audit_log` table (append-only, hash-chained)
 - MinIO WORM bucket (`evidence/breakglass/`)
 - Standard PostgreSQL log (as fallback)
 
@@ -125,7 +132,7 @@ select cron.schedule(
 | Layer              | Mechanism                        | Retention       |
 |--------------------|----------------------------------|-----------------|
 | SQL commands       | pgAudit (all statements logged)  | Indefinite      |
-| Append-only table  | `core.audit_log` with hash chain | Bitemporal, never deleted |
+| Append-only table  | `audit_log` with hash chain       | Bitemporal, never deleted |
 | Object storage     | MinIO WORM bucket                | Immutable       |
 | Transparency log   | Rekor (cosign-signed entries)    | Public, append-only |
 
@@ -156,8 +163,8 @@ Query all actions taken during the break-glass session:
 
 ```sql
 select *
-from   core.audit_log
-where  recorded_by = 'breakglass_admin'
+from   audit_log
+where  actor = 'breakglass_admin'
   and  t_recorded between '<activation_time>' and '<deactivation_time>'
 order  by t_recorded;
 ```
@@ -182,11 +189,11 @@ with or removed during the break-glass session:
 
 ```sql
 select count(*) as broken_links
-from   core.audit_log a
+from   audit_log a
 where  a.prev_hash is not null
   and  a.prev_hash <> (
          select sha256(row_to_json(b)::text::bytea)
-         from   core.audit_log b
+         from   audit_log b
          where  b.id = a.id - 1
        );
 -- Expected result: 0

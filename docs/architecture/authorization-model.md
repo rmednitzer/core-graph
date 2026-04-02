@@ -205,6 +205,14 @@ The third argument (`true`) scopes the variables to the current transaction.
 When the transaction ends, the variables are automatically cleared and cannot
 leak to subsequent queries on the same connection.
 
+**Important:** The `app.*` namespace is the only namespace read by RLS policies.
+All session variables used for access control must use this namespace. Using
+`set_config` with `is_local=true` scopes to the current transaction (for normal
+API operations), while break-glass procedures use `is_local=false` for session
+scope (the connection persists across multiple queries during the emergency).
+See [break-glass.md](../operations/break-glass.md) for the emergency access
+procedure.
+
 ### RLS policy pattern
 
 ```sql

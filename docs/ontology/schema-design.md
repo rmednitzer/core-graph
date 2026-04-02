@@ -2,16 +2,17 @@
 
 ## Introduction
 
-core-graph consolidates seven distinct knowledge domains into a single PostgreSQL
+core-graph consolidates eight distinct knowledge domains into a single PostgreSQL
 graph powered by Apache AGE (openCypher) and pgvector (HNSW embeddings). Rather
 than maintaining separate databases per domain, a unified graph lets analysts
 traverse from a STIX threat actor through the security events it generated,
 into the OSINT articles that first reported it, across the compliance controls
 it violates, through any AI-assisted investigation sessions, along the
-forensic timeline that reconstructs the full incident narrative, and into the
-infrastructure assets affected.
+forensic timeline that reconstructs the full incident narrative, into the
+infrastructure assets affected, and across the identity and access management
+layer to determine who has access to what.
 
-All seven layers share one set of bitemporal columns, one entity-resolution
+All eight layers share one set of bitemporal columns, one entity-resolution
 pattern, one Row-Level Security policy hierarchy (TLP-based), and one
 authorization stack (Cerbos ABAC + SpiceDB ReBAC). This means a single query
 can cross layer boundaries without federation, and every fact in the graph

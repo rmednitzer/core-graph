@@ -3,7 +3,8 @@
 # via command override.
 
 # ---------- Stage 1: build ----------
-# Pin to patch version for reproducible builds.
+# Pin to patch version for reproducible builds. Use bookworm (Debian 12
+# stable) for mature security patch cadence.
 # Update deliberately; do not use floating :3.14-slim tag.
 # Verify all dependencies (especially psycopg, AGE driver) on upgrade.
 FROM python:3.14.3-slim-bookworm AS build
@@ -15,7 +16,7 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir --upgrade pip setuptools
 COPY pyproject.toml .
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir --upgrade .
 
 COPY api/ api/
 COPY ingest/ ingest/
@@ -23,9 +24,6 @@ COPY evidence/ evidence/
 COPY scripts/ scripts/
 
 # ---------- Stage 2: runtime ----------
-# Pin to patch version for reproducible builds.
-# Update deliberately; do not use floating :3.14-slim tag.
-# Verify all dependencies (especially psycopg, AGE driver) on upgrade.
 FROM python:3.14.3-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

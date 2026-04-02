@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from api.config import DEFAULT_TLP
 from api.db import get_connection
+from api.utils.cypher_safety import validate_label
 from ingest.canonical import canonical_key
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,7 @@ async def entity_resolve(
     label = IOC_LABEL_MAP.get(ioc_type.lower())
     if label is None:
         raise ValueError(f"Unknown IOC type: {ioc_type}")
+    label = validate_label(label)
 
     ckey = canonical_key(ioc_type, value)
 

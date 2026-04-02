@@ -29,6 +29,7 @@ from api.taxii.models import (
     StatusResource,
     STIXBundle,
 )
+from api.utils.cypher_safety import validate_label
 
 logger = logging.getLogger(__name__)
 
@@ -213,9 +214,10 @@ async def get_objects(
         await _write_audit(conn, "TAXII_GET_OBJECTS", caller["actor"], collection_id)
 
         for label in coll.graph_label_filter:
+            safe_label = validate_label(label)
             query = f"""
                 select * from ag_catalog.cypher('core_graph', $$
-                    match (v:{label})
+                    match (v:{safe_label})
                     return properties(v)
                 $$) as (props agtype)
             """
@@ -301,9 +303,10 @@ async def get_object_by_id(
         )
 
         for label in coll.graph_label_filter:
+            safe_label = validate_label(label)
             query = f"""
                 select * from ag_catalog.cypher('core_graph', $$
-                    match (v:{label})
+                    match (v:{safe_label})
                     return properties(v)
                 $$) as (props agtype)
             """

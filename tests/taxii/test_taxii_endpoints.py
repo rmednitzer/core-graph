@@ -13,15 +13,24 @@ from fastapi.testclient import TestClient
 
 
 @pytest.fixture()
-def client():
-    """Create a test client with mocked dependencies."""
-    # Mock the connection pool so we don't need a real database
-    mock_conn = AsyncMock()
-    mock_conn.execute = AsyncMock(return_value=MagicMock(fetchall=AsyncMock(return_value=[])))
-    mock_conn.commit = AsyncMock()
-    mock_conn.__aenter__ = AsyncMock(return_value=mock_conn)
-    mock_conn.__aexit__ = AsyncMock(return_value=False)
+def mock_conn():
+    """Create a mock connection for asserting query args."""
+    conn = AsyncMock()
+    conn.execute = AsyncMock(
+        return_value=MagicMock(
+            fetchall=AsyncMock(return_value=[]),
+            fetchone=AsyncMock(return_value=None),
+        )
+    )
+    conn.commit = AsyncMock()
+    conn.__aenter__ = AsyncMock(return_value=conn)
+    conn.__aexit__ = AsyncMock(return_value=False)
+    return conn
 
+
+@pytest.fixture()
+def client(mock_conn):
+    """Create a test client with mocked dependencies."""
     with (
         patch("api.taxii.server.get_connection", return_value=mock_conn),
         patch("api.db._pool", MagicMock()),
@@ -119,6 +128,86 @@ class TestObjects:
     def test_unknown_collection_objects_returns_404(self, client: TestClient) -> None:
         resp = client.get("/taxii2/default/collections/fake/objects/")
         assert resp.status_code == 404
+
+    def test_objects_match_type_filter(self, client: TestClient, mock_conn: AsyncMock) -> None:
+        """match[type] parameter is forwarded to the Cypher query, not filtered in Python."""
+        resp = client.get(
+            "/taxii2/default/collections/threat-intel/objects/",
+            params={"match[type]": "threat-actor"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["type"] == "bundle"
+        # The second execute call (after audit write) builds the objects query
+        calls = mock_conn.execute.call_args_list
+        objects_call = calls[-1]
+        query_text = objects_call[0][0]
+        assert "v.stix_type = $match_type" in query_text
+
+    def test_objects_match_id_filter(self, client: TestClient, mock_conn: AsyncMock) -> None:
+        """match[id] parameter filters server-side via Cypher WHERE clause."""
+        resp = client.get(
+            "/taxii2/default/collections/indicators/objects/",
+            params={"match[id]": "indicator--nonexistent"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["type"] == "bundle"
+        assert len(data["objects"]) == 0
+        # Verify the id filter clause is in the query
+        calls = mock_conn.execute.call_args_list
+        objects_call = calls[-1]
+        query_text = objects_call[0][0]
+        assert "v.stix_id = $match_id" in query_text
+
+    def test_objects_pagination_more_flag_empty(self, client: TestClient) -> None:
+        """With no results, more should be absent or false."""
+        resp = client.get(
+            "/taxii2/default/collections/indicators/objects/",
+            params={"limit": 1},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["type"] == "bundle"
+        assert data.get("more", False) is False
+
+    def test_objects_pagination_more_flag_full(self) -> None:
+        """When DB returns limit+1 rows, more is true and results are truncated."""
+        import json as _json
+
+        # Create limit+1 = 2 mock rows so the server sees overflow
+        mock_rows = [
+            {"props": _json.dumps({"stix_id": "ind--1", "t_recorded": "2025-01-01T00:00:00Z"})},
+            {"props": _json.dumps({"stix_id": "ind--2", "t_recorded": "2025-01-02T00:00:00Z"})},
+        ]
+        conn = AsyncMock()
+        conn.execute = AsyncMock(
+            return_value=MagicMock(
+                fetchall=AsyncMock(return_value=mock_rows),
+                fetchone=AsyncMock(return_value=None),
+            )
+        )
+        conn.commit = AsyncMock()
+        conn.__aenter__ = AsyncMock(return_value=conn)
+        conn.__aexit__ = AsyncMock(return_value=False)
+
+        with (
+            patch("api.taxii.server.get_connection", return_value=conn),
+            patch("api.db._pool", MagicMock()),
+        ):
+            from api.rest.main import app
+
+            tc = TestClient(app)
+            resp = tc.get(
+                "/taxii2/default/collections/indicators/objects/",
+                params={"limit": 1},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["type"] == "bundle"
+        assert data["more"] is True
+        assert "next" in data
+        assert len(data["objects"]) == 1
 
 
 class TestAddObjects:

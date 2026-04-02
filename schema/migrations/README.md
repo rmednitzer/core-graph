@@ -48,6 +48,7 @@ Migrations are designed to be additive. If a migration must be reverted:
 | `009_infra_layer.sql` | Infrastructure and asset model (Layer 7) |
 | `010_iam_layer.sql` | Identity and access management model (Layer 8) |
 | `011_vector_dimensions.sql` | Vector dimension configuration and tuning |
+| `012_scheduled_jobs.sql` | pg_cron jobs for Merkle root, stale embedding cleanup, DLQ archive |
 
 ## CI validation
 

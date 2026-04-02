@@ -13,6 +13,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+RUN pip install --no-cache-dir --upgrade pip setuptools
 COPY pyproject.toml .
 RUN pip install --no-cache-dir .
 
@@ -34,6 +35,15 @@ RUN apt-get update -qq \
     && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Remove pip/setuptools/wheel from the runtime image — not needed and
+# frequently flagged by vulnerability scanners (reduces attack surface).
+RUN rm -rf /usr/local/lib/python3.14/site-packages/pip* \
+           /usr/local/lib/python3.14/site-packages/setuptools* \
+           /usr/local/lib/python3.14/site-packages/wheel* \
+           /usr/local/lib/python3.14/site-packages/_distutils_hack* \
+           /usr/local/lib/python3.14/site-packages/pkg_resources* \
+           /usr/local/bin/pip* /usr/local/bin/wheel*
 
 RUN groupadd -g 10001 cg && useradd -u 10001 -g cg -s /usr/sbin/nologin cg
 

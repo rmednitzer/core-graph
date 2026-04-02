@@ -47,7 +47,7 @@ select cron.schedule(
     $$
 );
 
--- DLQ archive cleanup: mark resolved entries older than 90 days (weekly).
+-- DLQ archive cleanup: auto-resolve unresolved entries older than 90 days (weekly).
 select cron.schedule(
     'dlq-archive-cleanup',
     '0 4 * * 0',

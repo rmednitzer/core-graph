@@ -41,8 +41,10 @@ begin
     drop index if exists idx_embeddings_hnsw;
 
     -- Alter column to target dimension
-    alter table embeddings
-        alter column embedding type vector(768);
+    execute format(
+        'alter table embeddings alter column embedding type vector(%s)',
+        target_dim
+    );
 
     -- Recreate HNSW index
     create index idx_embeddings_hnsw

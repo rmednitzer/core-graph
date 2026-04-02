@@ -72,8 +72,12 @@ select set_config('app.breakglass', 'true', false);
 select set_config('app.incident_ref', 'INC-2026-0042', false);
 ```
 
-RLS policies check `app.max_tlp`; setting it to 4 (TLP:RED) grants visibility
-to all rows that are not compartment-restricted. The `false` argument to
+`app.max_tlp` is the only variable consumed by RLS policies; setting it to 4
+(TLP:RED) grants visibility to all rows that are not compartment-restricted.
+`app.breakglass` and `app.incident_ref` are not read by RLS policies — they
+exist for audit trail correlation. pgAudit captures all `set_config` calls,
+so post-incident review can verify when break-glass was activated and which
+incident reference was associated with the session. The `false` argument to
 `set_config` scopes the variable to the session (not just the current
 transaction), which is required because break-glass operates across multiple
 queries during the emergency.

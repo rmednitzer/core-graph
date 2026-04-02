@@ -214,48 +214,62 @@ async def get_objects(
     async with get_connection(caller) as conn:
         await _write_audit(conn, "TAXII_GET_OBJECTS", caller["actor"], collection_id)
 
+        # Build WHERE clauses — push filters into Cypher
+        where_clauses: list[str] = []
+        cypher_params: dict[str, Any] = {}
+
+        if after_ts != "1970-01-01T00:00:00Z":
+            where_clauses.append("v.t_recorded > $added_after")
+            cypher_params["added_after"] = after_ts
+
+        if match_type:
+            where_clauses.append("v.stix_type = $match_type")
+            cypher_params["match_type"] = match_type
+
+        if match_id:
+            where_clauses.append("v.stix_id = $match_id OR v.id = $match_id")
+            cypher_params["match_id"] = match_id
+
+        where_str = " AND ".join(where_clauses)
+        where_sql = f"WHERE {where_str}" if where_clauses else ""
+        params_json = json.dumps(cypher_params)
+
+        # Build a UNION ALL across all labels so pagination applies to the
+        # combined result set rather than per-label (fixes multi-label paging).
+        subqueries = []
         for label in coll.graph_label_filter:
             safe_label = validate_label(label)
-
-            # Build WHERE clauses — push filters into Cypher
-            where_clauses: list[str] = []
-            cypher_params: dict[str, Any] = {}
-
-            if after_ts != "1970-01-01T00:00:00Z":
-                where_clauses.append("v.t_recorded > $added_after")
-                cypher_params["added_after"] = after_ts
-
-            if match_type:
-                where_clauses.append("v.stix_type = $match_type")
-                cypher_params["match_type"] = match_type
-
-            if match_id:
-                where_clauses.append("v.stix_id = $match_id OR v.id = $match_id")
-                cypher_params["match_id"] = match_id
-
-            where_str = " AND ".join(where_clauses)
-            where_sql = f"WHERE {where_str}" if where_clauses else ""
-
-            query = f"""
-                select * from ag_catalog.cypher('core_graph', $$
+            subqueries.append(
+                f"""
+                select props from ag_catalog.cypher('core_graph', $$
                     match (v:{safe_label})
                     {where_sql}
                     return properties(v)
-                    order by v.t_recorded
                 $$, %s) as (props agtype)
-                limit %s offset %s
-            """
-            result = await conn.execute(
-                query,
-                (json.dumps(cypher_params), limit + 1, offset),
+                """
             )
-            rows = await result.fetchall()
 
-            for row in rows:
-                props = row["props"]
-                if isinstance(props, str):
-                    props = json.loads(props)
-                objects.append(props)
+        union_sql = " UNION ALL ".join(subqueries)
+        # Wrap with ORDER BY / LIMIT / OFFSET at the SQL level so pagination
+        # is deterministic across the full result set.
+        query = f"""
+            select props from ({union_sql}) sub
+            order by props->>'t_recorded'
+            limit %s offset %s
+        """
+
+        # Each subquery needs the same cypher params argument
+        params: list[Any] = [params_json] * len(subqueries)
+        params.extend([limit + 1, offset])
+
+        result = await conn.execute(query, tuple(params))
+        rows = await result.fetchall()
+
+        for row in rows:
+            props = row["props"]
+            if isinstance(props, str):
+                props = json.loads(props)
+            objects.append(props)
 
         await conn.commit()
 

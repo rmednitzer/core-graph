@@ -50,6 +50,7 @@ Migrations are designed to be additive. If a migration must be reverted:
 | `011_vector_dimensions.sql` | Vector dimension configuration and tuning |
 | `012_scheduled_jobs.sql` | pg_cron jobs for Merkle root, stale embedding cleanup, DLQ archive |
 | `013_dlq_first_failed_default.sql` | Add default `now()` to `dlq_archive.first_failed` |
+| `014_rls_nullif_guard.sql` | Add NULLIF guard to RLS `current_setting` calls |
 
 ## CI validation
 

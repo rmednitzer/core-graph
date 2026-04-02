@@ -63,6 +63,9 @@ Target: EU-sovereign, single-engineer operable, auditable, evidence-producing.
 - Never bypass authorization (Cerbos/SpiceDB) at the application layer
 - All SQL must use parameterised queries (CVE-2022-45786 mitigation)
 - Cypher queries through AGE must use query templates, not string concatenation
+- AGE Cypher parameters use $name syntax bound via agtype JSON; this requires
+  PREPARE/EXECUTE or PL/pgSQL EXECUTE. Labels and relationship types cannot
+  be parameterized and must pass validate_label() before interpolation.
 
 ## File organisation
 

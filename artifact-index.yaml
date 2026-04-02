@@ -37,4 +37,4 @@ artifacts:
     type: documentation
     path: docs/ontology/
     format: markdown
-    description: Six-layer unified ontology design
+    description: Eight-layer unified ontology design

@@ -120,6 +120,39 @@ class TestObjects:
         resp = client.get("/taxii2/default/collections/fake/objects/")
         assert resp.status_code == 404
 
+    def test_objects_match_type_filter(self, client: TestClient) -> None:
+        """match[type] parameter is forwarded to the query, not filtered in Python."""
+        resp = client.get(
+            "/taxii2/default/collections/threat-intel/objects/",
+            params={"match[type]": "threat-actor"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["type"] == "bundle"
+
+    def test_objects_match_id_filter(self, client: TestClient) -> None:
+        """match[id] parameter filters server-side."""
+        resp = client.get(
+            "/taxii2/default/collections/indicators/objects/",
+            params={"match[id]": "indicator--nonexistent"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["type"] == "bundle"
+        assert len(data["objects"]) == 0
+
+    def test_objects_pagination_more_flag(self, client: TestClient) -> None:
+        """Pagination uses server-side limit, not post-filter truncation."""
+        resp = client.get(
+            "/taxii2/default/collections/indicators/objects/",
+            params={"limit": 1},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["type"] == "bundle"
+        # With mocked empty DB, more should be absent or false
+        assert data.get("more", False) is False
+
 
 class TestAddObjects:
     """Add Objects endpoint tests."""

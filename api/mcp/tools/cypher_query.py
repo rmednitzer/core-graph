@@ -17,8 +17,21 @@ from typing import Any
 
 from api.config import DEFAULT_TLP
 from api.db import get_connection
+from api.utils.age_query_guard import query_timeout_ms
 
 logger = logging.getLogger(__name__)
+
+try:
+    from prometheus_client import Histogram
+
+    cypher_query_duration: Histogram | None = Histogram(
+        "cg_cypher_query_duration_seconds",
+        "Cypher query execution time",
+        ["template"],
+        buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
+    )
+except ImportError:
+    cypher_query_duration = None
 
 QUERIES_DIR = Path(__file__).resolve().parent.parent / "skills" / "queries"
 
@@ -107,6 +120,13 @@ async def cypher_query(
     t_start = time.perf_counter()
 
     async with get_connection(caller) as conn:
+        # Set statement timeout based on caller role (transaction-local)
+        timeout_ms = query_timeout_ms(caller_identity)
+        await conn.execute(
+            "select set_config('statement_timeout', %s, true)",
+            (f"{timeout_ms}ms",),
+        )
+
         # Execute via AGE with parameter binding
         agtype_params = json.dumps(params)
         sql = (
@@ -134,7 +154,11 @@ async def cypher_query(
         )
         await conn.commit()
 
-        elapsed_ms = (time.perf_counter() - t_start) * 1000
+        elapsed = time.perf_counter() - t_start
+        if cypher_query_duration is not None:
+            cypher_query_duration.labels(template=template).observe(elapsed)
+
+        elapsed_ms = elapsed * 1000
         logger.info(
             "Cypher query executed: template=%s params=%d correlation=%s rows=%d elapsed_ms=%.1f",
             template,

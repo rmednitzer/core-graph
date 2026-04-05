@@ -51,6 +51,11 @@ Migrations are designed to be additive. If a migration must be reverted:
 | `012_scheduled_jobs.sql` | pg_cron jobs for Merkle root, stale embedding cleanup, DLQ archive |
 | `013_dlq_first_failed_default.sql` | Add default `now()` to `dlq_archive.first_failed` |
 | `014_rls_nullif_guard.sql` | Add NULLIF guard to RLS `current_setting` calls |
+| `015_merkle_root_table.sql` | Periodic Merkle root storage for audit log integrity |
+| `016_merkle_scheduled_job.sql` | Proper Merkle tree computation cron job (replaces 012 hash concat) |
+| `017_age_indexes.sql` | Performance indexes on AGE vertex property columns |
+| `018_dlq_error_class.sql` | Error classification column on DLQ archive |
+| `019_embedding_metadata.sql` | Model version and timestamp tracking for embeddings |
 
 ## CI validation
 

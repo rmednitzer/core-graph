@@ -207,7 +207,139 @@ class TestObjects:
         assert data["type"] == "bundle"
         assert data["more"] is True
         assert "next" in data
+        # next is now a compound cursor: t_recorded|stix_id
+        assert data["next"] == "2025-01-01T00:00:00Z|ind--1"
         assert len(data["objects"]) == 1
+
+    def test_cursor_pagination_no_duplicates(self) -> None:
+        """Keyset pagination across 3 pages produces no duplicate objects."""
+        import json as _json
+
+        all_objects: list[dict] = []
+
+        # Page 1: 2 rows (limit=1 + 1 overflow)
+        page1_rows = [
+            {"props": _json.dumps({"stix_id": "ind--1", "t_recorded": "2025-01-01T00:00:00Z"})},
+            {"props": _json.dumps({"stix_id": "ind--2", "t_recorded": "2025-01-02T00:00:00Z"})},
+        ]
+        # Page 2: 2 rows
+        page2_rows = [
+            {"props": _json.dumps({"stix_id": "ind--3", "t_recorded": "2025-01-03T00:00:00Z"})},
+            {"props": _json.dumps({"stix_id": "ind--4", "t_recorded": "2025-01-04T00:00:00Z"})},
+        ]
+        # Page 3: 1 row (no overflow, last page)
+        page3_rows = [
+            {"props": _json.dumps({"stix_id": "ind--5", "t_recorded": "2025-01-05T00:00:00Z"})},
+        ]
+
+        pages = [page1_rows, page2_rows, page3_rows]
+        cursor = None
+
+        for page_rows in pages:
+            conn = AsyncMock()
+            conn.execute = AsyncMock(
+                return_value=MagicMock(
+                    fetchall=AsyncMock(return_value=page_rows),
+                    fetchone=AsyncMock(return_value=None),
+                )
+            )
+            conn.commit = AsyncMock()
+            conn.__aenter__ = AsyncMock(return_value=conn)
+            conn.__aexit__ = AsyncMock(return_value=False)
+
+            with (
+                patch("api.taxii.server.get_connection", return_value=conn),
+                patch("api.db._pool", MagicMock()),
+            ):
+                from api.rest.main import app
+
+                tc = TestClient(app)
+                params: dict = {"limit": 1}
+                if cursor:
+                    params["next"] = cursor
+
+                resp = tc.get(
+                    "/taxii2/default/collections/indicators/objects/",
+                    params=params,
+                )
+
+            assert resp.status_code == 200
+            data = resp.json()
+            all_objects.extend(data["objects"])
+
+            if data.get("more"):
+                cursor = data["next"]
+            else:
+                break
+
+        # Verify no duplicates
+        stix_ids = [o["stix_id"] for o in all_objects]
+        assert len(stix_ids) == len(set(stix_ids)), (
+            f"Duplicate objects found in pagination: {stix_ids}"
+        )
+
+    def test_cursor_pagination_identical_timestamps(self) -> None:
+        """Objects with identical t_recorded are not lost during pagination."""
+        import json as _json
+
+        same_ts = "2025-06-01T00:00:00Z"
+        # Page 1: 2 rows with same timestamp (limit=1 + 1 overflow)
+        page1_rows = [
+            {"props": _json.dumps({"stix_id": "ind--a", "t_recorded": same_ts})},
+            {"props": _json.dumps({"stix_id": "ind--b", "t_recorded": same_ts})},
+        ]
+        # Page 2: 1 row with same timestamp (last page)
+        page2_rows = [
+            {"props": _json.dumps({"stix_id": "ind--c", "t_recorded": same_ts})},
+        ]
+
+        all_objects: list[dict] = []
+        pages = [page1_rows, page2_rows]
+        cursor = None
+
+        for page_rows in pages:
+            conn = AsyncMock()
+            conn.execute = AsyncMock(
+                return_value=MagicMock(
+                    fetchall=AsyncMock(return_value=page_rows),
+                    fetchone=AsyncMock(return_value=None),
+                )
+            )
+            conn.commit = AsyncMock()
+            conn.__aenter__ = AsyncMock(return_value=conn)
+            conn.__aexit__ = AsyncMock(return_value=False)
+
+            with (
+                patch("api.taxii.server.get_connection", return_value=conn),
+                patch("api.db._pool", MagicMock()),
+            ):
+                from api.rest.main import app
+
+                tc = TestClient(app)
+                params: dict = {"limit": 1}
+                if cursor:
+                    params["next"] = cursor
+
+                resp = tc.get(
+                    "/taxii2/default/collections/indicators/objects/",
+                    params=params,
+                )
+
+            assert resp.status_code == 200
+            data = resp.json()
+            all_objects.extend(data["objects"])
+
+            if data.get("more"):
+                cursor = data["next"]
+                # Compound cursor should contain stix_id for tiebreaking
+                assert "|" in cursor, f"Cursor should be compound t_recorded|stix_id, got: {cursor}"
+            else:
+                break
+
+        stix_ids = [o["stix_id"] for o in all_objects]
+        assert len(stix_ids) == len(set(stix_ids)), (
+            f"Duplicate objects found in pagination: {stix_ids}"
+        )
 
 
 class TestAddObjects:

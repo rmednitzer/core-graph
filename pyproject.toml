@@ -23,6 +23,7 @@ dependencies = [
   "minio>=7.2",
   "prometheus-client>=0.20",
   "psycopg-pool>=3.2",
+  "rfc3161ng>=2.1",
 ]
 
 [project.optional-dependencies]

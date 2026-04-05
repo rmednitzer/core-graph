@@ -20,10 +20,33 @@ import psycopg
 from nats.js.api import ConsumerConfig, StreamConfig
 from psycopg.rows import dict_row
 
+from ingest.metrics import dlq_by_class_total
+
 logger = logging.getLogger(__name__)
 
 MAX_RETRIES = int(os.environ.get("CG_DLQ_MAX_RETRIES", "3"))
 BASE_BACKOFF_S = 2
+
+
+def classify_error(error_message: str) -> str:
+    """Classify a DLQ error message into a category.
+
+    Returns one of: schema_mismatch, connection_error, constraint_violation,
+    timeout, authorization, unknown.
+    """
+    msg = error_message.lower()
+    if any(kw in msg for kw in ("schema", "validation", "invalid", "missing field")):
+        return "schema_mismatch"
+    if any(kw in msg for kw in ("connection", "refused", "unreachable", "dns")):
+        return "connection_error"
+    if any(kw in msg for kw in ("constraint", "unique", "duplicate", "foreign key", "violates")):
+        return "constraint_violation"
+    if any(kw in msg for kw in ("timeout", "timed out", "deadline")):
+        return "timeout"
+    authz_kw = ("authorization", "forbidden", "permission", "denied", "401", "403")
+    if any(kw in msg for kw in authz_kw):
+        return "authorization"
+    return "unknown"
 
 
 async def _ensure_streams(js: nats.js.JetStreamContext) -> None:
@@ -45,14 +68,15 @@ async def _archive_message(
     error_message: str,
     retry_count: int,
     first_failed: str,
+    error_class: str,
 ) -> None:
     """Write a permanently failed message to the dlq_archive table."""
     await conn.execute(
         """
         insert into dlq_archive
             (original_subject, payload, error_message, retry_count,
-             first_failed, last_failed)
-        values (%s, %s, %s, %s, %s, now())
+             first_failed, last_failed, error_class)
+        values (%s, %s, %s, %s, %s, now(), %s)
         """,
         (
             original_subject,
@@ -60,6 +84,7 @@ async def _archive_message(
             error_message,
             retry_count,
             first_failed,
+            error_class,
         ),
     )
     await conn.commit()
@@ -140,6 +165,7 @@ async def _process_dlq_message(
         )
     else:
         # Archive permanently
+        error_class = classify_error(error_message)
         await _archive_message(
             conn,
             original_subject,
@@ -147,13 +173,16 @@ async def _process_dlq_message(
             error_message,
             retry_count,
             first_failed,
+            error_class,
         )
         dlq_archived += 1
+        dlq_by_class_total.labels(error_class=error_class).inc()
         await _write_audit_entry(conn, "DLQ_ARCHIVE", original_subject, retry_count)
         logger.warning(
-            "DLQ archived after %d retries: %s",
+            "DLQ archived after %d retries: %s (class=%s)",
             retry_count,
             original_subject,
+            error_class,
         )
 
     await msg.ack()

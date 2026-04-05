@@ -14,5 +14,6 @@ data:
         store_dir: /data/jetstream
         max_mem: {{ .Values.nats.jetstream.maxMem }}
         max_file: {{ .Values.nats.jetstream.maxFile }}
+        sync_interval: {{ .Values.nats.jetstream.syncInterval }}
     }
 {{- end }}

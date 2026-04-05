@@ -44,6 +44,12 @@ audit_log_entries_total = Counter(
     "Total audit log entries written",
 )
 
+dlq_by_class_total = Counter(
+    "cg_ingest_dlq_by_class_total",
+    "DLQ entries by error classification",
+    ["error_class"],
+)
+
 # -- Adapter-level metrics (used by AdapterBase) ----------------------------
 
 adapter_fetch_total = Counter(

@@ -8,7 +8,6 @@ as a periodic task outside pg_cron (which cannot make HTTP calls).
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
 
 import psycopg
@@ -41,7 +40,8 @@ async def stamp_pending_roots(pg_dsn: str | None = None) -> int:
         rows = await cursor.fetchall()
 
         for row in rows:
-            digest = hashlib.sha256(row["root_hash"].encode()).digest()
+            # root_hash is already a SHA-256 hex digest; convert to raw bytes
+            digest = bytes.fromhex(row["root_hash"])
             token = await request_timestamp(digest)
             if token is None:
                 logger.warning("Failed to stamp Merkle root %d", row["id"])

@@ -76,23 +76,23 @@ async def get_connection(
         raise RuntimeError("Connection pool not initialised — call open_pool() first")
 
     async with _pool.connection() as conn:
-        if pool_available is not None:
-            pool_available.dec()
-
-        # Set AGE search path
-        await conn.execute("set search_path = ag_catalog, '$user', public")
-
-        # Set RLS session variables
-        if caller_identity:
-            max_tlp = str(caller_identity.get("max_tlp", config.DEFAULT_TLP))
-            compartments = ",".join(caller_identity.get("allowed_compartments", []))
-            await conn.execute("select set_config('app.max_tlp', %s, true)", (max_tlp,))
-            await conn.execute(
-                "select set_config('app.allowed_compartments', %s, true)",
-                (compartments,),
-            )
-
         try:
+            if pool_available is not None:
+                pool_available.dec()
+
+            # Set AGE search path
+            await conn.execute("set search_path = ag_catalog, '$user', public")
+
+            # Set RLS session variables
+            if caller_identity:
+                max_tlp = str(caller_identity.get("max_tlp", config.DEFAULT_TLP))
+                compartments = ",".join(caller_identity.get("allowed_compartments", []))
+                await conn.execute("select set_config('app.max_tlp', %s, true)", (max_tlp,))
+                await conn.execute(
+                    "select set_config('app.allowed_compartments', %s, true)",
+                    (compartments,),
+                )
+
             yield conn
         finally:
             # Clear RLS session variables to prevent leakage across pool reuse.

@@ -120,9 +120,12 @@ async def cypher_query(
     t_start = time.perf_counter()
 
     async with get_connection(caller) as conn:
-        # Set statement timeout based on caller role
+        # Set statement timeout based on caller role (transaction-local)
         timeout_ms = query_timeout_ms(caller_identity)
-        await conn.execute("set local statement_timeout = %s", (timeout_ms,))
+        await conn.execute(
+            "select set_config('statement_timeout', %s, true)",
+            (f"{timeout_ms}ms",),
+        )
 
         # Execute via AGE with parameter binding
         agtype_params = json.dumps(params)

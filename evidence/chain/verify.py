@@ -132,48 +132,47 @@ async def verify_merkle_roots(pg_dsn: str | None = None) -> VerificationResult:
     """
     dsn = pg_dsn or PG_DSN
 
+    batches_checked = 0
+    mismatches: list[int] = []
+
     async with await psycopg.AsyncConnection.connect(dsn, row_factory=dict_row) as conn:
         cursor = await conn.execute("select * from audit_merkle_roots order by id asc")
         roots = await cursor.fetchall()
 
-    batches_checked = 0
-    mismatches: list[int] = []
+        for root_row in roots:
+            batch_start = root_row["batch_start"]
+            batch_end = root_row["batch_end"]
+            stored_root = root_row["root_hash"]
 
-    for root_row in roots:
-        batch_start = root_row["batch_start"]
-        batch_end = root_row["batch_end"]
-        stored_root = root_row["root_hash"]
-
-        async with await psycopg.AsyncConnection.connect(dsn, row_factory=dict_row) as conn:
             cursor = await conn.execute(
                 "select entry_hash from audit_log where id >= %s and id <= %s order by id asc",
                 (batch_start, batch_end),
             )
             entries = await cursor.fetchall()
 
-        hashes = [e["entry_hash"] for e in entries]
-        if not hashes:
-            logger.warning(
-                "Merkle batch %d has no audit_log entries (range %d-%d)",
-                root_row["id"],
-                batch_start,
-                batch_end,
-            )
-            mismatches.append(root_row["id"])
+            hashes = [e["entry_hash"] for e in entries]
+            if not hashes:
+                logger.warning(
+                    "Merkle batch %d has no audit_log entries (range %d-%d)",
+                    root_row["id"],
+                    batch_start,
+                    batch_end,
+                )
+                mismatches.append(root_row["id"])
+                batches_checked += 1
+                continue
+
+            recomputed = compute_merkle_root(hashes)
+            if recomputed != stored_root:
+                logger.error(
+                    "Merkle root mismatch for batch %d: stored=%s, recomputed=%s",
+                    root_row["id"],
+                    stored_root,
+                    recomputed,
+                )
+                mismatches.append(root_row["id"])
+
             batches_checked += 1
-            continue
-
-        recomputed = compute_merkle_root(hashes)
-        if recomputed != stored_root:
-            logger.error(
-                "Merkle root mismatch for batch %d: stored=%s, recomputed=%s",
-                root_row["id"],
-                stored_root,
-                recomputed,
-            )
-            mismatches.append(root_row["id"])
-
-        batches_checked += 1
 
     return VerificationResult(
         total_entries=batches_checked,

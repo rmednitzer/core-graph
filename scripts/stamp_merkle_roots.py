@@ -40,22 +40,21 @@ async def stamp_pending_roots(pg_dsn: str | None = None) -> int:
         )
         rows = await cursor.fetchall()
 
-    for row in rows:
-        digest = hashlib.sha256(row["root_hash"].encode()).digest()
-        token = await request_timestamp(digest)
-        if token is None:
-            logger.warning("Failed to stamp Merkle root %d", row["id"])
-            continue
+        for row in rows:
+            digest = hashlib.sha256(row["root_hash"].encode()).digest()
+            token = await request_timestamp(digest)
+            if token is None:
+                logger.warning("Failed to stamp Merkle root %d", row["id"])
+                continue
 
-        async with await psycopg.AsyncConnection.connect(dsn) as conn:
             await conn.execute(
                 "update audit_merkle_roots set rfc3161_token = %s where id = %s",
                 (token, row["id"]),
             )
             await conn.commit()
 
-        stamped += 1
-        logger.info("Stamped Merkle root %d", row["id"])
+            stamped += 1
+            logger.info("Stamped Merkle root %d", row["id"])
 
     return stamped
 

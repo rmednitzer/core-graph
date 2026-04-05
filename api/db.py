@@ -12,12 +12,16 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
+from prometheus_client import Gauge
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from api import config
 
 logger = logging.getLogger(__name__)
+
+pool_size = Gauge("cg_pool_size", "Connection pool total size")
+pool_available = Gauge("cg_pool_available", "Available connections in pool")
 
 _pool: AsyncConnectionPool | None = None
 
@@ -62,7 +66,11 @@ async def get_connection(
     if _pool is None:
         raise RuntimeError("Connection pool not initialised — call open_pool() first")
 
+    pool_size.set(_pool.max_size)
+
     async with _pool.connection() as conn:
+        pool_available.dec()
+
         # Set AGE search path
         await conn.execute("set search_path = ag_catalog, '$user', public")
 
@@ -82,3 +90,4 @@ async def get_connection(
             # Clear RLS session variables to prevent leakage across pool reuse
             await conn.execute("select set_config('app.max_tlp', '', false)")
             await conn.execute("select set_config('app.allowed_compartments', '', false)")
+            pool_available.inc()

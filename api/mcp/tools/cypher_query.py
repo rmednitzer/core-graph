@@ -15,11 +15,20 @@ import uuid
 from pathlib import Path
 from typing import Any
 
+from prometheus_client import Histogram
+
 from api.config import DEFAULT_TLP
 from api.db import get_connection
 from api.utils.age_query_guard import query_timeout_ms
 
 logger = logging.getLogger(__name__)
+
+cypher_query_duration = Histogram(
+    "cg_cypher_query_duration_seconds",
+    "Cypher query execution time",
+    ["template"],
+    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0),
+)
 
 QUERIES_DIR = Path(__file__).resolve().parent.parent / "skills" / "queries"
 
@@ -139,7 +148,10 @@ async def cypher_query(
         )
         await conn.commit()
 
-        elapsed_ms = (time.perf_counter() - t_start) * 1000
+        elapsed = time.perf_counter() - t_start
+        cypher_query_duration.labels(template=template).observe(elapsed)
+
+        elapsed_ms = elapsed * 1000
         logger.info(
             "Cypher query executed: template=%s params=%d correlation=%s rows=%d elapsed_ms=%.1f",
             template,

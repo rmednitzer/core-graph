@@ -205,8 +205,8 @@ async def get_objects(
         raise HTTPException(status_code=404, detail="Unknown collection")
 
     caller = _caller_from_request(request)
-    offset = int(next) if next and next.isdigit() else 0
-    after_ts = added_after or "1970-01-01T00:00:00Z"
+    # Keyset pagination: 'next' is now a t_recorded ISO 8601 cursor
+    cursor_ts = next if next else None
 
     objects: list[dict] = []
     more = False
@@ -218,9 +218,11 @@ async def get_objects(
         where_clauses: list[str] = []
         cypher_params: dict[str, Any] = {}
 
-        if after_ts != "1970-01-01T00:00:00Z":
-            where_clauses.append("v.t_recorded > $added_after")
-            cypher_params["added_after"] = after_ts
+        # Keyset cursor takes precedence over added_after
+        effective_after = cursor_ts or added_after
+        if effective_after:
+            where_clauses.append("v.t_recorded > $cursor")
+            cypher_params["cursor"] = effective_after
 
         if match_type:
             where_clauses.append("v.stix_type = $match_type")
@@ -250,17 +252,16 @@ async def get_objects(
             )
 
         union_sql = " UNION ALL ".join(subqueries)
-        # Wrap with ORDER BY / LIMIT / OFFSET at the SQL level so pagination
-        # is deterministic across the full result set.
+        # Keyset pagination: ORDER BY t_recorded ASC, LIMIT only (no OFFSET).
         query = f"""
             select props from ({union_sql}) sub
-            order by props->>'t_recorded'
-            limit %s offset %s
+            order by props->>'t_recorded' asc
+            limit %s
         """
 
         # Each subquery needs the same cypher params argument
         params: list[Any] = [params_json] * len(subqueries)
-        params.extend([limit + 1, offset])
+        params.append(limit + 1)
 
         result = await conn.execute(query, tuple(params))
         rows = await result.fetchall()
@@ -296,7 +297,9 @@ async def get_objects(
     resp_content = bundle.model_dump()
     if more:
         resp_content["more"] = True
-        resp_content["next"] = str(offset + limit)
+        # Cursor is the t_recorded of the last returned object
+        last_t_recorded = objects[-1].get("t_recorded", "")
+        resp_content["next"] = last_t_recorded
 
     return _stix_response(
         resp_content,

@@ -205,8 +205,15 @@ async def get_objects(
         raise HTTPException(status_code=404, detail="Unknown collection")
 
     caller = _caller_from_request(request)
-    # Keyset pagination: 'next' is now a t_recorded ISO 8601 cursor
-    cursor_ts = next if next else None
+
+    # Keyset pagination: 'next' is a compound cursor "t_recorded|stix_id"
+    # to handle ties when multiple objects share the same t_recorded.
+    cursor_ts: str | None = None
+    cursor_id: str | None = None
+    if next and "|" in next:
+        cursor_ts, cursor_id = next.rsplit("|", 1)
+    elif next:
+        cursor_ts = next
 
     objects: list[dict] = []
     more = False
@@ -220,7 +227,14 @@ async def get_objects(
 
         # Keyset cursor takes precedence over added_after
         effective_after = cursor_ts or added_after
-        if effective_after:
+        if effective_after and cursor_id:
+            # Compound cursor: skip past the exact (t_recorded, stix_id) pair
+            where_clauses.append(
+                "(v.t_recorded > $cursor OR (v.t_recorded = $cursor AND v.stix_id > $cursor_id))"
+            )
+            cypher_params["cursor"] = effective_after
+            cypher_params["cursor_id"] = cursor_id
+        elif effective_after:
             where_clauses.append("v.t_recorded > $cursor")
             cypher_params["cursor"] = effective_after
 
@@ -252,10 +266,11 @@ async def get_objects(
             )
 
         union_sql = " UNION ALL ".join(subqueries)
-        # Keyset pagination: ORDER BY t_recorded ASC, LIMIT only (no OFFSET).
+        # Keyset pagination: ORDER BY (t_recorded, stix_id) ASC for deterministic
+        # ordering even when multiple objects share the same t_recorded.
         query = f"""
             select props from ({union_sql}) sub
-            order by props->>'t_recorded' asc
+            order by props->>'t_recorded' asc, props->>'stix_id' asc
             limit %s
         """
 
@@ -297,9 +312,11 @@ async def get_objects(
     resp_content = bundle.model_dump()
     if more:
         resp_content["more"] = True
-        # Cursor is the t_recorded of the last returned object
-        last_t_recorded = objects[-1].get("t_recorded", "")
-        resp_content["next"] = last_t_recorded
+        # Compound cursor: t_recorded|stix_id for deterministic keyset pagination
+        last_obj = objects[-1]
+        last_t_recorded = last_obj.get("t_recorded", "")
+        last_stix_id = last_obj.get("stix_id", "")
+        resp_content["next"] = f"{last_t_recorded}|{last_stix_id}"
 
     return _stix_response(
         resp_content,

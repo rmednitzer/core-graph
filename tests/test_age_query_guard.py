@@ -71,3 +71,11 @@ class TestQueryTimeoutMs:
     def test_missing_roles_key_gets_default(self) -> None:
         identity = {"actor": "someone"}
         assert query_timeout_ms(identity) == DEFAULT_TIMEOUT_MS
+
+    def test_ai_agent_gets_elevated_timeout(self) -> None:
+        identity = {"roles": ["cg_ai_agent"]}
+        assert query_timeout_ms(identity) == 60_000
+
+    def test_highest_role_timeout_wins(self) -> None:
+        identity = {"roles": ["cg_ai_agent", "cg_ciso"]}
+        assert query_timeout_ms(identity) == 120_000

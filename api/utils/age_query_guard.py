@@ -20,6 +20,13 @@ ROLE_MAX_DEPTH: dict[str, int] = {
 DEFAULT_MAX_DEPTH = 3
 DEFAULT_TIMEOUT_MS = 30_000
 
+# Role-specific query timeouts (milliseconds).
+# CISO and AI agents get higher timeouts for complex cross-domain queries.
+ROLE_TIMEOUT_MS: dict[str, int] = {
+    "cg_ciso": 120_000,
+    "cg_ai_agent": 60_000,
+}
+
 
 def max_depth_for_role(role: str) -> int:
     """Return maximum graph traversal depth for a role."""
@@ -27,7 +34,15 @@ def max_depth_for_role(role: str) -> int:
 
 
 def query_timeout_ms(caller_identity: dict | None) -> int:
-    """Return query timeout in milliseconds based on caller context."""
-    if caller_identity and "cg_ciso" in caller_identity.get("roles", []):
-        return 120_000
-    return DEFAULT_TIMEOUT_MS
+    """Return query timeout in milliseconds based on caller context.
+
+    Checks caller roles against ROLE_TIMEOUT_MS and returns the highest
+    applicable timeout (most permissive role wins).
+    """
+    if not caller_identity:
+        return DEFAULT_TIMEOUT_MS
+    roles = caller_identity.get("roles", [])
+    if not roles:
+        return DEFAULT_TIMEOUT_MS
+    applicable = [ROLE_TIMEOUT_MS[r] for r in roles if r in ROLE_TIMEOUT_MS]
+    return max(applicable) if applicable else DEFAULT_TIMEOUT_MS

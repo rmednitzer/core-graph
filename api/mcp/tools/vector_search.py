@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
 import uuid
 from typing import Any
 
@@ -37,17 +39,93 @@ class VectorSearchResult(BaseModel):
     distance: float
 
 
-async def generate_embedding(text: str) -> list[float]:
+# -- Circuit breaker state ---------------------------------------------------
+
+_embedding_failures = 0
+_CIRCUIT_OPEN_THRESHOLD = 5
+_circuit_opened_at: float | None = None
+_CIRCUIT_RESET_SECONDS = 60
+
+
+def _check_circuit() -> bool:
+    """Return True if the circuit is closed (requests allowed)."""
+    global _embedding_failures, _circuit_opened_at
+    if _embedding_failures < _CIRCUIT_OPEN_THRESHOLD:
+        return True
+    if _circuit_opened_at is None:
+        return True
+    elapsed = time.monotonic() - _circuit_opened_at
+    if elapsed >= _CIRCUIT_RESET_SECONDS:
+        # Half-open: allow one attempt
+        return True
+    return False
+
+
+def _record_success() -> None:
+    global _embedding_failures, _circuit_opened_at
+    _embedding_failures = 0
+    _circuit_opened_at = None
+
+
+def _record_failure() -> None:
+    global _embedding_failures, _circuit_opened_at
+    _embedding_failures += 1
+    if _embedding_failures >= _CIRCUIT_OPEN_THRESHOLD:
+        _circuit_opened_at = time.monotonic()
+        logger.warning(
+            "Embedding circuit breaker opened after %d failures",
+            _embedding_failures,
+        )
+
+
+# -- Embedding generation ----------------------------------------------------
+
+
+async def generate_embedding(text: str) -> tuple[list[float], str]:
     """Generate an embedding vector from text.
 
     Uses the configured embedding provider (ollama or openai-compatible).
-    Raises NotImplementedError if provider is 'none'.
+    Includes retry logic with exponential backoff and circuit breaker.
+
+    Returns:
+        Tuple of (embedding vector, model name).
+
+    Raises:
+        NotImplementedError: If provider is 'none'.
+        RuntimeError: If circuit breaker is open.
     """
     if EMBEDDING_PROVIDER == "none":
         raise NotImplementedError("Embedding model not configured (CG_EMBEDDING_PROVIDER=none)")
 
+    if not _check_circuit():
+        raise RuntimeError("Embedding circuit breaker is open, skipping request")
+
     import httpx
 
+    last_exc: Exception | None = None
+    backoff_delays = [1, 2, 4]
+
+    for attempt in range(3):
+        try:
+            vector = await _call_embedding_provider(httpx, text)
+            _record_success()
+            return (vector, EMBEDDING_MODEL)
+        except Exception as exc:
+            last_exc = exc
+            logger.warning(
+                "Embedding attempt %d/3 failed: %s",
+                attempt + 1,
+                exc,
+            )
+            if attempt < 2:
+                await asyncio.sleep(backoff_delays[attempt])
+
+    _record_failure()
+    raise last_exc  # type: ignore[misc]
+
+
+async def _call_embedding_provider(httpx: Any, text: str) -> list[float]:
+    """Call the configured embedding provider and return the vector."""
     if EMBEDDING_PROVIDER == "ollama":
         url = f"{EMBEDDING_URL.rstrip('/')}/api/embed"
         payload = {"model": EMBEDDING_MODEL, "input": text}
@@ -101,7 +179,7 @@ async def vector_search(
     if vector is not None:
         query_vector = vector
     elif text is not None:
-        query_vector = await generate_embedding(text)
+        query_vector, _ = await generate_embedding(text)
     else:
         raise ValueError("Either 'text' or 'vector' must be provided")
 

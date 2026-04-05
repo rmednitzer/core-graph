@@ -76,4 +76,9 @@ async def get_connection(
                 (compartments,),
             )
 
-        yield conn
+        try:
+            yield conn
+        finally:
+            # Clear RLS session variables to prevent leakage across pool reuse
+            await conn.execute("select set_config('app.max_tlp', '', false)")
+            await conn.execute("select set_config('app.allowed_compartments', '', false)")

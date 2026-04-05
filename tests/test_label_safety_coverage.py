@@ -71,7 +71,6 @@ def _is_safe_interpolation(line: str, context_lines: list[str]) -> bool:
     if any(kw in line for kw in ("logger.", "logging.", "raise ", "ValueError(")):
         return True
     if any(kw in joined_ctx for kw in ("raise ValueError(", "raise RuntimeError(")):
-        # Check if this f-string is part of a raise statement (may span lines)
         for ctx_line in context_lines:
             if "raise " in ctx_line:
                 return True
@@ -85,18 +84,8 @@ def _is_safe_interpolation(line: str, context_lines: list[str]) -> bool:
         return True
 
     # Values passed as parameterized query arguments (inside tuples) are safe
-    # e.g. f"cypher:{template}" used as a %s bind parameter
-    if re.search(r'^\s*f"[^"]*\{', line) and "%s" not in line:
-        # Only flag if this f-string is part of SQL construction, not a bind value
-        pass
-    elif re.search(r'^\s*f"[^"]*\{', line) and "values" in joined_ctx.lower():
-        return True
-
-    # Exclude f-strings that are clearly not SQL construction
-    # (inside tuple literals being passed to execute as bind params)
     stripped = line.strip()
     if stripped.startswith("f") and stripped.endswith(","):
-        # Likely a tuple element (bind parameter)
         return True
 
     return False
@@ -104,6 +93,9 @@ def _is_safe_interpolation(line: str, context_lines: list[str]) -> bool:
 
 def _scan_file_for_unsafe_interpolations(filepath: Path) -> list[str]:
     """Scan a Python file for potentially unsafe Cypher label interpolations.
+
+    Tracks multi-line f-string context so interpolations on continuation
+    lines (where the f-marker is on a previous line) are still detected.
 
     Returns list of warning strings for each suspicious interpolation.
     """
@@ -114,29 +106,41 @@ def _scan_file_for_unsafe_interpolations(filepath: Path) -> list[str]:
         return warnings
 
     lines = content.split("\n")
+    in_fstring = False
 
     for i, line in enumerate(lines):
-        # Skip comments
         stripped = line.strip()
+
+        # Skip comments
         if stripped.startswith("#"):
             continue
+
+        # Track multi-line f-string boundaries (triple-quoted)
+        if not in_fstring:
+            if ('f"""' in line or "f'''" in line) and not _closes_triple(line):
+                in_fstring = True
+            # Single-line f-string or non-f-string: check on same line
+            is_fstring_line = "f'" in line or 'f"' in line or "f'''" in line or 'f"""' in line
+        else:
+            is_fstring_line = True
+            # Check if the multi-line f-string closes on this line
+            if '"""' in line or "'''" in line:
+                in_fstring = False
 
         # Check if this line has cypher-related context
         if not CYPHER_CONTEXT_RE.search(line):
             continue
 
-        # Look for f-string interpolations
-        if "f'" in line or 'f"' in line or "f'''" in line or 'f"""' in line:
+        if is_fstring_line:
             interps = FSTRING_INTERP_RE.findall(line)
             if interps:
-                # Get surrounding context (5 lines before and after)
-                start = max(0, i - 5)
+                start = max(0, i - 10)
                 end = min(len(lines), i + 6)
                 context = lines[start:end]
 
                 if not _is_safe_interpolation(line, context):
                     for interp in interps:
-                        # Skip simple string/number literals
+                        # Skip simple string/number literals and format specs
                         if interp.strip().startswith(("'", '"', "str(", "int(")):
                             continue
                         warnings.append(
@@ -146,6 +150,18 @@ def _scan_file_for_unsafe_interpolations(filepath: Path) -> list[str]:
                         )
 
     return warnings
+
+
+def _closes_triple(line: str) -> bool:
+    """Check if a line both opens and closes a triple-quoted f-string."""
+    for quote in ('"""', "'''"):
+        marker = "f" + quote
+        idx = line.find(marker)
+        if idx >= 0:
+            rest = line[idx + len(marker) :]
+            if quote in rest:
+                return True
+    return False
 
 
 class TestLabelSafetyCoverage:

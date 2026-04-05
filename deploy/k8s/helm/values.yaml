@@ -98,6 +98,7 @@ nats:
   jetstream:
     maxMem: 256MB
     maxFile: 1GB
+    syncInterval: "always"
     storage: 5Gi
   resources:
     requests:

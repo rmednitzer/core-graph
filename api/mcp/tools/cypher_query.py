@@ -17,6 +17,7 @@ from typing import Any
 
 from api.config import DEFAULT_TLP
 from api.db import get_connection
+from api.utils.age_query_guard import query_timeout_ms
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +108,10 @@ async def cypher_query(
     t_start = time.perf_counter()
 
     async with get_connection(caller) as conn:
+        # Set statement timeout based on caller role
+        timeout_ms = query_timeout_ms(caller_identity)
+        await conn.execute("set local statement_timeout = %s", (timeout_ms,))
+
         # Execute via AGE with parameter binding
         agtype_params = json.dumps(params)
         sql = (

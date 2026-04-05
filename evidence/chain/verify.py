@@ -12,7 +12,7 @@ import hashlib
 import logging
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 
 import psycopg
 from psycopg.rows import dict_row
@@ -113,7 +113,7 @@ async def verify_chain(pg_dsn: str | None = None) -> VerificationResult:
         total_entries=total,
         verified_count=verified,
         first_broken_link=first_broken,
-        verification_timestamp=datetime.utcnow().isoformat() + "Z",
+        verification_timestamp=datetime.now(UTC).isoformat(),
     )
 
 
@@ -180,7 +180,7 @@ async def verify_merkle_roots(pg_dsn: str | None = None) -> VerificationResult:
         verified_count=batches_checked - len(mismatches),
         merkle_batches_checked=batches_checked,
         merkle_mismatches=mismatches,
-        verification_timestamp=datetime.utcnow().isoformat() + "Z",
+        verification_timestamp=datetime.now(UTC).isoformat(),
     )
 
 

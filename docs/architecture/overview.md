@@ -112,7 +112,7 @@ STIX-normalised entities to NATS JetStream for the ingest pipeline to consume.
 | Wazuh | Wazuh SIEM | Security events, alerts |
 | OpenCTI | OpenCTI TIP | Threat intelligence (STIX native) |
 | MISP | MISP platform | Indicators of compromise, threat sharing |
-| OSINT | Configurable feeds (`feeds.yaml`) | Open-source intelligence |
+| OSINT | Configurable feeds (`ingest/connectors/osint/feeds.yaml`) | Open-source intelligence |
 | Netbox | Netbox CMDB | Infrastructure, assets, network topology |
 | Prometheus | Prometheus Alertmanager | Monitoring alerts, metric thresholds |
 | Keycloak | Keycloak IdP | Principals, roles, groups (delta-sync) |

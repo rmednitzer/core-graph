@@ -56,15 +56,23 @@ cd core-graph
 # Install Python dependencies
 pip install -e ".[dev,test]"
 
-# Start the dev stack (PostgreSQL + NATS + Valkey + MinIO)
+# Start the full dev stack (includes API on :8000)
 make up
 
 # Run migrations and load reference data
 make migrate
 make seed
+```
 
-# Start services
-make serve          # REST API on :8000
+The dev stack (`make up`) starts all services including the REST API on `:8000`.
+To run services **locally instead** (e.g. for hot-reload development), stop the
+stack first and start only infrastructure, then run the API outside Docker:
+
+```bash
+make down
+docker compose -f deploy/docker/docker-compose.yml up -d postgres nats valkey spicedb cerbos minio
+
+make serve          # REST API on :8000 (uvicorn --reload)
 make mcp            # MCP server
 make graph-writer   # Ingest graph writer
 ```

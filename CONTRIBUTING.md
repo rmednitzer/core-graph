@@ -34,20 +34,29 @@ make test
 
 ### Local services
 
-The dev stack (`make up`) starts:
+The dev stack (`make up`) starts the following services (among others):
 
 | Service | Port | Purpose |
 |---|---|---|
+| API (FastAPI) | 8000 | REST API (containerised) |
 | PostgreSQL 16 (AGE + pgvector) | 5432 | Core database |
-| NATS JetStream | 4222 | Message bus |
+| NATS JetStream | 4222, 8222 | Message bus, monitoring |
 | Valkey | 6379 | Cache (session, rate limiting) |
-| MinIO | 9000 | Evidence storage (WORM) |
+| SpiceDB | 50051 | ReBAC engine |
+| Cerbos | 3593 | ABAC engine |
+| MinIO | 9000, 9001 | Evidence storage (API, console) |
 | Prometheus | 9090 | Metrics collection |
+| Grafana | 3000 | Dashboards |
 
-### Running services locally
+### Running services locally (hot-reload)
+
+The full dev stack already includes the API container on `:8000`. To run the
+API **locally** with hot-reload instead, start only the infrastructure services:
 
 ```bash
-make serve          # REST API on :8000 (hot-reload)
+docker compose -f deploy/docker/docker-compose.yml up -d postgres nats valkey spicedb cerbos minio
+
+make serve          # REST API on :8000 (uvicorn --reload)
 make mcp            # MCP server
 make graph-writer   # Ingest graph writer worker
 make psql           # Interactive database shell

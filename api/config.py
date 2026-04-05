@@ -54,6 +54,10 @@ EMBEDDING_MODEL = os.environ.get("CG_EMBEDDING_MODEL", "nomic-embed-text")
 EMBEDDING_URL = os.environ.get("CG_EMBEDDING_URL", "http://localhost:11434")
 EMBEDDING_DIMENSIONS = int(os.environ.get("CG_EMBEDDING_DIMENSIONS", "768"))
 
+# RFC 3161 Timestamping
+TSA_URL = os.environ.get("CG_TSA_URL", "https://freetsa.org/tsr")
+TSA_ENABLED = os.environ.get("CG_TSA_ENABLED", "false").lower() == "true"
+
 # Keycloak (IAM)
 KEYCLOAK_URL = os.environ.get("CG_KEYCLOAK_URL", "http://localhost:8080")
 KEYCLOAK_REALM = os.environ.get("CG_KEYCLOAK_REALM", "master")

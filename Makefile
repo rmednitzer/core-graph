@@ -1,4 +1,4 @@
-.PHONY: help up down migrate seed validate test lint clean reset psql serve mcp graph-writer integration-test verify-chain bench helm-lint helm-template helm-validate zarf-validate deploy-lint
+.PHONY: help up down migrate seed validate test lint clean reset psql serve mcp graph-writer integration-test verify-chain verify-merkle bench helm-lint helm-template helm-validate zarf-validate deploy-lint
 
 # Database connection defaults (override via environment)
 PGHOST   ?= localhost
@@ -87,6 +87,9 @@ integration-test: ## Run integration tests only
 
 verify-chain: ## Run audit log hash chain verification
 	python -m evidence.chain.verify
+
+verify-merkle: ## Run Merkle root verification
+	python -m evidence.chain.verify --merkle
 
 bench: ## Run performance benchmarks
 	python scripts/bench/bench_ner_extraction.py

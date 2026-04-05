@@ -9,8 +9,6 @@ from __future__ import annotations
 import logging
 import subprocess
 
-import httpx
-
 logger = logging.getLogger(__name__)
 
 
@@ -44,6 +42,8 @@ async def request_timestamp(digest: bytes, tsa_url: str | None = None) -> bytes 
             logger.warning("Could not build TimeStampReq, skipping timestamp")
             return None
 
+    import httpx
+
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
@@ -59,27 +59,26 @@ async def request_timestamp(digest: bytes, tsa_url: str | None = None) -> bytes 
 
 
 def _build_timestamp_request_openssl(digest: bytes) -> bytes | None:
-    """Build a TimeStampReq using openssl ts command as fallback."""
-    import tempfile
+    """Build a TimeStampReq using openssl ts command as fallback.
 
+    Uses ``openssl ts -query`` to generate a DER-encoded TimeStampReq.
+    The ``-cert`` flag requests the TSA certificate in the response.
+    """
     try:
-        with tempfile.NamedTemporaryFile(suffix=".bin") as tmp:
-            tmp.write(digest)
-            tmp.flush()
-            result = subprocess.run(
-                [
-                    "openssl",
-                    "ts",
-                    "-query",
-                    "-digest",
-                    digest.hex(),
-                    "-sha256",
-                    "-cert",
-                ],
-                capture_output=True,
-                check=True,
-            )
-            return result.stdout
+        result = subprocess.run(
+            [
+                "openssl",
+                "ts",
+                "-query",
+                "-digest",
+                digest.hex(),
+                "-sha256",
+                "-cert",
+            ],
+            capture_output=True,
+            check=True,
+        )
+        return result.stdout
     except (subprocess.CalledProcessError, FileNotFoundError):
         return None
 
@@ -106,14 +105,9 @@ def verify_timestamp(token: bytes, digest: bytes, ca_cert_path: str | None = Non
     import tempfile
 
     try:
-        with (
-            tempfile.NamedTemporaryFile(suffix=".tsr") as tsr_file,
-            tempfile.NamedTemporaryFile(suffix=".bin") as digest_file,
-        ):
+        with tempfile.NamedTemporaryFile(suffix=".tsr") as tsr_file:
             tsr_file.write(token)
             tsr_file.flush()
-            digest_file.write(digest)
-            digest_file.flush()
 
             cmd = [
                 "openssl",
@@ -129,6 +123,6 @@ def verify_timestamp(token: bytes, digest: bytes, ca_cert_path: str | None = Non
 
             result = subprocess.run(cmd, capture_output=True)
             return result.returncode == 0
-    except FileNotFoundError:
+    except (FileNotFoundError, subprocess.SubprocessError):
         logger.warning("openssl not available for timestamp verification")
         return False

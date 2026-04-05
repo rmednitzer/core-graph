@@ -95,8 +95,13 @@ async def get_connection(
         try:
             yield conn
         finally:
-            # Clear RLS session variables to prevent leakage across pool reuse
-            await conn.execute("select set_config('app.max_tlp', '', false)")
-            await conn.execute("select set_config('app.allowed_compartments', '', false)")
+            # Clear RLS session variables to prevent leakage across pool reuse.
+            # Wrapped in try/except because the connection may be in an error
+            # state if the caller's code raised an exception.
+            try:
+                await conn.execute("select set_config('app.max_tlp', '', false)")
+                await conn.execute("select set_config('app.allowed_compartments', '', false)")
+            except Exception:
+                logger.debug("Could not reset RLS session variables (connection in error state)")
             if pool_available is not None:
                 pool_available.inc()

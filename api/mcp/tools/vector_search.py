@@ -8,7 +8,6 @@ import time
 import uuid
 from typing import Any
 
-from prometheus_client import Histogram
 from pydantic import BaseModel
 
 from api.config import (
@@ -22,11 +21,16 @@ from api.db import get_connection
 
 logger = logging.getLogger(__name__)
 
-vector_search_duration = Histogram(
-    "cg_vector_search_duration_seconds",
-    "Vector similarity search time",
-    buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0),
-)
+try:
+    from prometheus_client import Histogram
+
+    vector_search_duration: Histogram | None = Histogram(
+        "cg_vector_search_duration_seconds",
+        "Vector similarity search time",
+        buckets=(0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0),
+    )
+except ImportError:
+    vector_search_duration = None
 
 
 class VectorSearchInput(BaseModel):
@@ -224,7 +228,8 @@ async def vector_search(
         )
         await conn.commit()
 
-        vector_search_duration.observe(time.perf_counter() - t_start)
+        if vector_search_duration is not None:
+            vector_search_duration.observe(time.perf_counter() - t_start)
 
         logger.info(
             "Vector search: correlation=%s results=%d",

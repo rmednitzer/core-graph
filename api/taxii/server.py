@@ -243,7 +243,7 @@ async def get_objects(
             cypher_params["match_type"] = match_type
 
         if match_id:
-            where_clauses.append("v.stix_id = $match_id OR v.id = $match_id")
+            where_clauses.append("(v.stix_id = $match_id OR v.id = $match_id)")
             cypher_params["match_id"] = match_id
 
         where_str = " AND ".join(where_clauses)

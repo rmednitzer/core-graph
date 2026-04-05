@@ -88,19 +88,34 @@ authorization at every tier.
 
 ## Core components
 
-| Component | Role | Licence |
+| Component | Role | Licence | Version |
+|---|---|---|---|
+| PostgreSQL | Core relational database engine; hosts graph, vector, bitemporal tables, and RLS | PostgreSQL Licence (permissive) | 16+ |
+| Apache AGE | Graph extension providing openCypher query language over PostgreSQL storage | Apache 2.0 | 1.5+ |
+| pgvector | HNSW-indexed vector similarity search for semantic embeddings | PostgreSQL Licence | 0.7+ |
+| NATS JetStream | Persistent message bus connecting satellite systems to the ingest pipeline; at-least-once delivery | Apache 2.0 | 2.10+ |
+| Cerbos | Attribute-based access control engine; evaluates TLP clearance, role policies, and contextual constraints | Apache 2.0 | 0.35+ |
+| SpiceDB | Relationship-based access control engine; manages investigation compartments, team ownership, delegation | Apache 2.0 | 1.33+ |
+| cosign | Keyless signing of evidence artefacts using Sigstore OIDC flow; no long-lived keys | Apache 2.0 | -- |
+| Rekor | Append-only transparency log providing tamper-evident, publicly verifiable record of signatures | Apache 2.0 | -- |
+| MinIO | S3-compatible object storage configured in WORM (object-lock compliance) mode for evidence retention | AGPL 3.0 (external service) | -- |
+| Valkey | In-memory cache for session state, rate limiting, and hot query results; Redis-compatible fork | BSD 3-Clause | 8+ |
+| Harbor | Self-hosted OCI container registry for EU data residency compliance; no Docker Hub pulls in production | Apache 2.0 | 2+ |
+
+## Satellite connectors
+
+All connectors extend `AdapterBase` (`ingest/connectors/base.py`) and publish
+STIX-normalised entities to NATS JetStream for the ingest pipeline to consume.
+
+| Connector | Source system | Data domain |
 |---|---|---|
-| PostgreSQL 16+ | Core relational database engine; hosts graph, vector, bitemporal tables, and RLS | PostgreSQL Licence (permissive) |
-| Apache AGE 1.5+ | Graph extension providing openCypher query language over PostgreSQL storage | Apache 2.0 |
-| pgvector 0.7+ | HNSW-indexed vector similarity search for semantic embeddings | PostgreSQL Licence |
-| NATS JetStream | Persistent message bus connecting satellite systems to the ingest pipeline; at-least-once delivery | Apache 2.0 |
-| Cerbos 0.35+ | Attribute-based access control engine; evaluates TLP clearance, role policies, and contextual constraints | Apache 2.0 |
-| SpiceDB 1.33+ | Relationship-based access control engine; manages investigation compartments, team ownership, delegation | Apache 2.0 |
-| cosign | Keyless signing of evidence artefacts using Sigstore OIDC flow; no long-lived keys | Apache 2.0 |
-| Rekor | Append-only transparency log providing tamper-evident, publicly verifiable record of signatures | Apache 2.0 |
-| MinIO | S3-compatible object storage configured in WORM (object-lock compliance) mode for evidence retention | AGPL 3.0 |
-| Valkey 8+ | In-memory cache for session state, rate limiting, and hot query results; Redis-compatible fork | BSD 3-Clause |
-| Harbor 2+ | Self-hosted OCI container registry for EU data residency compliance; no Docker Hub pulls in production | Apache 2.0 |
+| Wazuh | Wazuh SIEM | Security events, alerts |
+| OpenCTI | OpenCTI TIP | Threat intelligence (STIX native) |
+| MISP | MISP platform | Indicators of compromise, threat sharing |
+| OSINT | Configurable feeds (`ingest/connectors/osint/feeds.yaml`) | Open-source intelligence |
+| Netbox | Netbox CMDB | Infrastructure, assets, network topology |
+| Prometheus | Prometheus Alertmanager | Monitoring alerts, metric thresholds |
+| Keycloak | Keycloak IdP | Principals, roles, groups (delta-sync) |
 
 ## Eight ontology layers
 
@@ -234,7 +249,7 @@ Target: satellite systems connected, evidence chain operational.
 - ✅ Dead-letter queue processing: retry logic, alerting, manual review workflow
 - NER tiers 2 and 3: spaCy NER models, LLM-assisted entity extraction (planned)
 
-### Phase 3 -- Deployment and federation (in progress)
+### Phase 3 -- Deployment and federation ✅
 
 Target: production-grade Kubernetes deployment, inter-organisational sharing.
 
@@ -242,10 +257,13 @@ Target: production-grade Kubernetes deployment, inter-organisational sharing.
 - ✅ TAXII 2.1 server: federated threat intelligence sharing with partner organisations
 - ✅ Air-gapped deployment: Zarf package for disconnected clusters
 - ✅ Monitoring stack: Prometheus metrics, Grafana dashboards
-- Horizontal read scaling: PostgreSQL streaming replicas with read routing
-- NATS cluster: multi-node JetStream for message bus resilience
-- EU data residency controls: Harbor registry, self-hosted package proxies, DNS/NTP sovereignty
-- Backup and restore: automated PostgreSQL backups to Hetzner Object Storage (EU)
+- ✅ Keycloak IAM integration: delta-sync adapter with TLP:AMBER floor enforcement
+- ✅ MCP skill registry: 10 composable skills across asset, identity, threat, and compliance domains
+- ✅ REST API middleware: OIDC authentication, request tracing, Prometheus metrics
+- Horizontal read scaling: PostgreSQL streaming replicas with read routing (planned)
+- NATS cluster: multi-node JetStream for message bus resilience (planned)
+- EU data residency controls: Harbor registry, self-hosted package proxies (planned)
+- Backup and restore: automated PostgreSQL backups to Hetzner Object Storage (planned)
 
 ### Phase 4 -- Production hardening and compliance
 

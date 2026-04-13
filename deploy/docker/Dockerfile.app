@@ -7,7 +7,7 @@
 # stable) for mature security patch cadence.
 # Update deliberately; do not use floating :3.14-slim tag.
 # Verify all dependencies (especially psycopg, AGE driver) on upgrade.
-FROM python:3.14.3-slim-bookworm AS build
+FROM python:3.15.0a8-slim-bookworm AS build
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -24,7 +24,7 @@ COPY evidence/ evidence/
 COPY scripts/ scripts/
 
 # ---------- Stage 2: runtime ----------
-FROM python:3.14.3-slim-bookworm
+FROM python:3.15.0a8-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1

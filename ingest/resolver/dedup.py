@@ -45,9 +45,13 @@ class BloomDedup:
                 self._error_rate,
                 self._capacity,
             )
-        except ResponseError:
-            # Filter already exists — this is expected and safe to ignore
-            pass
+        except ResponseError as exc:
+            # Only the "item exists" error means the filter is already
+            # created — anything else (e.g. RedisBloom module not loaded,
+            # BF.RESERVE unknown command) is a real misconfiguration and
+            # must propagate so we don't mark the filter ready falsely.
+            if "exists" not in str(exc).lower():
+                raise
         self._filter_ready = True
 
     async def is_duplicate(self, ioc_type: str, value: str) -> bool:

@@ -3,10 +3,10 @@
 # via command override.
 
 # ---------- Stage 1: build ----------
-# Pin to patch version for reproducible builds. Use bookworm (Debian 12
-# stable) for mature security patch cadence.
-# Update deliberately; do not use floating :3.13-slim tag.
-# Verify all dependencies (especially psycopg, AGE driver) on upgrade.
+# Use bookworm (Debian 12 stable) for mature security patch cadence.
+# The minor-version pin (3.13) gives a stable Python ABI; OS-level
+# patches come from `apt-get upgrade` in the runtime stage. Update the
+# minor version deliberately and verify psycopg and AGE on upgrade.
 FROM python:3.13-slim-bookworm AS build
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -34,15 +34,6 @@ RUN apt-get update -qq \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Remove pip/setuptools/wheel from the runtime image — not needed and
-# frequently flagged by vulnerability scanners (reduces attack surface).
-RUN rm -rf /usr/local/lib/python3.13/site-packages/pip* \
-           /usr/local/lib/python3.13/site-packages/setuptools* \
-           /usr/local/lib/python3.13/site-packages/wheel* \
-           /usr/local/lib/python3.13/site-packages/_distutils_hack* \
-           /usr/local/lib/python3.13/site-packages/pkg_resources* \
-           /usr/local/bin/pip* /usr/local/bin/wheel*
-
 RUN groupadd -g 10001 cg && useradd -u 10001 -g cg -s /usr/sbin/nologin cg
 
 WORKDIR /app
@@ -53,6 +44,16 @@ COPY --from=build /app/api api/
 COPY --from=build /app/ingest ingest/
 COPY --from=build /app/evidence evidence/
 COPY --from=build /app/scripts scripts/
+
+# Remove pip/setuptools/wheel AFTER copying from the build stage — they
+# are brought in by the COPY above and are not needed at runtime. Keeps
+# them out of the image so vulnerability scanners don't flag them.
+RUN rm -rf /usr/local/lib/python3.13/site-packages/pip* \
+           /usr/local/lib/python3.13/site-packages/setuptools* \
+           /usr/local/lib/python3.13/site-packages/wheel* \
+           /usr/local/lib/python3.13/site-packages/_distutils_hack* \
+           /usr/local/lib/python3.13/site-packages/pkg_resources* \
+           /usr/local/bin/pip* /usr/local/bin/wheel*
 
 USER cg
 

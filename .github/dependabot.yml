@@ -1,34 +1,296 @@
 version: 2
+
+# ==============================================================================
+# Dependabot configuration for core-graph.
+#
+# Design principles (enforced in each `updates:` block below):
+#
+#   1. Security-critical dependencies open as INDIVIDUAL PRs. They are
+#      deliberately NOT listed in any `groups` entry, so a bump lands stand-
+#      alone and gets a dedicated review against the surrounding code
+#      (RLS policies, authz clients, MCP skills, Cypher safety layer,
+#      evidence chain). These are, per ecosystem:
+#
+#        pip:              authzed, cerbos, PyJWT*, mcp, minio, rfc3161ng,
+#                          psycopg*
+#        github-actions:   aquasecurity/*, anchore/*, trufflesecurity/*
+#        docker:           apache/age (base image for PostgreSQL + AGE)
+#
+#   2. Related non-critical deps are grouped by concern so a quiet week
+#      lands as one PR per concern, not one PR per dep. Groups are narrow
+#      enough that a single PR is still meaningfully reviewable.
+#
+#   3. `applies-to: security-updates` is batched per ecosystem into a single
+#      group so a CVE-driven bump opens ONE fast-trackable PR regardless of
+#      how many deps were affected.
+#
+#   4. Major-version bumps are never grouped. Every version-update group
+#      restricts `update-types` to [minor, patch], so a major bump falls
+#      out of its group and opens as a standalone PR.
+#
+#   5. Low-churn ecosystems (docker) run monthly. Pip and GitHub Actions
+#      run weekly. All schedules trigger Monday 04:00 UTC (UTC matches the
+#      project convention in CLAUDE.md; 04:00 means PRs are waiting at the
+#      start of the maintainer's working day regardless of CET/CEST).
+#
+#   6. `versioning-strategy: increase-if-necessary` for pip. pyproject.toml
+#      uses loose lower bounds (>=X.Y); we don't want dependabot widening
+#      or tightening those unless it is actually required to resolve.
+#
+#   7. `rebase-strategy: auto` so long-lived PRs stay current against main
+#      without manual rebasing.
+#
+#   8. Reviewer routing is handled by .github/CODEOWNERS. The `assignees`
+#      field here only ensures the maintainer is responsible for triage;
+#      review requests come from CODEOWNERS.
+# ==============================================================================
+
 updates:
+
+  # ----------------------------------------------------------------------------
+  # Python (pip) — pyproject.toml at repo root.
+  # ----------------------------------------------------------------------------
   - package-ecosystem: pip
     directory: /
     schedule:
       interval: weekly
       day: monday
+      time: "04:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 15
+    versioning-strategy: increase-if-necessary
+    rebase-strategy: auto
+    target-branch: main
     labels:
       - dependencies
       - python
     assignees:
       - rmednitzer
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+      include: scope
 
+    ignore:
+      # Never auto-bump the Python runtime itself via pip — it is controlled
+      # by Dockerfile.app and the python-test matrix in .github/workflows.
+      # A stray dependabot PR for "python" is confusing and not actionable.
+      - dependency-name: python
+
+    groups:
+      # --- Web / HTTP stack ---------------------------------------------------
+      # FastAPI + Uvicorn + Pydantic + httpx. Minor bumps can change routing,
+      # validation, or JSON schema behaviour, but the blast radius is confined
+      # to api/rest/ and api/mcp/, so grouping is acceptable.
+      python-web-framework:
+        applies-to: version-updates
+        patterns:
+          - fastapi
+          - "fastapi-*"
+          - uvicorn
+          - "uvicorn-*"
+          - pydantic
+          - "pydantic-*"
+          - httpx
+          - "httpx-*"
+        update-types:
+          - minor
+          - patch
+
+      # --- Messaging / transport ----------------------------------------------
+      # NATS JetStream client, Redis/Valkey client, ZMQ. These are touched
+      # by ingest/, evidence/, and the graph_writer worker.
+      python-messaging-and-transport:
+        applies-to: version-updates
+        patterns:
+          - nats-py
+          - redis
+          - pyzmq
+        update-types:
+          - minor
+          - patch
+
+      # --- Observability ------------------------------------------------------
+      python-observability:
+        applies-to: version-updates
+        patterns:
+          - prometheus-client
+        update-types:
+          - minor
+          - patch
+
+      # --- Serialization / utility libs --------------------------------------
+      python-serialization-and-utils:
+        applies-to: version-updates
+        patterns:
+          - pyyaml
+          - jellyfish
+        update-types:
+          - minor
+          - patch
+
+      # --- Build / dev tooling ------------------------------------------------
+      # Ruff, yamllint, pytest + plugins, setuptools (build-system). These
+      # are CI-only and cannot affect runtime behaviour, so aggressive
+      # grouping is safe.
+      python-dev-tooling:
+        applies-to: version-updates
+        patterns:
+          - ruff
+          - yamllint
+          - pytest
+          - "pytest-*"
+          - setuptools
+        update-types:
+          - minor
+          - patch
+
+      # --- Satellite-system connectors ---------------------------------------
+      # Optional extras for ingest adapters (MISP, etc.). These are loaded
+      # lazily and only affect the corresponding connector.
+      python-connectors:
+        applies-to: version-updates
+        patterns:
+          - "misp-*"
+        update-types:
+          - minor
+          - patch
+
+      # --- Security advisories (batched) --------------------------------------
+      # Every package — including the security-critical ones above — funnels
+      # its security-update flavour into this single batch so a CVE response
+      # lands as one PR and can be reviewed/merged quickly.
+      python-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # ----------------------------------------------------------------------------
+  # GitHub Actions — .github/workflows/*.yml
+  # ----------------------------------------------------------------------------
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
       day: monday
+      time: "04:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 8
+    rebase-strategy: auto
+    target-branch: main
     labels:
       - dependencies
       - github-actions
     assignees:
       - rmednitzer
+    commit-message:
+      prefix: chore
+      include: scope
 
+    groups:
+      # --- First-party GitHub actions -----------------------------------------
+      # actions/checkout, actions/setup-python, actions/download-artifact.
+      # Low-risk version bumps, typically only need a routine rebuild.
+      actions-core:
+        applies-to: version-updates
+        patterns:
+          - "actions/*"
+        update-types:
+          - minor
+          - patch
+
+      # --- Tooling actions ----------------------------------------------------
+      # Helm setup, markdown lint, kubeconform, etc. Non-security tooling.
+      actions-tooling:
+        applies-to: version-updates
+        patterns:
+          - "azure/*"
+          - "DavidAnson/*"
+        update-types:
+          - minor
+          - patch
+
+      # NOTE: The following security-scanner actions are deliberately NOT
+      # placed in any group so each bump opens as an individual PR:
+      #
+      #   - aquasecurity/trivy-action
+      #   - anchore/sbom-action
+      #   - anchore/scan-action
+      #   - trufflesecurity/trufflehog
+      #
+      # Scanner releases frequently tighten detection rules, which can
+      # break CI (see Dockerfile.postgres + apache/age). They deserve
+      # per-release review so the maintainer can triage any new findings
+      # intentionally. Several are currently pinned to @master/@main
+      # branches; Dependabot will still surface new tagged releases.
+
+      # --- Security advisories (batched) --------------------------------------
+      actions-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # ----------------------------------------------------------------------------
+  # Docker — deploy/docker/Dockerfile.app, deploy/docker/Dockerfile.postgres.
+  # ----------------------------------------------------------------------------
   - package-ecosystem: docker
     directory: /deploy/docker
     schedule:
-      interval: weekly
+      interval: monthly
       day: monday
+      time: "04:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 5
+    rebase-strategy: auto
+    target-branch: main
     labels:
       - dependencies
       - docker
     assignees:
       - rmednitzer
+    commit-message:
+      prefix: chore
+      include: scope
+
+    ignore:
+      # Apache AGE is tagged `release_PG<major>_<X.Y.Z>`. A "major" dependabot
+      # bump for apache/age therefore typically corresponds to a new
+      # PostgreSQL line (PG16 → PG17), which is a coordinated schema-migration
+      # and pgvector/pgaudit/pg_cron compatibility event. It must be done
+      # manually; an auto-generated PR would be actively misleading.
+      - dependency-name: "apache/age"
+        update-types:
+          - version-update:semver-major
+
+      # Python base-image major/minor bumps are tied to Dockerfile.app's
+      # hardcoded `/usr/local/lib/python3.X/site-packages` paths and the
+      # `requires-python` floor in pyproject.toml. Both must change in
+      # lock-step — a dependabot-only bump would produce a broken runtime
+      # image (see the python3.14/3.15.0a8 inconsistency that existed before
+      # PR #31). Patch bumps are safe; minor and major want manual
+      # coordination.
+      - dependency-name: "python"
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor
+
+    groups:
+      # Patch-only batching for base images; major/minor are excluded via
+      # `ignore` above and therefore can only arrive through a manual edit.
+      docker-base-images:
+        applies-to: version-updates
+        patterns:
+          - "python"
+        update-types:
+          - patch
+
+      # NOTE: apache/age is intentionally not in the docker-base-images group.
+      # Its release cadence is coupled to schema behaviour (AGE version +
+      # PG major), and we want each bump to open as its own PR so the
+      # maintainer can run the migration + RLS + AGE index tests against it.
+
+      # --- Security advisories (batched) --------------------------------------
+      docker-security:
+        applies-to: security-updates
+        patterns:
+          - "*"

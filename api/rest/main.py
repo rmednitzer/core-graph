@@ -7,9 +7,13 @@ import os
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import nats
 import psycopg
+import redis.asyncio as aioredis
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from minio import Minio
 
 from api.config import (
     MINIO_ACCESS_KEY,
@@ -52,8 +56,14 @@ app = FastAPI(
 
 # -- Middleware (order matters: outermost first) --------------------------------
 
-# CORS
-cors_origins = os.environ.get("CG_CORS_ORIGINS", "*").split(",")
+# CORS — default is "*" for local development only. Production MUST set
+# CG_CORS_ORIGINS to an explicit allow-list; wildcards combined with
+# credentialed requests are a well-known browser footgun.
+cors_origins = [o.strip() for o in os.environ.get("CG_CORS_ORIGINS", "*").split(",") if o.strip()]
+if "*" in cors_origins and os.environ.get("CG_OIDC_ENABLED", "false").lower() == "true":
+    logger.warning(
+        "CG_CORS_ORIGINS contains '*' while OIDC is enabled; set an explicit origin list."
+    )
 app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
@@ -101,8 +111,6 @@ async def readyz() -> dict:
 
     # Check NATS
     try:
-        import nats
-
         nc = await nats.connect(NATS_URL)
         await nc.close()
         nats_ok = True
@@ -111,8 +119,6 @@ async def readyz() -> dict:
 
     # Check Valkey
     try:
-        import redis.asyncio as aioredis
-
         r = aioredis.from_url(VALKEY_URL)
         await r.ping()
         await r.aclose()
@@ -122,8 +128,6 @@ async def readyz() -> dict:
 
     # Check MinIO
     try:
-        from minio import Minio
-
         mc = Minio(
             MINIO_ENDPOINT,
             access_key=MINIO_ACCESS_KEY,
@@ -146,8 +150,6 @@ async def readyz() -> dict:
     }
 
     if not all_ok:
-        from fastapi.responses import JSONResponse
-
         return JSONResponse(content=result, status_code=503)
 
     return result

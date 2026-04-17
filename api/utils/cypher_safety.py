@@ -4,7 +4,7 @@ AGE cannot parameterize vertex/edge labels or property keys. Any value
 interpolated into a Cypher query string as a structural element must be
 validated against PostgreSQL identifier rules before interpolation.
 
-See: CVE-2022-45786, CVE-2026-32247
+See: CVE-2022-45786
 """
 
 from __future__ import annotations

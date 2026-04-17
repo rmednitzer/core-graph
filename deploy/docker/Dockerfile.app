@@ -5,9 +5,9 @@
 # ---------- Stage 1: build ----------
 # Pin to patch version for reproducible builds. Use bookworm (Debian 12
 # stable) for mature security patch cadence.
-# Update deliberately; do not use floating :3.14-slim tag.
+# Update deliberately; do not use floating :3.13-slim tag.
 # Verify all dependencies (especially psycopg, AGE driver) on upgrade.
-FROM python:3.15.0a8-slim-bookworm AS build
+FROM python:3.13-slim-bookworm AS build
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -24,7 +24,7 @@ COPY evidence/ evidence/
 COPY scripts/ scripts/
 
 # ---------- Stage 2: runtime ----------
-FROM python:3.15.0a8-slim-bookworm
+FROM python:3.13-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -36,18 +36,18 @@ RUN apt-get update -qq \
 
 # Remove pip/setuptools/wheel from the runtime image — not needed and
 # frequently flagged by vulnerability scanners (reduces attack surface).
-RUN rm -rf /usr/local/lib/python3.14/site-packages/pip* \
-           /usr/local/lib/python3.14/site-packages/setuptools* \
-           /usr/local/lib/python3.14/site-packages/wheel* \
-           /usr/local/lib/python3.14/site-packages/_distutils_hack* \
-           /usr/local/lib/python3.14/site-packages/pkg_resources* \
+RUN rm -rf /usr/local/lib/python3.13/site-packages/pip* \
+           /usr/local/lib/python3.13/site-packages/setuptools* \
+           /usr/local/lib/python3.13/site-packages/wheel* \
+           /usr/local/lib/python3.13/site-packages/_distutils_hack* \
+           /usr/local/lib/python3.13/site-packages/pkg_resources* \
            /usr/local/bin/pip* /usr/local/bin/wheel*
 
 RUN groupadd -g 10001 cg && useradd -u 10001 -g cg -s /usr/sbin/nologin cg
 
 WORKDIR /app
 
-COPY --from=build /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
+COPY --from=build /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
 COPY --from=build /usr/local/bin /usr/local/bin
 COPY --from=build /app/api api/
 COPY --from=build /app/ingest ingest/

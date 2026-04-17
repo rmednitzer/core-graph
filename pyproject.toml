@@ -58,6 +58,8 @@ ignore = ["S101", "S104", "S603", "S607", "S608"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "--strict-markers"
+asyncio_mode = "strict"
 markers = [
     "integration: requires running Docker stack (deselect with '-m not integration')",
 ]

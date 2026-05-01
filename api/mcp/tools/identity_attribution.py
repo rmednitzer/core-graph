@@ -3,6 +3,11 @@
 Creates a same_as edge between a Principal and a ThreatActor vertex.
 Requires cg_ciso role via Cerbos. Never callable by cg_ai_agent.
 Creates TLP:RED edges with compartment scoping to investigation_id.
+
+The caller's session is widened to include the investigation_id compartment
+*before* the INSERT so that the same caller can read back the edge under RLS.
+Without this, the writer would create a row it cannot see (write-then-read
+visibility gap).
 """
 
 from __future__ import annotations
@@ -50,7 +55,6 @@ async def _check_cerbos_authorization(
             resp.raise_for_status()
             result = resp.json()
 
-            # Parse Cerbos response
             results = result.get("results", [])
             if not results:
                 logger.warning("Empty Cerbos response for identity_attribution")
@@ -65,6 +69,35 @@ async def _check_cerbos_authorization(
         return False
 
 
+def _widen_compartments(
+    caller_identity: dict[str, Any] | None,
+    investigation_id: str,
+) -> dict[str, Any]:
+    """Return a caller dict whose allowed_compartments includes investigation_id.
+
+    This is required for write-through visibility: the RLS policy on edges
+    filters by compartment membership. Without this widening the writer would
+    create a row that it cannot subsequently SELECT.
+    """
+    base = (
+        dict(caller_identity)
+        if caller_identity
+        else {
+            "max_tlp": 4,
+            "allowed_compartments": [],
+        }
+    )
+    compartments = list(base.get("allowed_compartments", []))
+    if investigation_id not in compartments:
+        compartments.append(investigation_id)
+    base["allowed_compartments"] = compartments
+    # CISO-driven attribution writes TLP:RED — make sure the session ceiling
+    # permits reading back the edge.
+    if int(base.get("max_tlp", DEFAULT_TLP)) < 4:
+        base["max_tlp"] = 4
+    return base
+
+
 async def assert_identity_attribution(
     principal_id: str,
     threat_actor_stix_id: str,
@@ -75,7 +108,9 @@ async def assert_identity_attribution(
     """Create a same_as edge between a Principal and a ThreatActor.
 
     Requires cg_ciso role (checked via Cerbos before any DB operation).
-    Creates TLP:RED edge with compartment set to investigation_id.
+    Creates TLP:RED edge with compartment set to investigation_id. The caller's
+    session is widened to include investigation_id in allowed_compartments
+    before the INSERT so the writer's subsequent reads succeed under RLS.
 
     Args:
         principal_id: The Keycloak principal ID.
@@ -90,11 +125,10 @@ async def assert_identity_attribution(
     Raises:
         PermissionError: If Cerbos denies the action.
     """
-    caller = caller_identity or {"max_tlp": DEFAULT_TLP, "allowed_compartments": []}
+    cerbos_caller = caller_identity or {"max_tlp": DEFAULT_TLP, "allowed_compartments": []}
 
-    # Cerbos check — fail closed
     resource_id = f"{principal_id}:{threat_actor_stix_id}"
-    authorized = await _check_cerbos_authorization(caller, resource_id)
+    authorized = await _check_cerbos_authorization(cerbos_caller, resource_id)
     if not authorized:
         raise PermissionError(
             "Identity attribution requires cg_ciso role. Denied by Cerbos policy."
@@ -102,14 +136,16 @@ async def assert_identity_attribution(
 
     correlation_id = uuid.uuid4()
 
+    from datetime import UTC, datetime
+
     from ingest.canonical import canonical_key
 
     principal_key = canonical_key("principal", principal_id)
 
-    from datetime import UTC, datetime
+    # Widen the session compartments so the writer can read back what it writes.
+    db_caller = _widen_compartments(caller_identity, investigation_id)
 
-    async with get_connection(caller) as conn:
-        # Create same_as edge with TLP:RED and compartment.
+    async with get_connection(db_caller) as conn:
         # Cypher is a constant string — parameters bound via AGE JSON mechanism.
         params = {
             "principal_key": principal_key,
@@ -138,7 +174,6 @@ async def assert_identity_attribution(
         result = await cursor.fetchone()
         edge_id = int(str(result["id"]).strip('"')) if result else None
 
-        # Write mandatory audit log entry with justification
         await conn.execute(
             """
             insert into audit_log
@@ -150,7 +185,7 @@ async def assert_identity_attribution(
                 edge_id,
                 "same_as:Principal-ThreatActor",
                 "IDENTITY_ATTRIBUTION",
-                caller.get("actor", "unknown"),
+                db_caller.get("actor", "unknown"),
                 correlation_id,
                 f"principal={principal_id} threat_actor={threat_actor_stix_id} "
                 f"investigation={investigation_id} justification={justification}",

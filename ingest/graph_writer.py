@@ -185,12 +185,22 @@ MERGE_TEMPLATES: dict[str, str] = {
 
 # -- Relationship merge templates (parameterised, never concatenated) --------
 
+# Relationship MERGE templates set `tlp_level` explicitly to GREATEST of
+# the two endpoint TLPs (post-022 the edge trigger enforces the same
+# invariant; the writer is the documented primary path, the trigger is
+# the safety net).
 RELATIONSHIP_TEMPLATES: dict[str, str] = {
     "has_role": """
         select * from ag_catalog.cypher('core_graph', $$
             match (p:Principal {canonical_key: $principal_key})
             match (r:Role {canonical_key: $role_key})
-            merge (p)-[:has_role {source: $source, t_recorded: $now}]->(r)
+            merge (p)-[e:has_role]->(r)
+            on create set e.source = $source, e.t_recorded = $now,
+                          e.tlp_level = case
+                              when coalesce(p.tlp_level, 0) > coalesce(r.tlp_level, 0)
+                                  then coalesce(p.tlp_level, 0)
+                              else coalesce(r.tlp_level, 0)
+                          end
             return id(p)
         $$, $1) as (id agtype)
     """,
@@ -198,7 +208,13 @@ RELATIONSHIP_TEMPLATES: dict[str, str] = {
         select * from ag_catalog.cypher('core_graph', $$
             match (a {canonical_key: $principal_key})
             match (b {canonical_key: $group_key})
-            merge (a)-[:member_of {source: $source, t_recorded: $now}]->(b)
+            merge (a)-[e:member_of]->(b)
+            on create set e.source = $source, e.t_recorded = $now,
+                          e.tlp_level = case
+                              when coalesce(a.tlp_level, 0) > coalesce(b.tlp_level, 0)
+                                  then coalesce(a.tlp_level, 0)
+                              else coalesce(b.tlp_level, 0)
+                          end
             return id(a)
         $$, $1) as (id agtype)
     """,
@@ -206,7 +222,13 @@ RELATIONSHIP_TEMPLATES: dict[str, str] = {
         select * from ag_catalog.cypher('core_graph', $$
             match (r:Role {canonical_key: $role_key})
             match (p:Permission {canonical_key: $permission_key})
-            merge (r)-[:grants {source: $source, t_recorded: $now}]->(p)
+            merge (r)-[e:grants]->(p)
+            on create set e.source = $source, e.t_recorded = $now,
+                          e.tlp_level = case
+                              when coalesce(r.tlp_level, 0) > coalesce(p.tlp_level, 0)
+                                  then coalesce(r.tlp_level, 0)
+                              else coalesce(p.tlp_level, 0)
+                          end
             return id(r)
         $$, $1) as (id agtype)
     """,
@@ -214,7 +236,13 @@ RELATIONSHIP_TEMPLATES: dict[str, str] = {
         select * from ag_catalog.cypher('core_graph', $$
             match (p:Principal {canonical_key: $principal_key})
             match (se:SecurityEvent {event_id: $event_id})
-            merge (p)-[:actor_in {source: $source, t_recorded: $now}]->(se)
+            merge (p)-[e:actor_in]->(se)
+            on create set e.source = $source, e.t_recorded = $now,
+                          e.tlp_level = case
+                              when coalesce(p.tlp_level, 0) > coalesce(se.tlp_level, 0)
+                                  then coalesce(p.tlp_level, 0)
+                              else coalesce(se.tlp_level, 0)
+                          end
             return id(p)
         $$, $1) as (id agtype)
     """,
@@ -222,7 +250,13 @@ RELATIONSHIP_TEMPLATES: dict[str, str] = {
         select * from ag_catalog.cypher('core_graph', $$
             match (mgr:Principal {canonical_key: $manager_key})
             match (sub:Principal {canonical_key: $subordinate_key})
-            merge (mgr)-[:manages {source: $source, t_recorded: $now}]->(sub)
+            merge (mgr)-[e:manages]->(sub)
+            on create set e.source = $source, e.t_recorded = $now,
+                          e.tlp_level = case
+                              when coalesce(mgr.tlp_level, 0) > coalesce(sub.tlp_level, 0)
+                                  then coalesce(mgr.tlp_level, 0)
+                              else coalesce(sub.tlp_level, 0)
+                          end
             return id(mgr)
         $$, $1) as (id agtype)
     """,
@@ -230,7 +264,13 @@ RELATIONSHIP_TEMPLATES: dict[str, str] = {
         select * from ag_catalog.cypher('core_graph', $$
             match (p:Principal {canonical_key: $principal_key})
             match (a {canonical_key: $asset_key})
-            merge (p)-[:owns {source: $source, t_recorded: $now}]->(a)
+            merge (p)-[e:owns]->(a)
+            on create set e.source = $source, e.t_recorded = $now,
+                          e.tlp_level = case
+                              when coalesce(p.tlp_level, 0) > coalesce(a.tlp_level, 0)
+                                  then coalesce(p.tlp_level, 0)
+                              else coalesce(a.tlp_level, 0)
+                          end
             return id(p)
         $$, $1) as (id agtype)
     """,

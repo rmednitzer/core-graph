@@ -1,0 +1,26 @@
+{
+  "description": "All paths between two entities up to max_hops, with per-edge confidence for ranking.",
+  "parameters": {
+    "source_id": {
+      "type": "integer",
+      "required": true,
+      "description": "AGE vertex id of the source entity."
+    },
+    "target_id": {
+      "type": "integer",
+      "required": true,
+      "description": "AGE vertex id of the target entity."
+    },
+    "max_hops": {
+      "type": "integer",
+      "required": false,
+      "default": 4,
+      "description": "Path length ceiling (1..6 enforced)."
+    }
+  },
+  "returns": "list",
+  "max_depth": 6,
+  "estimated_ms": 300,
+  "template_kind": "interpolated_depth",
+  "depth_marker": "__MAX_HOPS__"
+}

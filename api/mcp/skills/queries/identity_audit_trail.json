@@ -1,16 +1,15 @@
 {
-  "description": "Security events involving a principal within a time window",
+  "description": "Security events involving a principal since a given ISO-8601 timestamp",
   "parameters": {
     "principal_id": {
       "type": "string",
       "required": true,
       "description": "Keycloak user ID or service account ID"
     },
-    "hours_back": {
-      "type": "integer",
-      "required": false,
-      "description": "Hours to look back (default 72)",
-      "default": 72
+    "time_threshold": {
+      "type": "string",
+      "required": true,
+      "description": "ISO-8601 UTC timestamp; events at or before this are excluded. Computed by the skill from a hours_back window."
     }
   },
   "returns": "list",

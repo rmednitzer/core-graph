@@ -1,8 +1,10 @@
 """api.db — Shared async connection pool.
 
 Provides a centralized psycopg connection pool for all MCP tools and
-REST routes. Sets AGE search_path and RLS session variables on every
-connection acquired from the pool.
+REST routes. Sets AGE search_path, RLS session variables, and a
+role-derived statement_timeout on every connection acquired from the pool
+so that authorization-related GUCs are enforced uniformly across REST,
+MCP, ingest, and TAXII entry points.
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
 from api import config
+from api.utils.age_query_guard import query_timeout_ms
 
 logger = logging.getLogger(__name__)
 
@@ -68,10 +71,16 @@ async def close_pool() -> None:
 async def get_connection(
     caller_identity: dict[str, Any] | None = None,
 ) -> AsyncIterator:
-    """Acquire a connection from the pool with AGE and RLS configured.
+    """Acquire a connection from the pool with AGE, RLS, and timeout configured.
 
-    Sets search_path for AGE and RLS session variables from the caller
-    identity. Yields the connection and returns it to the pool on exit.
+    Sets search_path for AGE, RLS session variables (`app.max_tlp`,
+    `app.allowed_compartments`), and a role-derived `statement_timeout` from
+    the caller identity. Yields the connection and returns it to the pool on
+    exit.
+
+    The statement_timeout is applied uniformly here so that *all* callers —
+    REST, MCP tools, ingest workers, TAXII handlers — enforce the same per-role
+    ceiling (no path can accidentally run unbounded queries).
     """
     if _pool is None:
         raise RuntimeError("Connection pool not initialised — call open_pool() first")
@@ -81,10 +90,8 @@ async def get_connection(
             if pool_available is not None:
                 pool_available.dec()
 
-            # Set AGE search path
             await conn.execute("set search_path = ag_catalog, '$user', public")
 
-            # Set RLS session variables
             if caller_identity:
                 max_tlp = str(caller_identity.get("max_tlp", config.DEFAULT_TLP))
                 compartments = ",".join(caller_identity.get("allowed_compartments", []))
@@ -94,15 +101,19 @@ async def get_connection(
                     (compartments,),
                 )
 
+            timeout_ms = query_timeout_ms(caller_identity)
+            await conn.execute(
+                "select set_config('statement_timeout', %s, true)",
+                (f"{timeout_ms}ms",),
+            )
+
             yield conn
         finally:
-            # Clear RLS session variables to prevent leakage across pool reuse.
-            # Wrapped in try/except because the connection may be in an error
-            # state if the caller's code raised an exception.
             try:
                 await conn.execute("select set_config('app.max_tlp', '', false)")
                 await conn.execute("select set_config('app.allowed_compartments', '', false)")
+                await conn.execute("select set_config('statement_timeout', '0', false)")
             except psycopg.Error:
-                logger.debug("Could not reset RLS session variables (connection in error state)")
+                logger.debug("Could not reset session GUCs (connection in error state)")
             if pool_available is not None:
                 pool_available.inc()

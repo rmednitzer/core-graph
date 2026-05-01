@@ -35,8 +35,25 @@ runs:
           -e POSTGRES_DB \
           apache/age:release_PG16_1.6.0
         until docker exec pgsetup pg_isready -U "$POSTGRES_USER"; do sleep 1; done
-        docker exec pgsetup bash -c \
-          "apt-get update -qq && apt-get install -y postgresql-16-pgvector postgresql-16-pgaudit postgresql-16-cron"
+        # Install pgaudit + pg_cron from Debian; fetch pgvector v0.8.0
+        # source as a tarball (avoids depending on git inside the
+        # container, which exhibited intermittent exit 128 in CI). The
+        # pgvector source is small (~200 KB) so curl is faster anyway.
+        # Mirrors the spirit of deploy/docker/Dockerfile.postgres.
+        docker exec pgsetup bash -c '
+          set -euo pipefail
+          apt-get update -qq
+          apt-get install -y --no-install-recommends \
+            build-essential curl ca-certificates postgresql-server-dev-16 \
+            postgresql-16-pgaudit postgresql-16-cron
+          mkdir -p /tmp/pgvector
+          curl -fsSL https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.0.tar.gz \
+            | tar xz -C /tmp/pgvector --strip-components=1
+          cd /tmp/pgvector && make && make install
+          cd / && rm -rf /tmp/pgvector
+          apt-get purge -y --auto-remove build-essential curl postgresql-server-dev-16
+          apt-get clean && rm -rf /var/lib/apt/lists/*
+        '
         docker stop pgsetup
         docker commit pgsetup age-full
         docker rm pgsetup

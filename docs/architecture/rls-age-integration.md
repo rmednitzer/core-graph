@@ -28,16 +28,41 @@ Integration tests (`tests/integration/test_rls_age.py`) confirm:
 - **Aggregate functions reflect filtering.** `count()` and `collect()`
   operate on the post-RLS result set.
 
-## Risk: edge label tables
+## Edge label tables (closed in v1.x — migration 022)
 
-Edge label tables (relationship types) in AGE may not carry TLP
-properties. If an edge connects two vertices with different TLP levels,
-the edge itself may not be filtered by RLS even when one of its endpoint
-vertices is.
+Migration `022_edge_tlp_denormalization.sql` adds a denormalised
+`tlp_level smallint NOT NULL` column to every AGE edge label table in
+the `core_graph` schema. The column is:
 
-This is documented in `docs/architecture/authorization-model.md` as a
-known limitation requiring denormalization of TLP onto edges in future
-phases.
+- Backfilled to `GREATEST(source.tlp_level, target.tlp_level, properties.tlp_level)`
+  for every existing edge.
+- Maintained by a `BEFORE INSERT/UPDATE` trigger
+  (`cg_edge_tlp_sync`) that re-derives the value on every write so the
+  edge can never be more permissive than either endpoint.
+- Cascaded from vertex tlp_level changes via a deferred constraint
+  trigger (`cg_vertex_tlp_cascade`) that re-fires the per-edge trigger
+  on incident edges.
+- Filtered by a new permissive RLS policy (`tlp_edge_read_policy`) using
+  the column directly — faster than the JSONB extraction used on vertex
+  tables and impossible to bypass by omitting the property from the
+  edge's agtype payload.
+- IAM edges keep their RESTRICTIVE TLP:AMBER floor from migration 010;
+  the new permissive policy is AND'd with the floor.
+
+The writer (`ingest/graph_writer.py`) sets `e.tlp_level = GREATEST(...)`
+explicitly in every relationship MERGE template — the trigger remains as
+the safety net, not the sole path.
+
+### Verified behaviour
+
+The new test `tests/rls/test_edge_tlp.sql` exercises:
+
+- A caller with `app.max_tlp = 2` cannot SELECT an edge between two
+  TLP=3 vertices even when it can see both endpoints.
+- Updating a vertex's `tlp_level` causes incident edges to be re-evaluated
+  inside the same transaction (deferred trigger).
+- IAM edges remain hidden when `app.max_tlp < 2` regardless of the
+  edge's own tlp_level.
 
 ## Mitigation strategy
 

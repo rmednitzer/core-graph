@@ -1,16 +1,15 @@
 {
-  "description": "Recent security events for an asset within a time window",
+  "description": "Recent security events for an asset since a given ISO-8601 timestamp",
   "parameters": {
     "canonical_key": {
       "type": "string",
       "required": true,
       "description": "SHA-256 canonical key of the host entity"
     },
-    "hours_back": {
-      "type": "integer",
-      "required": false,
-      "description": "Hours to look back (default 24)",
-      "default": 24
+    "time_threshold": {
+      "type": "string",
+      "required": true,
+      "description": "ISO-8601 UTC timestamp; events at or before this are excluded. Computed by the skill from a hours_back window."
     }
   },
   "returns": "list",

@@ -1,0 +1,200 @@
+{"query": "ransomware indicator from osint feed", "expected_doc_ids": [1001], "tlp_level": 1, "category": "threat_intel"}
+{"query": "phishing campaign email subject suspicious invoice", "expected_doc_ids": [1002, 1024], "tlp_level": 1, "category": "threat_intel"}
+{"query": "command and control beacon to dynamic dns", "expected_doc_ids": [1003], "tlp_level": 2, "category": "threat_intel"}
+{"query": "lateral movement smb relay enterprise", "expected_doc_ids": [1004, 1029], "tlp_level": 2, "category": "threat_intel"}
+{"query": "credential dumping mimikatz lsass", "expected_doc_ids": [1005], "tlp_level": 2, "category": "threat_intel"}
+{"query": "supply chain compromise package mirror typosquat", "expected_doc_ids": [1006, 1031], "tlp_level": 1, "category": "threat_intel"}
+{"query": "malware hash sha256 known dropper", "expected_doc_ids": [1007], "tlp_level": 1, "category": "threat_intel"}
+{"query": "exploit cve high severity remote code execution", "expected_doc_ids": [1008, 1037], "tlp_level": 1, "category": "threat_intel"}
+{"query": "darkweb forum threat actor recruiting affiliate", "expected_doc_ids": [1009], "tlp_level": 2, "category": "threat_intel"}
+{"query": "ddos amplification ntp reflection attack", "expected_doc_ids": [1010], "tlp_level": 0, "category": "threat_intel"}
+{"query": "stolen credentials breach paste site dump", "expected_doc_ids": [1011, 1042], "tlp_level": 1, "category": "threat_intel"}
+{"query": "infostealer collecting browser cookies", "expected_doc_ids": [1012], "tlp_level": 1, "category": "threat_intel"}
+{"query": "rootkit persistence kernel module loaded", "expected_doc_ids": [1013], "tlp_level": 2, "category": "threat_intel"}
+{"query": "exfiltration over dns tunnelling slow drip", "expected_doc_ids": [1014, 1045], "tlp_level": 2, "category": "threat_intel"}
+{"query": "malicious office macro powershell launcher", "expected_doc_ids": [1015], "tlp_level": 1, "category": "threat_intel"}
+{"query": "wormable smb vulnerability eternalblue family", "expected_doc_ids": [1016], "tlp_level": 1, "category": "threat_intel"}
+{"query": "android banking trojan accessibility abuse", "expected_doc_ids": [1017], "tlp_level": 1, "category": "threat_intel"}
+{"query": "scada modbus ics targeting european utility", "expected_doc_ids": [1018, 1048], "tlp_level": 2, "category": "threat_intel"}
+{"query": "ip address geolocation reputation blocklist", "expected_doc_ids": [1019], "tlp_level": 0, "category": "threat_intel"}
+{"query": "stix indicator pattern type ipv4 src", "expected_doc_ids": [1020], "tlp_level": 0, "category": "threat_intel"}
+{"query": "apt28 fancy bear gru attribution", "expected_doc_ids": [1021], "tlp_level": 2, "category": "threat_intel"}
+{"query": "lazarus group north korea wallet theft", "expected_doc_ids": [1022], "tlp_level": 2, "category": "threat_intel"}
+{"query": "wmi event subscription persistence", "expected_doc_ids": [1023], "tlp_level": 2, "category": "threat_intel"}
+{"query": "phishing kit cloned bank login", "expected_doc_ids": [1024], "tlp_level": 1, "category": "threat_intel"}
+{"query": "cobalt strike beacon staging server", "expected_doc_ids": [1025], "tlp_level": 2, "category": "threat_intel"}
+{"query": "mitre attack t1055 process injection", "expected_doc_ids": [1026], "tlp_level": 0, "category": "threat_intel"}
+{"query": "cve 2024 high severity authentication bypass", "expected_doc_ids": [1027, 1037], "tlp_level": 1, "category": "threat_intel"}
+{"query": "stealer log telegram channel selling", "expected_doc_ids": [1028], "tlp_level": 2, "category": "threat_intel"}
+{"query": "psexec lateral move windows admin share", "expected_doc_ids": [1029], "tlp_level": 2, "category": "threat_intel"}
+{"query": "indicators stix2 misp feed sharing", "expected_doc_ids": [1030], "tlp_level": 0, "category": "threat_intel"}
+{"query": "npm package backdoor postinstall script", "expected_doc_ids": [1031], "tlp_level": 1, "category": "threat_intel"}
+{"query": "yara rule emotet dropper variant", "expected_doc_ids": [1032], "tlp_level": 1, "category": "threat_intel"}
+{"query": "sigma rule suspicious child process powershell", "expected_doc_ids": [1033], "tlp_level": 1, "category": "threat_intel"}
+{"query": "vulnerable openssl heartbleed era patched", "expected_doc_ids": [1034], "tlp_level": 0, "category": "threat_intel"}
+{"query": "log4shell jndi exploit attempt seen", "expected_doc_ids": [1035], "tlp_level": 1, "category": "threat_intel"}
+{"query": "spring4shell cve 2022 22965 exploit", "expected_doc_ids": [1036], "tlp_level": 1, "category": "threat_intel"}
+{"query": "remote code execution unauthenticated", "expected_doc_ids": [1037], "tlp_level": 1, "category": "threat_intel"}
+{"query": "ransom note left after encryption observed", "expected_doc_ids": [1038], "tlp_level": 2, "category": "threat_intel"}
+{"query": "tor hidden service exit node abuse", "expected_doc_ids": [1039], "tlp_level": 1, "category": "threat_intel"}
+{"query": "fast flux dns botnet infrastructure", "expected_doc_ids": [1040], "tlp_level": 1, "category": "threat_intel"}
+{"query": "punycode lookalike domain phishing", "expected_doc_ids": [1041], "tlp_level": 1, "category": "threat_intel"}
+{"query": "credential stuffing checker tool detected", "expected_doc_ids": [1042], "tlp_level": 1, "category": "threat_intel"}
+{"query": "browser exploit kit drive by download", "expected_doc_ids": [1043], "tlp_level": 1, "category": "threat_intel"}
+{"query": "magecart skimmer injected payment form", "expected_doc_ids": [1044], "tlp_level": 1, "category": "threat_intel"}
+{"query": "dns tunnel encoded data outbound", "expected_doc_ids": [1045], "tlp_level": 2, "category": "threat_intel"}
+{"query": "ssh brute force scanner activity spike", "expected_doc_ids": [1046], "tlp_level": 1, "category": "threat_intel"}
+{"query": "stealth crypto miner xmrig in container", "expected_doc_ids": [1047], "tlp_level": 1, "category": "threat_intel"}
+{"query": "ics scada honeypot probed siemens", "expected_doc_ids": [1048], "tlp_level": 2, "category": "threat_intel"}
+{"query": "ms exchange owa token theft pivot", "expected_doc_ids": [1049], "tlp_level": 2, "category": "threat_intel"}
+{"query": "kubernetes etcd exposed unauthenticated", "expected_doc_ids": [1050], "tlp_level": 1, "category": "threat_intel"}
+{"query": "dns lookup nxdomain spike anomaly", "expected_doc_ids": [2001], "tlp_level": 1, "category": "osint"}
+{"query": "github commit referencing internal hostname leak", "expected_doc_ids": [2002, 2014], "tlp_level": 1, "category": "osint"}
+{"query": "linkedin executive impersonation employee handbook", "expected_doc_ids": [2003], "tlp_level": 1, "category": "osint"}
+{"query": "telegram channel selling exploit kit", "expected_doc_ids": [2004], "tlp_level": 2, "category": "osint"}
+{"query": "twitter mention security incident outage", "expected_doc_ids": [2005], "tlp_level": 0, "category": "osint"}
+{"query": "code repository leaked internal sdk", "expected_doc_ids": [2006, 2014], "tlp_level": 1, "category": "osint"}
+{"query": "shodan exposed redis instance authentication off", "expected_doc_ids": [2007], "tlp_level": 1, "category": "osint"}
+{"query": "censys certificate transparency new subdomain", "expected_doc_ids": [2008], "tlp_level": 0, "category": "osint"}
+{"query": "haveibeenpwned subscription breach notification", "expected_doc_ids": [2009], "tlp_level": 1, "category": "osint"}
+{"query": "open directory listing exposed pdf invoice", "expected_doc_ids": [2010], "tlp_level": 1, "category": "osint"}
+{"query": "passive dns historical cname lookup", "expected_doc_ids": [2011], "tlp_level": 0, "category": "osint"}
+{"query": "internet scan responding ssh banner deprecated", "expected_doc_ids": [2012], "tlp_level": 0, "category": "osint"}
+{"query": "rss feed cve published vendor advisory", "expected_doc_ids": [2013], "tlp_level": 0, "category": "osint"}
+{"query": "stack overflow snippet token disclosed", "expected_doc_ids": [2014], "tlp_level": 1, "category": "osint"}
+{"query": "newly registered domain typosquat brand", "expected_doc_ids": [2015], "tlp_level": 1, "category": "osint"}
+{"query": "youtube video tutorial bypassing endpoint", "expected_doc_ids": [2016], "tlp_level": 1, "category": "osint"}
+{"query": "reddit thread reporting outage", "expected_doc_ids": [2017], "tlp_level": 0, "category": "osint"}
+{"query": "wayback machine archived api documentation leaked", "expected_doc_ids": [2018], "tlp_level": 1, "category": "osint"}
+{"query": "discord server leaked access token", "expected_doc_ids": [2019, 2014], "tlp_level": 2, "category": "osint"}
+{"query": "ipinfo asn reputation hosting provider", "expected_doc_ids": [2020], "tlp_level": 0, "category": "osint"}
+{"query": "pypi malicious package install script", "expected_doc_ids": [2021], "tlp_level": 1, "category": "osint"}
+{"query": "openrelay smtp server abuse spike", "expected_doc_ids": [2022], "tlp_level": 1, "category": "osint"}
+{"query": "leaked employee credentials pastebin dump", "expected_doc_ids": [2023], "tlp_level": 2, "category": "osint"}
+{"query": "facebook page impersonating executive", "expected_doc_ids": [2024], "tlp_level": 1, "category": "osint"}
+{"query": "company cve mention twitter handle", "expected_doc_ids": [2025], "tlp_level": 0, "category": "osint"}
+{"query": "torrent tracker private internal share", "expected_doc_ids": [2026], "tlp_level": 1, "category": "osint"}
+{"query": "exposed elasticsearch missing auth", "expected_doc_ids": [2027], "tlp_level": 1, "category": "osint"}
+{"query": "github actions workflow leaks secret", "expected_doc_ids": [2028, 2014], "tlp_level": 1, "category": "osint"}
+{"query": "api key pasted in public gist", "expected_doc_ids": [2029, 2014], "tlp_level": 1, "category": "osint"}
+{"query": "metadata exif image discloses gps", "expected_doc_ids": [2030], "tlp_level": 1, "category": "osint"}
+{"query": "newly seen subdomain certificate transparency", "expected_doc_ids": [2031], "tlp_level": 0, "category": "osint"}
+{"query": "robots.txt disclosing admin path", "expected_doc_ids": [2032], "tlp_level": 0, "category": "osint"}
+{"query": "exposed jenkins build server unauth", "expected_doc_ids": [2033], "tlp_level": 1, "category": "osint"}
+{"query": "swagger ui exposed production endpoint", "expected_doc_ids": [2034], "tlp_level": 1, "category": "osint"}
+{"query": "wordpress xmlrpc enumeration spike", "expected_doc_ids": [2035], "tlp_level": 1, "category": "osint"}
+{"query": "darknet market vendor selling rdp access", "expected_doc_ids": [2036], "tlp_level": 2, "category": "osint"}
+{"query": "twitter osint employee complaint indicator", "expected_doc_ids": [2037], "tlp_level": 1, "category": "osint"}
+{"query": "ttp shared by industry isac", "expected_doc_ids": [2038], "tlp_level": 1, "category": "osint"}
+{"query": "stealer log forum sample seen", "expected_doc_ids": [2039], "tlp_level": 2, "category": "osint"}
+{"query": "exposed ftp server anonymous list", "expected_doc_ids": [2040], "tlp_level": 1, "category": "osint"}
+{"query": "user lockout repeated failed authentication keycloak", "expected_doc_ids": [3001], "tlp_level": 2, "category": "identity"}
+{"query": "service account leaked secret rotated", "expected_doc_ids": [3002], "tlp_level": 2, "category": "identity"}
+{"query": "privilege escalation role binding admin granted", "expected_doc_ids": [3003], "tlp_level": 2, "category": "identity"}
+{"query": "mfa bypass push fatigue accepted prompt", "expected_doc_ids": [3004], "tlp_level": 2, "category": "identity"}
+{"query": "okta session token replay anomalous geolocation", "expected_doc_ids": [3005], "tlp_level": 2, "category": "identity"}
+{"query": "azure ad consent grant phishing app", "expected_doc_ids": [3006], "tlp_level": 2, "category": "identity"}
+{"query": "kerberoasting service account spn ticket request", "expected_doc_ids": [3007], "tlp_level": 2, "category": "identity"}
+{"query": "saml federation misconfiguration audience claim", "expected_doc_ids": [3008], "tlp_level": 2, "category": "identity"}
+{"query": "user removed group access still effective", "expected_doc_ids": [3009], "tlp_level": 2, "category": "identity"}
+{"query": "service principal client secret expired imminent", "expected_doc_ids": [3010], "tlp_level": 2, "category": "identity"}
+{"query": "shadow admin cross-tenant role assignment", "expected_doc_ids": [3011], "tlp_level": 2, "category": "identity"}
+{"query": "external collaborator invited tenant unexpectedly", "expected_doc_ids": [3012], "tlp_level": 2, "category": "identity"}
+{"query": "password spray detected weekend hours", "expected_doc_ids": [3013], "tlp_level": 2, "category": "identity"}
+{"query": "ldap bind anonymous read enumeration", "expected_doc_ids": [3014], "tlp_level": 2, "category": "identity"}
+{"query": "device join unmanaged corporate mailbox", "expected_doc_ids": [3015], "tlp_level": 2, "category": "identity"}
+{"query": "session hijack suspicious cookie reuse", "expected_doc_ids": [3016], "tlp_level": 2, "category": "identity"}
+{"query": "iam policy wildcard star resource", "expected_doc_ids": [3017], "tlp_level": 2, "category": "identity"}
+{"query": "service account impersonation gcp signjwt abused", "expected_doc_ids": [3018], "tlp_level": 2, "category": "identity"}
+{"query": "scim provisioning desync orphaned user", "expected_doc_ids": [3019], "tlp_level": 2, "category": "identity"}
+{"query": "device code flow phishing uri pinned", "expected_doc_ids": [3020], "tlp_level": 2, "category": "identity"}
+{"query": "google workspace alert center phish", "expected_doc_ids": [3021], "tlp_level": 2, "category": "identity"}
+{"query": "kerberos golden ticket forged krbtgt", "expected_doc_ids": [3022], "tlp_level": 3, "category": "identity"}
+{"query": "azure conditional access bypass legacy auth", "expected_doc_ids": [3023], "tlp_level": 2, "category": "identity"}
+{"query": "okta admin role granted from new location", "expected_doc_ids": [3024], "tlp_level": 2, "category": "identity"}
+{"query": "service account widely shared multiple workloads", "expected_doc_ids": [3025], "tlp_level": 2, "category": "identity"}
+{"query": "iam user added access key suspicious", "expected_doc_ids": [3026], "tlp_level": 2, "category": "identity"}
+{"query": "leaked aws root key in git history", "expected_doc_ids": [3027, 2014], "tlp_level": 2, "category": "identity"}
+{"query": "service desk help desk reset attempt social", "expected_doc_ids": [3028], "tlp_level": 2, "category": "identity"}
+{"query": "active directory dcsync replication abuse", "expected_doc_ids": [3029], "tlp_level": 3, "category": "identity"}
+{"query": "iam user without mfa flagged audit", "expected_doc_ids": [3030], "tlp_level": 2, "category": "identity"}
+{"query": "service account token long lived not rotated", "expected_doc_ids": [3031], "tlp_level": 2, "category": "identity"}
+{"query": "saml assertion replay across tenants", "expected_doc_ids": [3032], "tlp_level": 2, "category": "identity"}
+{"query": "user added to administrators group anomaly", "expected_doc_ids": [3033], "tlp_level": 2, "category": "identity"}
+{"query": "okta factor enrollment reset by helpdesk", "expected_doc_ids": [3034], "tlp_level": 2, "category": "identity"}
+{"query": "user disabled after termination still token valid", "expected_doc_ids": [3035], "tlp_level": 2, "category": "identity"}
+{"query": "eks irsa role mapped to broad permissions", "expected_doc_ids": [3036], "tlp_level": 2, "category": "identity"}
+{"query": "principal name suspicious naming convention", "expected_doc_ids": [3037], "tlp_level": 2, "category": "identity"}
+{"query": "audit identity attribution requested by ciso", "expected_doc_ids": [3038], "tlp_level": 4, "category": "identity"}
+{"query": "ad domain trust unusual cross forest add", "expected_doc_ids": [3039], "tlp_level": 3, "category": "identity"}
+{"query": "okta identity api throttled brute force", "expected_doc_ids": [3040], "tlp_level": 2, "category": "identity"}
+{"query": "audit log gap detected timestamp jump", "expected_doc_ids": [4001], "tlp_level": 1, "category": "audit"}
+{"query": "merkle root verification mismatch incident", "expected_doc_ids": [4002], "tlp_level": 1, "category": "audit"}
+{"query": "rfc 3161 timestamp authority unreachable", "expected_doc_ids": [4003], "tlp_level": 1, "category": "audit"}
+{"query": "evidence record cosign signature invalid", "expected_doc_ids": [4004], "tlp_level": 1, "category": "audit"}
+{"query": "rekor inclusion proof missing entry", "expected_doc_ids": [4005], "tlp_level": 1, "category": "audit"}
+{"query": "minio worm bucket retention violation attempt", "expected_doc_ids": [4006], "tlp_level": 1, "category": "audit"}
+{"query": "audit log table rls policy disabled", "expected_doc_ids": [4007], "tlp_level": 2, "category": "audit"}
+{"query": "compliance control gdpr article 32 mapping", "expected_doc_ids": [4008], "tlp_level": 0, "category": "audit"}
+{"query": "soc2 cc6 logical access change", "expected_doc_ids": [4009], "tlp_level": 1, "category": "audit"}
+{"query": "iso 27001 a 12 logging requirement met", "expected_doc_ids": [4010], "tlp_level": 0, "category": "audit"}
+{"query": "tlp red disclosure to compliance officer denied", "expected_doc_ids": [4011], "tlp_level": 2, "category": "audit"}
+{"query": "wal segment archived to s3 bucket", "expected_doc_ids": [4012], "tlp_level": 0, "category": "audit"}
+{"query": "audit chain hash mismatch reported", "expected_doc_ids": [4013, 4002], "tlp_level": 1, "category": "audit"}
+{"query": "evidence chain export to court counsel", "expected_doc_ids": [4014], "tlp_level": 2, "category": "audit"}
+{"query": "audit retention 7 year policy enforced", "expected_doc_ids": [4015], "tlp_level": 0, "category": "audit"}
+{"query": "audit deletion blocked by trigger", "expected_doc_ids": [4016], "tlp_level": 1, "category": "audit"}
+{"query": "compliance dashboard export csv quarter", "expected_doc_ids": [4017], "tlp_level": 0, "category": "audit"}
+{"query": "audit log query filtered by actor", "expected_doc_ids": [4018], "tlp_level": 1, "category": "audit"}
+{"query": "audit immutability trigger version check", "expected_doc_ids": [4019], "tlp_level": 1, "category": "audit"}
+{"query": "audit log archived to cold storage", "expected_doc_ids": [4020], "tlp_level": 0, "category": "audit"}
+{"query": "compliance gap detected control coverage", "expected_doc_ids": [4021], "tlp_level": 1, "category": "audit"}
+{"query": "audit append-only constraint tested", "expected_doc_ids": [4022], "tlp_level": 1, "category": "audit"}
+{"query": "evidence record integrity hash recomputed", "expected_doc_ids": [4023], "tlp_level": 1, "category": "audit"}
+{"query": "soc2 control evidence due monthly", "expected_doc_ids": [4024], "tlp_level": 1, "category": "audit"}
+{"query": "iso 27001 risk register entry update", "expected_doc_ids": [4025], "tlp_level": 1, "category": "audit"}
+{"query": "audit log signing key rotation due", "expected_doc_ids": [4026], "tlp_level": 1, "category": "audit"}
+{"query": "iso clause 9.1 monitoring measurement", "expected_doc_ids": [4027], "tlp_level": 0, "category": "audit"}
+{"query": "audit chain verification job nightly status", "expected_doc_ids": [4028], "tlp_level": 1, "category": "audit"}
+{"query": "evidence dropped from export filtered tlp", "expected_doc_ids": [4029], "tlp_level": 2, "category": "audit"}
+{"query": "audit user accessed sensitive log entry", "expected_doc_ids": [4030], "tlp_level": 2, "category": "audit"}
+{"query": "host network interface unplugged unexpected", "expected_doc_ids": [5001], "tlp_level": 1, "category": "infrastructure"}
+{"query": "vlan misconfiguration unicast leak", "expected_doc_ids": [5002], "tlp_level": 1, "category": "infrastructure"}
+{"query": "switch port security mac flood detected", "expected_doc_ids": [5003], "tlp_level": 1, "category": "infrastructure"}
+{"query": "ipam subnet exhausted devops alert", "expected_doc_ids": [5004], "tlp_level": 0, "category": "infrastructure"}
+{"query": "router bgp route hijack neighbour", "expected_doc_ids": [5005], "tlp_level": 1, "category": "infrastructure"}
+{"query": "tls certificate expiring soon production endpoint", "expected_doc_ids": [5006], "tlp_level": 0, "category": "infrastructure"}
+{"query": "container restart loop deployment fail", "expected_doc_ids": [5007], "tlp_level": 0, "category": "infrastructure"}
+{"query": "kubernetes node pressure memory eviction", "expected_doc_ids": [5008], "tlp_level": 0, "category": "infrastructure"}
+{"query": "etcd disk latency increasing alert", "expected_doc_ids": [5009], "tlp_level": 1, "category": "infrastructure"}
+{"query": "prometheus alert manager silence expiring", "expected_doc_ids": [5010], "tlp_level": 0, "category": "infrastructure"}
+{"query": "site mains power outage failover", "expected_doc_ids": [5011], "tlp_level": 1, "category": "infrastructure"}
+{"query": "san multipath path down recovery", "expected_doc_ids": [5012], "tlp_level": 1, "category": "infrastructure"}
+{"query": "backup job partially failed previous night", "expected_doc_ids": [5013], "tlp_level": 1, "category": "infrastructure"}
+{"query": "ntp drift exceeded clock skew alert", "expected_doc_ids": [5014], "tlp_level": 0, "category": "infrastructure"}
+{"query": "vpn tunnel re-key failure remote site", "expected_doc_ids": [5015], "tlp_level": 1, "category": "infrastructure"}
+{"query": "bastion host login spike off-hours", "expected_doc_ids": [5016], "tlp_level": 2, "category": "infrastructure"}
+{"query": "cdn purge cache stale asset incident", "expected_doc_ids": [5017], "tlp_level": 0, "category": "infrastructure"}
+{"query": "load balancer 5xx surge upstream fail", "expected_doc_ids": [5018], "tlp_level": 1, "category": "infrastructure"}
+{"query": "docker image vulnerable base image used", "expected_doc_ids": [5019], "tlp_level": 1, "category": "infrastructure"}
+{"query": "infrastructure asset discovered netbox missing tag", "expected_doc_ids": [5020], "tlp_level": 0, "category": "infrastructure"}
+{"query": "tls handshake mtls denied client cert", "expected_doc_ids": [5021], "tlp_level": 1, "category": "infrastructure"}
+{"query": "kubernetes pod evicted due to oomkill", "expected_doc_ids": [5022], "tlp_level": 0, "category": "infrastructure"}
+{"query": "api gateway latency p99 spike", "expected_doc_ids": [5023], "tlp_level": 1, "category": "infrastructure"}
+{"query": "wireguard handshake re-key failure", "expected_doc_ids": [5024], "tlp_level": 1, "category": "infrastructure"}
+{"query": "esxi host storage pool degraded", "expected_doc_ids": [5025], "tlp_level": 1, "category": "infrastructure"}
+{"query": "ceph osd flapping cluster unhealthy", "expected_doc_ids": [5026], "tlp_level": 1, "category": "infrastructure"}
+{"query": "redis sentinel quorum lost failover", "expected_doc_ids": [5027], "tlp_level": 1, "category": "infrastructure"}
+{"query": "kafka broker isr shrunk replication lag", "expected_doc_ids": [5028], "tlp_level": 1, "category": "infrastructure"}
+{"query": "argocd sync drift application unstable", "expected_doc_ids": [5029], "tlp_level": 1, "category": "infrastructure"}
+{"query": "helm chart deprecated api server warning", "expected_doc_ids": [5030], "tlp_level": 1, "category": "infrastructure"}
+{"query": "linux ulimit nofile too low service", "expected_doc_ids": [5031], "tlp_level": 1, "category": "infrastructure"}
+{"query": "host filesystem inode exhaustion", "expected_doc_ids": [5032], "tlp_level": 1, "category": "infrastructure"}
+{"query": "nginx worker connections saturated", "expected_doc_ids": [5033], "tlp_level": 1, "category": "infrastructure"}
+{"query": "linux conntrack table full drops", "expected_doc_ids": [5034], "tlp_level": 1, "category": "infrastructure"}
+{"query": "hyperv host updates required cluster reboot", "expected_doc_ids": [5035], "tlp_level": 1, "category": "infrastructure"}
+{"query": "esxi snapshot retention exceeded", "expected_doc_ids": [5036], "tlp_level": 1, "category": "infrastructure"}
+{"query": "vendor support contract expiry critical asset", "expected_doc_ids": [5037], "tlp_level": 1, "category": "infrastructure"}
+{"query": "disaster recovery test rpo missed", "expected_doc_ids": [5038], "tlp_level": 1, "category": "infrastructure"}
+{"query": "site to site vpn down peer", "expected_doc_ids": [5039], "tlp_level": 1, "category": "infrastructure"}
+{"query": "asset inventory drift netbox mismatch", "expected_doc_ids": [5040], "tlp_level": 1, "category": "infrastructure"}

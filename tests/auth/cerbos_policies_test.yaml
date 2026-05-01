@@ -201,23 +201,24 @@ principals:
     attr: {}
 
 resources:
+  # TLP encoding aligned to integer schema: 0=CLEAR, 1=GREEN, 2=AMBER, 3=AMBER+STRICT, 4=RED
   threat_entity_red:
     kind: threat_entity
     id: te-red-001
     attr:
-      tlp_marking: RED
+      tlp_level: 4
 
   threat_entity_amber:
     kind: threat_entity
     id: te-amber-001
     attr:
-      tlp_marking: AMBER
+      tlp_level: 2
 
   threat_entity_green:
     kind: threat_entity
     id: te-green-001
     attr:
-      tlp_marking: GREEN
+      tlp_level: 1
 
   evidence_record_generic:
     kind: evidence_record

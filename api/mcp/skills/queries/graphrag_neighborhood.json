@@ -1,0 +1,21 @@
+{
+  "description": "N-hop neighbourhood subgraph from an anchor entity, RLS-filtered.",
+  "parameters": {
+    "entity_id": {
+      "type": "integer",
+      "required": true,
+      "description": "AGE vertex id of the anchor entity."
+    },
+    "depth": {
+      "type": "integer",
+      "required": false,
+      "default": 2,
+      "description": "Hop count (1..6 enforced)."
+    }
+  },
+  "returns": "list",
+  "max_depth": 6,
+  "estimated_ms": 200,
+  "template_kind": "interpolated_depth",
+  "depth_marker": "__DEPTH__"
+}

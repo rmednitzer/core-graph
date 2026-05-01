@@ -1,5 +1,5 @@
 match (v) where id(v) = $entity_id
-optional match (v)-[edges*1..__DEPTH__]-(neighbour)
+match (v)-[edges*1..__DEPTH__]-(neighbour)
 return id(v) as anchor_id,
        id(neighbour) as neighbour_id,
        labels(neighbour) as neighbour_labels,

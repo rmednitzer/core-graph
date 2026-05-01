@@ -86,9 +86,12 @@ class GraphRAGNeighborhoodSkill(SkillBase):
         # additionally asserts allowlist membership. Both are required.
         edge_label = validate_label(validate_edge_label(edge_label))
         # `depth` is an int (already validated), `edge_label` is allowlisted.
+        # Plain MATCH (not OPTIONAL) so isolated anchors return zero rows
+        # rather than a single null-neighbour row that would distort
+        # downstream confidence/summary heuristics.
         cypher = (
             f"match (v) where id(v) = $entity_id "
-            f"optional match (v)-[edges:{edge_label}*1..{int(depth)}]-(neighbour) "
+            f"match (v)-[edges:{edge_label}*1..{int(depth)}]-(neighbour) "
             f"return id(v) as anchor_id, "
             f"id(neighbour) as neighbour_id, "
             f"labels(neighbour) as neighbour_labels, "

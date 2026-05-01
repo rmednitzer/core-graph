@@ -30,7 +30,7 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
-from api.config import DEFAULT_TLP
+from api.config import DEFAULT_TLP, EMBEDDING_MODEL
 from api.db import get_connection
 from api.mcp.tools.vector_search import generate_embedding
 
@@ -193,9 +193,25 @@ async def hybrid_search(
     """Run BM25 + vector retrieval, fuse with RRF, optionally rerank.
 
     Returns up to `k` Hit records ordered by fused score (descending).
+
+    When `model_id` is supplied it must match the process-default
+    `CG_EMBEDDING_MODEL`. Mixed-model retrieval (generating the query
+    vector with one model while filtering against rows from another) puts
+    the query in a different embedding space from the candidates and
+    yields invalid scores — or fails outright if dimensions differ.
+    Multi-model query-time embedding generation is future work; for now
+    we refuse the unsafe combination explicitly.
     """
     if not query:
         raise ValueError("hybrid_search requires a non-empty query string")
+
+    if model_id is not None and model_id != EMBEDDING_MODEL:
+        raise ValueError(
+            f"hybrid_search refuses cross-model retrieval: model_id={model_id!r} "
+            f"does not match the process-default embedding model {EMBEDDING_MODEL!r}. "
+            "Generating the query vector with a different model puts it in a "
+            "different embedding space from the candidate rows."
+        )
 
     correlation_id = uuid.uuid4()
     caller = caller_identity or {"max_tlp": DEFAULT_TLP, "allowed_compartments": []}

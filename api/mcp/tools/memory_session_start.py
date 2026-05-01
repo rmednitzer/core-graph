@@ -20,6 +20,32 @@ from api.db import get_connection
 logger = logging.getLogger(__name__)
 
 
+def _parse_agtype_row(payload: Any) -> dict[str, Any] | None:
+    """Coerce an AGE `row agtype` cell into a Python dict.
+
+    Without an installed agtype caster psycopg returns AGE rows as
+    strings like `{"id": 12345, ...}::vertex` or `{"x": 1}`. With a
+    caster they may already be dicts. Handle both — the same fallback
+    pattern memory_recall uses — so this tool doesn't silently drop
+    rows in environments without the caster.
+    """
+    if isinstance(payload, dict):
+        return payload
+    if isinstance(payload, str):
+        text = payload
+        for suffix in ("::vertex", "::edge", "::path"):
+            if text.endswith(suffix):
+                text = text[: -len(suffix)]
+                break
+        text = text.rstrip(":")
+        try:
+            obj = json.loads(text)
+        except json.JSONDecodeError:
+            return None
+        return obj if isinstance(obj, dict) else None
+    return None
+
+
 @dataclass
 class SessionContext:
     session_id: str
@@ -92,19 +118,20 @@ async def tool_session_start(
             )
             rows = await cur.fetchall()
             for r in rows:
-                payload = r["row"]
-                if isinstance(payload, dict):
-                    gid = int(str(payload.get("id", "")).strip('"'))
-                    episode_payloads.append(
-                        {
-                            "graph_id": gid,
-                            "sequence_no": int(payload.get("seq") or 0),
-                            "content": payload.get("content"),
-                            "source_kind": payload.get("source_kind"),
-                            "t_recorded": payload.get("t_recorded"),
-                            "salience": salience_by_id.get(gid, 0.0),
-                        }
-                    )
+                payload = _parse_agtype_row(r["row"])
+                if payload is None:
+                    continue
+                gid = int(str(payload.get("id", "")).strip('"'))
+                episode_payloads.append(
+                    {
+                        "graph_id": gid,
+                        "sequence_no": int(payload.get("seq") or 0),
+                        "content": payload.get("content"),
+                        "source_kind": payload.get("source_kind"),
+                        "t_recorded": payload.get("t_recorded"),
+                        "salience": salience_by_id.get(gid, 0.0),
+                    }
+                )
             episode_payloads.sort(key=lambda r: r["salience"], reverse=True)
 
         # Active facts for THIS session only — traverse AGE from the session's
@@ -126,11 +153,12 @@ async def tool_session_start(
         rows = await cur.fetchall()
         session_fact_ids: list[int] = []
         for r in rows:
-            payload = r["row"]
-            if isinstance(payload, dict):
-                fid = payload.get("fact_id")
-                if fid is not None:
-                    session_fact_ids.append(int(str(fid).strip('"')))
+            payload = _parse_agtype_row(r["row"])
+            if payload is None:
+                continue
+            fid = payload.get("fact_id")
+            if fid is not None:
+                session_fact_ids.append(int(str(fid).strip('"')))
 
         if session_fact_ids:
             active_cur = await conn.execute(
@@ -170,8 +198,8 @@ async def tool_session_start(
         )
         rows = await cur.fetchall()
         for r in rows:
-            payload = r["row"]
-            if isinstance(payload, dict):
+            payload = _parse_agtype_row(r["row"])
+            if payload is not None:
                 entities.append(
                     {
                         "canonical_key": payload.get("ckey"),

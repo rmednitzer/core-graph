@@ -1,7 +1,7 @@
 match (h:Host {canonical_key: $canonical_key})
 optional match (h)-[:observed_as]->(ip:CanonicalIP)
 optional match (ip)<-[:observed_on]-(se:SecurityEvent)
-  where se.time > toString(localdatetime() - duration('PT' + toString($hours_back) + 'H'))
+  where se.time > $time_threshold
 return se.event_id as event_id,
        se.category as event_type,
        se.severity as severity,

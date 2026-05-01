@@ -56,6 +56,7 @@ Migrations are designed to be additive. If a migration must be reverted:
 | `017_age_indexes.sql` | Performance indexes on AGE vertex property columns |
 | `018_dlq_error_class.sql` | Error classification column on DLQ archive |
 | `019_embedding_metadata.sql` | Model version and timestamp tracking for embeddings |
+| `020_temporal_invariants.sql` | Bitemporal append-only guards: NOT-NULL mutation attribution, no-overlap exclusion, delete-block trigger |
 
 ## CI validation
 

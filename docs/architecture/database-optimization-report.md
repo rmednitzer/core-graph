@@ -43,6 +43,22 @@
 - Add integration tests for RLS fail-closed behavior in graph/vector cross-paths.
 - Add benchmark delta analysis for temporal insert throughput under exclusion constraints.
 
+## Phase 0 follow-up (2026-05)
+- Migration 020 hardened: invalid `ADD CONSTRAINT IF NOT EXISTS` syntax replaced
+  with `pg_constraint` catalog lookups; required NOT-NULL columns now backfilled
+  with sentinel values before promotion.
+- Migration 011 now refuses silent destructive truncate; requires
+  `app.allow_embedding_truncate=true` GUC, documented in
+  `docs/operations/database-migration-runbook.md`.
+- Cypher templates `asset_security_events` and `identity_audit_trail` now bind
+  the time-threshold parameter Python-side (AGE openCypher does not support `+`
+  string concatenation).
+- `api/db.py` enforces `statement_timeout` uniformly for all callers from
+  `age_query_guard.query_timeout_ms`, eliminating the REST/ingest/TAXII gap.
+- `policies/resource/threat_entity.yaml` aligned to integer `tlp_level` (0..4).
+- `api/mcp/tools/identity_attribution.py` widens session compartments before
+  writing TLP:RED `same_as` edges so the writer can read its own row under RLS.
+
 ## Commands run and results
 - `pytest tests/test_migration_numbering.py` (pass)
 - `python -m compileall api/db.py` (pass)

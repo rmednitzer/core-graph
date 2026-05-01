@@ -36,6 +36,39 @@
 - Trigger creation failure.
 - Elevated write latency or lock wait exceeding SLO during rollout.
 
+## Migration 011 — vector dimension change (destructive opt-in)
+
+Migration `011_vector_dimensions.sql` changes the embeddings column dimension.
+If the table contains rows the migration **refuses** unless the operator
+explicitly authorises a truncate via the `app.allow_embedding_truncate` GUC.
+
+### Required precheck
+1. Inventory current embedding rows: `select count(*), model from embeddings group by model`.
+2. Confirm an embedding regeneration job is queued (re-embedding is mandatory after
+   a dimension change — vectors at the old dimension are lost).
+3. Confirm the change-control ticket includes the truncate authorisation.
+
+### Authorising the truncate
+Run inside a single transaction so the GUC scope is bounded:
+
+```sql
+begin;
+set local app.allow_embedding_truncate = 'true';
+\i schema/migrations/011_vector_dimensions.sql
+commit;
+```
+
+If the GUC is not set the migration raises:
+```
+ERROR: Refusing to truncate <N> embedding(s) at dimension <X> ...
+```
+On a fresh database (zero rows) the migration is a no-op truncate path and
+applies without any flag.
+
+### Rollback
+There is no in-place rollback for a dimension change. Restore from physical
+backup and re-run the embedding regeneration job at the original dimension.
+
 ## Evidence to retain
 - Migration execution logs.
 - `pg_stat_activity`/lock snapshots during rollout.

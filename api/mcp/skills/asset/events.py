@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from api.mcp.skills.base import SkillBase, SkillResult
@@ -11,16 +12,20 @@ from api.mcp.tools.cypher_query import cypher_query
 class AssetSecurityEventsSkill(SkillBase):
     name = "asset_security_events"
     description = "Recent security events for an asset within a time window"
-    version = "1.0.0"
+    version = "1.1.0"
 
     async def execute(
         self,
         params: dict[str, Any],
         caller_identity: dict[str, Any] | None = None,
     ) -> SkillResult:
+        canonical_key = self._require_param(params, "canonical_key")
+        hours_back = int(params.get("hours_back", 24))
+        threshold = datetime.now(UTC) - timedelta(hours=hours_back)
+
         query_params = {
-            "canonical_key": self._require_param(params, "canonical_key"),
-            "hours_back": params.get("hours_back", 24),
+            "canonical_key": canonical_key,
+            "time_threshold": threshold.isoformat(),
         }
         rows = await cypher_query("asset_security_events", query_params, caller_identity)
 
@@ -34,7 +39,7 @@ class AssetSecurityEventsSkill(SkillBase):
             skill_name=self.name,
             confidence=round(confidence, 1),
             data=rows,
-            summary=f"{len(rows)} security event(s) in last {query_params['hours_back']}h",
+            summary=f"{len(rows)} security event(s) in last {hours_back}h",
             gaps=gaps,
             sources=["layer_2_security"],
         )

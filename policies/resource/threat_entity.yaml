@@ -10,42 +10,46 @@ resourcePolicy:
       effect: EFFECT_ALLOW
       derivedRoles: [ciso]
 
+    # TLP encoding (do not change): integer 0..4
+    #   0 = CLEAR (a.k.a. WHITE)
+    #   1 = GREEN
+    #   2 = AMBER
+    #   3 = AMBER+STRICT
+    #   4 = RED
+    # Cerbos resource attr is `tlp_level` (int), aligned with the
+    # `tlp_level` JSONB column read by RLS policies.
+
     - actions: [read]
       effect: EFFECT_ALLOW
       derivedRoles: [soc_analyst]
       condition:
         match:
-          expr: >
-            request.resource.attr.tlp_marking in ["CLEAR", "GREEN", "AMBER"]
+          expr: request.resource.attr.tlp_level <= 2
 
     - actions: [read]
       effect: EFFECT_ALLOW
       derivedRoles: [compliance_officer]
       condition:
         match:
-          expr: >
-            request.resource.attr.tlp_marking in ["CLEAR", "GREEN"]
+          expr: request.resource.attr.tlp_level <= 1
 
     - actions: [read]
       effect: EFFECT_ALLOW
       derivedRoles: [it_operations]
       condition:
         match:
-          expr: >
-            request.resource.attr.tlp_marking in ["CLEAR", "GREEN"]
+          expr: request.resource.attr.tlp_level <= 1
 
     - actions: [read]
       effect: EFFECT_ALLOW
       derivedRoles: [external_auditor]
       condition:
         match:
-          expr: >
-            request.resource.attr.tlp_marking in ["CLEAR", "GREEN"]
+          expr: request.resource.attr.tlp_level <= 1
 
     - actions: [read]
       effect: EFFECT_ALLOW
       derivedRoles: [ai_agent]
       condition:
         match:
-          expr: >
-            request.resource.attr.tlp_marking in ["CLEAR", "GREEN"]
+          expr: request.resource.attr.tlp_level <= 1

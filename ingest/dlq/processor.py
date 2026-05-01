@@ -17,10 +17,12 @@ from typing import Any
 
 import nats
 import psycopg
-from nats.js.api import ConsumerConfig, StreamConfig
+from nats.js.api import ConsumerConfig
 from psycopg.rows import dict_row
 
+from api.config import NATS_URL, PG_DSN
 from ingest.metrics import dlq_by_class_total
+from ingest.streams import ensure_dlq_stream
 
 logger = logging.getLogger(__name__)
 
@@ -47,18 +49,6 @@ def classify_error(error_message: str) -> str:
     if any(kw in msg for kw in authz_kw):
         return "authorization"
     return "unknown"
-
-
-async def _ensure_streams(js: nats.js.JetStreamContext) -> None:
-    """Ensure the DLQ stream exists."""
-    await js.add_stream(
-        StreamConfig(
-            name="DLQ",
-            subjects=["dlq.>"],
-            retention="work_queue",
-            max_bytes=1_073_741_824,
-        )
-    )
 
 
 async def _archive_message(
@@ -189,15 +179,15 @@ async def _process_dlq_message(
 
 
 async def run(
-    pg_dsn: str = "postgresql://cg_admin:cg_dev_only@localhost:5432/core_graph",
-    nats_url: str = "nats://localhost:4222",
+    pg_dsn: str | None = None,
+    nats_url: str | None = None,
 ) -> None:
     """Main loop: consume from DLQ and retry or archive."""
-    nc = await nats.connect(nats_url)
+    nc = await nats.connect(nats_url or NATS_URL)
     js = nc.jetstream()
-    await _ensure_streams(js)
+    await ensure_dlq_stream(js)
 
-    conn = await psycopg.AsyncConnection.connect(pg_dsn, row_factory=dict_row)
+    conn = await psycopg.AsyncConnection.connect(pg_dsn or PG_DSN, row_factory=dict_row)
     await conn.set_autocommit(False)
 
     sub = await js.subscribe(

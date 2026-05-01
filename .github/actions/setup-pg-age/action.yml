@@ -1,0 +1,55 @@
+name: Setup PostgreSQL with AGE + extensions
+description: >-
+  Builds and starts a PostgreSQL 16 container based on apache/age with
+  pgvector, pgaudit, and pg_cron installed and the necessary
+  shared_preload_libraries enabled.
+
+inputs:
+  postgres-user:
+    description: PostgreSQL superuser
+    required: false
+    default: postgres
+  postgres-password:
+    description: PostgreSQL superuser password
+    required: false
+    default: postgres
+  postgres-db:
+    description: Database to create on first start
+    required: false
+    default: core_graph_test
+
+runs:
+  using: composite
+  steps:
+    - name: Build and start PostgreSQL with AGE + pgvector + pgaudit + pg_cron
+      shell: bash
+      env:
+        POSTGRES_USER: ${{ inputs.postgres-user }}
+        POSTGRES_PASSWORD: ${{ inputs.postgres-password }}
+        POSTGRES_DB: ${{ inputs.postgres-db }}
+      run: |
+        set -euo pipefail
+        docker run -d --name pgsetup \
+          -e POSTGRES_USER \
+          -e POSTGRES_PASSWORD \
+          -e POSTGRES_DB \
+          apache/age:release_PG16_1.6.0
+        until docker exec pgsetup pg_isready -U "$POSTGRES_USER"; do sleep 1; done
+        docker exec pgsetup bash -c \
+          "apt-get update -qq && apt-get install -y postgresql-16-pgvector postgresql-16-pgaudit postgresql-16-cron"
+        docker stop pgsetup
+        docker commit pgsetup age-full
+        docker rm pgsetup
+
+        docker run -d --name pgtest -p 5432:5432 \
+          -e POSTGRES_USER \
+          -e POSTGRES_PASSWORD \
+          -e POSTGRES_DB \
+          age-full \
+          postgres -c shared_preload_libraries='age,pgaudit,pg_cron' \
+            -c cron.database_name="$POSTGRES_DB"
+        until docker exec pgtest pg_isready -U "$POSTGRES_USER"; do sleep 1; done
+
+    - name: Install PostgreSQL client
+      shell: bash
+      run: sudo apt-get update -qq && sudo apt-get install -y postgresql-client

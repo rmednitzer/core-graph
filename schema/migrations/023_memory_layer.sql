@@ -91,11 +91,16 @@ create index if not exists idx_extracted_fact_active
 create table if not exists memory_episode_salience (
     episode_graph_id  bigint primary key,
     session_id        text not null,
+    created_at        timestamptz not null default now(),
     salience          real not null default 0.0,
     access_count      int not null default 0,
     last_accessed_at  timestamptz,
     computed_at       timestamptz not null default now()
 );
+
+-- Backfill `created_at` for tables that pre-date this column (idempotency).
+alter table memory_episode_salience
+    add column if not exists created_at timestamptz not null default now();
 
 create index if not exists idx_memory_episode_salience_session
     on memory_episode_salience (session_id, salience desc);
@@ -142,16 +147,17 @@ returns int as $$
 declare
     n int;
 begin
+    -- Recency uses each episode's own `created_at` so older episodes in the
+    -- same session decay correctly relative to newer ones (the previous
+    -- session-wide `last_episode_at` collapsed all per-episode freshness).
     update memory_episode_salience s
        set salience    = p_recency_weight
-                       * exp(-p_decay * extract(epoch from (now() - coalesce(last_episode_at, now()))))
+                       * exp(-p_decay * extract(epoch from (now() - s.created_at)))
                        + p_access_weight
-                       * ln(1 + access_count)
+                       * ln(1 + s.access_count)
                        + p_relevance_weight * p_relevance_default,
            computed_at = now()
-      from memory_session_counters c
-     where s.session_id = c.session_id
-       and (p_episode_id is null or s.episode_graph_id = p_episode_id);
+     where (p_episode_id is null or s.episode_graph_id = p_episode_id);
     get diagnostics n = row_count;
     return n;
 end;

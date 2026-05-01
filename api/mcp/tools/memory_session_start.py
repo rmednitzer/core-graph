@@ -107,30 +107,53 @@ async def tool_session_start(
                     )
             episode_payloads.sort(key=lambda r: r["salience"], reverse=True)
 
-        active_cur = await conn.execute(
+        # Active facts for THIS session only — traverse AGE from the session's
+        # episodes through extracted_from to ExtractedFact, then look up the
+        # active rows in the relational shadow keyed by fact_graph_id.
+        # Cross-session leakage was the bug in v1.1.0.
+        active_facts: list[dict[str, Any]] = []
+        cur = await conn.execute(
             """
-            select i.fact_graph_id, i.subject_hash, i.predicate_hash, i.t_recorded
-              from memory_extracted_fact_index i
-              where i.t_superseded is null
-                and exists (
-                    select 1 from ag_catalog._ag_label_vertex v
-                     where v.id = i.fact_graph_id
-                )
-              order by i.t_recorded desc
-              limit %s
+            select * from ag_catalog.cypher('core_graph', $cypher$
+                match (s:Session {session_id: $session_id})
+                       <-[:belongs_to]-(:Episode)
+                       <-[:extracted_from]-(f:ExtractedFact)
+                return id(f) as fact_id
+            $cypher$, %s) as (row agtype)
             """,
-            (active_facts_n,),
+            (json.dumps({"session_id": session_id}),),
         )
-        active_rows = await active_cur.fetchall()
-        active_facts = [
-            {
-                "fact_graph_id": int(r["fact_graph_id"]),
-                "subject_hash": r["subject_hash"],
-                "predicate_hash": r["predicate_hash"],
-                "t_recorded": r["t_recorded"].isoformat() if r["t_recorded"] else None,
-            }
-            for r in active_rows
-        ]
+        rows = await cur.fetchall()
+        session_fact_ids: list[int] = []
+        for r in rows:
+            payload = r["row"]
+            if isinstance(payload, dict):
+                fid = payload.get("fact_id")
+                if fid is not None:
+                    session_fact_ids.append(int(str(fid).strip('"')))
+
+        if session_fact_ids:
+            active_cur = await conn.execute(
+                """
+                select i.fact_graph_id, i.subject_hash, i.predicate_hash, i.t_recorded
+                  from memory_extracted_fact_index i
+                  where i.t_superseded is null
+                    and i.fact_graph_id = any(%s)
+                  order by i.t_recorded desc
+                  limit %s
+                """,
+                (session_fact_ids, active_facts_n),
+            )
+            active_rows = await active_cur.fetchall()
+            active_facts = [
+                {
+                    "fact_graph_id": int(r["fact_graph_id"]),
+                    "subject_hash": r["subject_hash"],
+                    "predicate_hash": r["predicate_hash"],
+                    "t_recorded": r["t_recorded"].isoformat() if r["t_recorded"] else None,
+                }
+                for r in active_rows
+            ]
 
         entities: list[dict[str, Any]] = []
         cur = await conn.execute(

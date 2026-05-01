@@ -37,9 +37,7 @@ class GraphRAGPathRankingSkill(SkillBase):
 
         gaps: list[str] = []
         if not rows:
-            gaps.append(
-                f"no paths of length 1..{max_hops} between {source_id} and {target_id}"
-            )
+            gaps.append(f"no paths of length 1..{max_hops} between {source_id} and {target_id}")
 
         confidence = 0.4 + 0.05 * min(len(rows), 12)
 

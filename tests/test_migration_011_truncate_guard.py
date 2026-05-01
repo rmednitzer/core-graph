@@ -12,10 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 
 MIGRATION_PATH = (
-    Path(__file__).resolve().parent.parent
-    / "schema"
-    / "migrations"
-    / "011_vector_dimensions.sql"
+    Path(__file__).resolve().parent.parent / "schema" / "migrations" / "011_vector_dimensions.sql"
 )
 
 

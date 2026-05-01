@@ -23,8 +23,8 @@ def test_load_golden_v1_has_200_pairs() -> None:
     categories = {p.category for p in pairs}
     assert {"threat_intel", "osint", "identity", "audit", "infrastructure"} <= categories
     tlps = {p.tlp_level for p in pairs}
-    # All TLP levels 0..4 must appear.
-    assert tlps >= {0, 1, 2}
+    # All TLP levels 0..4 must appear at least once in the curated set.
+    assert tlps == {0, 1, 2, 3, 4}
 
 
 def test_aggregate_handles_empty() -> None:
@@ -34,10 +34,12 @@ def test_aggregate_handles_empty() -> None:
 
 
 def test_aggregate_means() -> None:
-    out = _mod._aggregate([
-        {"r5": 1.0, "r10": 0.5, "r20": 0.5, "rr": 1.0, "ndcg10": 1.0},
-        {"r5": 0.0, "r10": 0.5, "r20": 1.0, "rr": 0.5, "ndcg10": 0.5},
-    ])
+    out = _mod._aggregate(
+        [
+            {"r5": 1.0, "r10": 0.5, "r20": 0.5, "rr": 1.0, "ndcg10": 1.0},
+            {"r5": 0.0, "r10": 0.5, "r20": 1.0, "rr": 0.5, "ndcg10": 0.5},
+        ]
+    )
     assert out["queries"] == 2
     assert out["recall_at_5"] == 0.5
     assert out["recall_at_10"] == 0.5

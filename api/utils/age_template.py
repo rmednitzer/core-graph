@@ -5,11 +5,13 @@ Any value used as a label, edge type, or property *key* must be
 validated against an allowlist before interpolation. This module
 provides the allowlist registry and the interpolation helper.
 
-Allowlists are seeded from the AGE catalog at import time (every label
-defined via create_vlabel/create_elabel is registered). Skills that
-accept user-supplied labels (e.g. an edge type filter) call
-`validate_label_in_allowlist(value, ALLOWED_EDGE_LABELS)` before
-substitution.
+Allowlists are initialised from built-in static sets covering every
+label produced by the migration files in `schema/migrations/`. They may
+be extended at runtime via `register_vertex_labels()` and
+`register_edge_labels()` when new labels are introduced (e.g. by a
+follow-up migration's startup hook). Skills that accept user-supplied
+labels must validate them against the appropriate allowlist before
+interpolation.
 
 This complements `api.utils.cypher_safety.validate_label` which does
 character-set validation only.
@@ -18,7 +20,7 @@ character-set validation only.
 from __future__ import annotations
 
 import logging
-from typing import Iterable
+from collections.abc import Iterable
 
 from api.utils.cypher_safety import validate_label
 
@@ -28,39 +30,84 @@ logger = logging.getLogger(__name__)
 # helpers when new labels are introduced via migrations.
 _ALLOWED_VERTEX_LABELS: set[str] = {
     # Layer 1: threat intel
-    "ThreatActor", "Indicator", "Vulnerability", "AttackPattern",
-    "Campaign", "Malware", "Infrastructure", "CourseOfAction",
+    "ThreatActor",
+    "Indicator",
+    "Vulnerability",
+    "AttackPattern",
+    "Campaign",
+    "Malware",
+    "Infrastructure",
+    "CourseOfAction",
     # Layer 2: security events / OCSF
-    "SecurityEvent", "Alert", "Incident",
+    "SecurityEvent",
+    "Alert",
+    "Incident",
     # Layer 3: OSINT
-    "OSINTArtifact", "Source",
+    "OSINTArtifact",
+    "Source",
     # Layer 4: compliance
-    "ComplianceControl", "ComplianceDomain", "EvidenceRecord",
+    "ComplianceControl",
+    "ComplianceDomain",
+    "EvidenceRecord",
     # Layer 5: AI memory
-    "Session", "Episode", "ExtractedFact", "ConceptEntity",
+    "Session",
+    "Episode",
+    "ExtractedFact",
+    "ConceptEntity",
     # Layer 6: forensic timeline
-    "TimelineEvent", "Artifact",
+    "TimelineEvent",
+    "Artifact",
     # Layer 7: infrastructure
-    "Host", "Network", "Site", "Interface", "Service",
-    "MonitoringAlert", "CanonicalIP", "CanonicalDomain",
+    "Host",
+    "Network",
+    "Site",
+    "Interface",
+    "Service",
+    "MonitoringAlert",
+    "CanonicalIP",
+    "CanonicalDomain",
     # Layer 8: IAM
-    "Principal", "Group", "Role", "Permission", "AccessPolicy",
+    "Principal",
+    "Group",
+    "Role",
+    "Permission",
+    "AccessPolicy",
 }
 
 _ALLOWED_EDGE_LABELS: set[str] = {
     # Generic graph
-    "related", "observed_as", "indicates", "mitigates",
+    "related",
+    "observed_as",
+    "indicates",
+    "mitigates",
     # Layer 1 / 2 / 3
-    "uses", "targets", "attributed_to", "communicates_with",
-    "observed_on", "indicates_attack",
+    "uses",
+    "targets",
+    "attributed_to",
+    "communicates_with",
+    "observed_on",
+    "indicates_attack",
     # Layer 4
-    "satisfies", "evidenced_by",
+    "satisfies",
+    "evidenced_by",
     # Layer 5: AI memory
-    "belongs_to", "extracted_from", "mentions", "supersedes",
+    "belongs_to",
+    "extracted_from",
+    "mentions",
+    "supersedes",
     # Layer 7
-    "hosts", "connected_to", "located_at", "runs",
+    "hosts",
+    "connected_to",
+    "located_at",
+    "runs",
     # Layer 8
-    "has_role", "member_of", "grants", "actor_in", "manages", "owns", "same_as",
+    "has_role",
+    "member_of",
+    "grants",
+    "actor_in",
+    "manages",
+    "owns",
+    "same_as",
 }
 
 

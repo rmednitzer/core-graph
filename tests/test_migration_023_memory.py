@@ -5,10 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 MIGRATION_PATH = (
-    Path(__file__).resolve().parent.parent
-    / "schema"
-    / "migrations"
-    / "023_memory_layer.sql"
+    Path(__file__).resolve().parent.parent / "schema" / "migrations" / "023_memory_layer.sql"
 )
 
 

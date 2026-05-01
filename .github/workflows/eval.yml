@@ -1,23 +1,22 @@
 name: Eval
 
+# Eval runs against a populated DB. To keep PR CI fast and reliable we
+# only schedule the heavy run nightly + on-demand, and on main pushes.
+# The unit-test layer (tests/test_eval_runner.py, tests/test_embedding_drift.py)
+# covers the pure helpers on every PR via the standard test workflow.
 on:
   schedule:
     - cron: '17 3 * * *'  # 03:17 UTC nightly
   workflow_dispatch:
-  pull_request:
-    paths:
-      - 'tests/eval/**'
-      - 'scripts/eval/**'
-      - 'scripts/bench/embedding_drift.py'
-      - 'api/mcp/tools/hybrid_search.py'
-      - 'api/mcp/tools/vector_search.py'
-      - 'api/mcp/tools/memory_*.py'
+  push:
+    branches: [main]
 
 permissions: {}
 
 jobs:
   retrieval-eval:
     runs-on: ubuntu-latest
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
     permissions:
       contents: read
     env:
@@ -76,11 +75,17 @@ jobs:
         run: pytest tests/eval/test_rls_retrieval_correctness.py -v
       - name: Embedding drift detection
         run: |
+          set +e
           python scripts/bench/embedding_drift.py \
             --baseline tests/eval/baseline_embedding_dist.npz \
             --sample-size 10000 \
-            > drift-report.json || echo "drift exit code $?"
+            > drift-report.json
+          rc=$?
           cat drift-report.json
+          if [ "$rc" -ne 0 ]; then
+            echo "drift exit code $rc"
+            exit "$rc"
+          fi
       - name: Upload drift report
         if: always()
         uses: actions/upload-artifact@v4

@@ -35,8 +35,21 @@ runs:
           -e POSTGRES_DB \
           apache/age:release_PG16_1.6.0
         until docker exec pgsetup pg_isready -U "$POSTGRES_USER"; do sleep 1; done
-        docker exec pgsetup bash -c \
-          "apt-get update -qq && apt-get install -y postgresql-16-pgvector postgresql-16-pgaudit postgresql-16-cron"
+        # Install pgaudit + pg_cron from Debian; build pgvector v0.8.0 from
+        # source so `halfvec` (pgvector 0.7+) is available — Debian's
+        # postgresql-16-pgvector lags. Mirrors deploy/docker/Dockerfile.postgres.
+        docker exec pgsetup bash -c "
+          set -euo pipefail
+          apt-get update -qq
+          apt-get install -y --no-install-recommends \
+            build-essential git postgresql-server-dev-16 \
+            postgresql-16-pgaudit postgresql-16-cron
+          git clone --branch v0.8.0 --depth 1 https://github.com/pgvector/pgvector.git /tmp/pgvector
+          cd /tmp/pgvector && make && make install
+          cd / && rm -rf /tmp/pgvector
+          apt-get purge -y --auto-remove build-essential git postgresql-server-dev-16
+          apt-get clean && rm -rf /var/lib/apt/lists/*
+        "
         docker stop pgsetup
         docker commit pgsetup age-full
         docker rm pgsetup

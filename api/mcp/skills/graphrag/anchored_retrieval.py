@@ -51,7 +51,11 @@ class GraphRAGAnchoredRetrievalSkill(SkillBase):
                 {"entity_id": int(anchor_entity_id), "depth": depth},
                 caller_identity,
             )
-            allowed_ids = {int(row["neighbour_id"]) for row in anchor_subgraph if row.get("neighbour_id") is not None}
+            allowed_ids = {
+                int(row["neighbour_id"])
+                for row in anchor_subgraph
+                if row.get("neighbour_id") is not None
+            }
             allowed_ids.add(int(anchor_entity_id))
             hits = [h for h in hits if h.graph_id in allowed_ids]
             if not hits:
@@ -74,7 +78,10 @@ class GraphRAGAnchoredRetrievalSkill(SkillBase):
                 {"entity_id": hit.graph_id, "depth": depth},
                 caller_identity,
             )
-            centrality = float(len({int(r["neighbour_id"]) for r in subgraph if r.get("neighbour_id") is not None}))
+            neighbour_ids = {
+                int(r["neighbour_id"]) for r in subgraph if r.get("neighbour_id") is not None
+            }
+            centrality = float(len(neighbour_ids))
             recency = 1.0 / (1.0 + (hit.bm25_rank or 1))
             score = (
                 self.VECTOR_WEIGHT * hit.score

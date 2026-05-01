@@ -1,4 +1,4 @@
--- 022_embedding_models_and_hybrid.sql
+-- 021_embedding_models_and_hybrid.sql
 -- Phase 1 — vector layer modernisation.
 --
 -- Adds:
@@ -191,6 +191,7 @@ declare
     suffix    text;
     rec_dim   int;
     target_dim int;
+    has_halfvec boolean;
 begin
     select dim into rec_dim from embedding_models where model_id = model_id_in;
     if rec_dim is null then
@@ -218,13 +219,23 @@ begin
         suffix, model_id_in
     );
 
-    execute format(
-        'create index if not exists idx_embeddings_hnsw_half_%s '
-        'on embeddings using hnsw (embedding_half halfvec_cosine_ops) '
-        'with (m = 16, ef_construction = 200) '
-        'where model_id = %L',
-        suffix, model_id_in
-    );
+    -- halfvec index requires both pgvector >= 0.7.0 and the embedding_half
+    -- column populated by section (3) above.
+    select exists (select 1 from pg_type where typname = 'halfvec') into has_halfvec;
+    if has_halfvec and exists (
+        select 1 from pg_attribute
+         where attrelid = 'embeddings'::regclass
+           and attname  = 'embedding_half'
+           and not attisdropped
+    ) then
+        execute format(
+            'create index if not exists idx_embeddings_hnsw_half_%s '
+            'on embeddings using hnsw (embedding_half halfvec_cosine_ops) '
+            'with (m = 16, ef_construction = 200) '
+            'where model_id = %L',
+            suffix, model_id_in
+        );
+    end if;
 end;
 $$ language plpgsql;
 

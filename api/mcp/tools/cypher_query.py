@@ -125,14 +125,18 @@ def _materialise_depth(
             depth_value = validate_max_hops(int(new_params[key]), ceiling=ceiling)
             new_params.pop(key)
             break
+    # Fall back to the schema's declared default for the matching parameter.
     if depth_value is None:
-        raise ValueError(
-            f"template {template_name!r} requires a `depth` or `max_hops` parameter"
-        )
+        param_defs = schema.get("parameters", {})
+        for key in candidate_keys:
+            default = param_defs.get(key, {}).get("default")
+            if default is not None:
+                depth_value = validate_max_hops(int(default), ceiling=ceiling)
+                break
+    if depth_value is None:
+        raise ValueError(f"template {template_name!r} requires a `depth` or `max_hops` parameter")
     if marker not in cypher_str:
-        raise ValueError(
-            f"template {template_name!r}: depth_marker {marker!r} not found in Cypher"
-        )
+        raise ValueError(f"template {template_name!r}: depth_marker {marker!r} not found in Cypher")
     return cypher_str.replace(marker, str(depth_value)), new_params
 
 

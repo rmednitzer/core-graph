@@ -24,9 +24,7 @@ def _schemas(marker: str = "__DEPTH__", *, kind: str = "interpolated_depth") -> 
 
 def test_substitutes_validated_depth() -> None:
     cypher = "match (a)-[*1..__DEPTH__]-(b) return b"
-    out_cypher, out_params = _materialise_depth(
-        "demo", cypher, {"depth": 3, "x": 1}, _schemas()
-    )
+    out_cypher, out_params = _materialise_depth("demo", cypher, {"depth": 3, "x": 1}, _schemas())
     assert "*1..3" in out_cypher
     assert "depth" not in out_params  # consumed
     assert out_params["x"] == 1  # untouched
@@ -34,9 +32,7 @@ def test_substitutes_validated_depth() -> None:
 
 def test_supports_max_hops_alias() -> None:
     cypher = "match path = (a)-[*1..__M__]-(b) return path"
-    out_cypher, out_params = _materialise_depth(
-        "demo", cypher, {"max_hops": 5}, _schemas("__M__")
-    )
+    out_cypher, out_params = _materialise_depth("demo", cypher, {"max_hops": 5}, _schemas("__M__"))
     assert "*1..5" in out_cypher
     assert "max_hops" not in out_params
 
@@ -61,8 +57,6 @@ def test_rejects_marker_absent_from_template() -> None:
 
 def test_no_op_for_non_interpolated_template() -> None:
     cypher = "match (a)-[*1..2]-(b) return b"
-    out_cypher, out_params = _materialise_depth(
-        "demo", cypher, {"x": 1}, _schemas(kind="standard")
-    )
+    out_cypher, out_params = _materialise_depth("demo", cypher, {"x": 1}, _schemas(kind="standard"))
     assert out_cypher == cypher
     assert out_params == {"x": 1}

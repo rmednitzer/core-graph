@@ -242,9 +242,7 @@ async def hybrid_search(
     if rerank_scores is not None:
         scored = list(zip(ranked, rerank_scores, strict=False))
         scored.sort(key=lambda pair: pair[1], reverse=True)
-        ranked = [
-            {**item, "rerank_score": float(score)} for item, score in scored
-        ]
+        ranked = [{**item, "rerank_score": float(score)} for item, score in scored]
 
     hits: list[Hit] = []
     for entry in ranked[:k]:

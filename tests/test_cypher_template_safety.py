@@ -12,13 +12,7 @@ from pathlib import Path
 
 import pytest
 
-QUERIES_DIR = (
-    Path(__file__).resolve().parent.parent
-    / "api"
-    / "mcp"
-    / "skills"
-    / "queries"
-)
+QUERIES_DIR = Path(__file__).resolve().parent.parent / "api" / "mcp" / "skills" / "queries"
 
 # Match `'…' +` or `+ '…'` or `" … " +` etc. (a `+` adjacent to a string literal).
 _CONCAT_PATTERN = re.compile(

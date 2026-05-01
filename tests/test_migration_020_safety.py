@@ -16,10 +16,7 @@ import re
 from pathlib import Path
 
 MIGRATION_PATH = (
-    Path(__file__).resolve().parent.parent
-    / "schema"
-    / "migrations"
-    / "020_temporal_invariants.sql"
+    Path(__file__).resolve().parent.parent / "schema" / "migrations" / "020_temporal_invariants.sql"
 )
 
 

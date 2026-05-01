@@ -79,10 +79,14 @@ def _widen_compartments(
     filters by compartment membership. Without this widening the writer would
     create a row that it cannot subsequently SELECT.
     """
-    base = dict(caller_identity) if caller_identity else {
-        "max_tlp": 4,
-        "allowed_compartments": [],
-    }
+    base = (
+        dict(caller_identity)
+        if caller_identity
+        else {
+            "max_tlp": 4,
+            "allowed_compartments": [],
+        }
+    )
     compartments = list(base.get("allowed_compartments", []))
     if investigation_id not in compartments:
         compartments.append(investigation_id)

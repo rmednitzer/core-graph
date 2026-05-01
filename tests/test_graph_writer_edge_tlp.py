@@ -18,20 +18,20 @@ def test_every_template_sets_tlp_level() -> None:
     for rel_type, cypher in RELATIONSHIP_TEMPLATES.items():
         if "tlp_level" not in cypher.lower():
             missing.append(rel_type)
-    assert not missing, (
-        f"Edge templates missing explicit tlp_level assignment: {missing}"
-    )
+    assert not missing, f"Edge templates missing explicit tlp_level assignment: {missing}"
 
 
 def test_every_template_uses_greatest_pattern() -> None:
     """tlp_level should derive from the GREATER endpoint TLP."""
     bad: list[str] = []
     for rel_type, cypher in RELATIONSHIP_TEMPLATES.items():
-        # Either GREATEST(...) call or `case when ... > ... then ... else ... end` pattern.
-        has_case = re.search(r"case\s+when.+tlp_level.+>.+tlp_level", cypher, re.DOTALL | re.IGNORECASE)
+        # Either GREATEST(...) or `case when ... > ... then ... else ... end`.
+        has_case = re.search(
+            r"case\s+when.+tlp_level.+>.+tlp_level",
+            cypher,
+            re.DOTALL | re.IGNORECASE,
+        )
         has_greatest = re.search(r"greatest\s*\(", cypher, re.IGNORECASE)
         if not (has_case or has_greatest):
             bad.append(rel_type)
-    assert not bad, (
-        f"Edge templates do not derive tlp_level from endpoints: {bad}"
-    )
+    assert not bad, f"Edge templates do not derive tlp_level from endpoints: {bad}"

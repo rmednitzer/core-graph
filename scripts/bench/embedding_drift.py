@@ -26,7 +26,6 @@ import logging
 import os
 import sys
 from pathlib import Path
-from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
@@ -85,19 +84,39 @@ async def _sample_embedding_means(pg_dsn: str, sample_size: int) -> list[float]:
     one-dimensional. Two distributions agree iff they're close at this
     coarse-grained level — coarse enough that random fluctuation doesn't
     trip the alarm.
+
+    Uses TABLESAMPLE SYSTEM for the initial coarse sweep (block-level
+    sampling, O(visited_blocks) rather than O(N)), then bounds the result
+    set with a cheap `LIMIT`. On tables smaller than the requested sample
+    we fall back to a full scan with `ORDER BY random()` so dev / CI
+    environments still produce a usable sample.
     """
     import psycopg
 
     means: list[float] = []
     with psycopg.connect(pg_dsn) as conn:
-        cur = conn.execute(
-            """
-            select embedding from embeddings
-             order by random()
-             limit %s
-            """,
-            (sample_size,),
-        )
+        # Pick a sampling percentage that yields ~10x the requested rows
+        # against a 1M-row table. The actual table size is unknown here;
+        # the LIMIT bounds memory/network use either way.
+        cur = conn.execute("select count(*) from embeddings")
+        total = int((cur.fetchone() or (0,))[0])
+
+        if total == 0:
+            return []
+
+        if total <= sample_size * 4:
+            # Small table — full scan is cheap enough.
+            cur = conn.execute(
+                "select embedding from embeddings order by random() limit %s",
+                (sample_size,),
+            )
+        else:
+            # Aim for sample_size * 4 rows then truncate.
+            pct = max(0.01, min(100.0, (sample_size * 4) * 100.0 / total))
+            cur = conn.execute(
+                f"select embedding from embeddings tablesample system ({pct}) limit %s",
+                (sample_size,),
+            )
         for row in cur:
             raw = row[0]
             # pgvector returns vectors as strings like "[0.1,-0.2,...]"
@@ -145,7 +164,7 @@ def _save_baseline(path: Path, hist: list[float]) -> None:
 
 def _emit_prometheus_gauge(kl: float, status: str) -> None:
     try:
-        from prometheus_client import Gauge, push_to_gateway, CollectorRegistry
+        from prometheus_client import CollectorRegistry, Gauge, push_to_gateway
 
         reg = CollectorRegistry()
         gauge = Gauge(

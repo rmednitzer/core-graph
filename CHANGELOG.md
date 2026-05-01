@@ -38,13 +38,13 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 ### Phase 4 — GraphRAG skills
 
 * New skill package `api/mcp/skills/graphrag/`:
-  - `graphrag_anchored_retrieval` — hybrid_search candidate set,
+  * `graphrag_anchored_retrieval` — hybrid_search candidate set,
     optionally constrained to an anchor entity's N-hop neighbourhood,
     re-ranked by `0.6*hybrid + 0.2*centrality + 0.2*recency`.
-  - `graphrag_path_ranking` — all paths between source/target entities
+  * `graphrag_path_ranking` — all paths between source/target entities
     up to `max_hops` (1..6), ranked by
     `product(edge.confidence) * exp(-0.25 * length)`.
-  - `graphrag_neighborhood` — N-hop subgraph from an anchor entity
+  * `graphrag_neighborhood` — N-hop subgraph from an anchor entity
     with optional edge-type filter (validated against allowlist).
 * Cypher templates `graphrag_neighborhood.cypher`,
   `graphrag_path_ranking.cypher` with companion `.json` schemas using
@@ -73,17 +73,17 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 * `api/config.py`: `SALIENCE_RECENCY_WEIGHT`, `SALIENCE_ACCESS_WEIGHT`,
   `SALIENCE_RELEVANCE_WEIGHT`, `SALIENCE_DECAY` (1-day half-life).
 * MCP tools (`api/mcp/tools/`):
-  - `memory_remember.py` — `tool_remember(session_id, content,
+  * `memory_remember.py` — `tool_remember(session_id, content,
     source_kind)` allocates the next sequence atomically, MERGEs the
     Session, CREATEs the Episode, runs tier1 NER, and emits MENTIONS
     edges to ConceptEntities. Also exports
     `tool_record_extracted_fact` which detects supersession against
     the relational shadow and writes the SUPERSEDES edge in AGE.
-  - `memory_recall.py` — `tool_recall(session_id, query, k=10)` runs
+  * `memory_recall.py` — `tool_recall(session_id, query, k=10)` runs
     Phase-1 hybrid_search over-fetched, filters to Episodes in the
     session, and ranks by `0.7 * hybrid + 0.3 * salience`. Bumps
     access_count on returned episodes.
-  - `memory_session_start.py` — `tool_session_start(session_id)`
+  * `memory_session_start.py` — `tool_session_start(session_id)`
     returns the most-salient recent Episodes, the active
     (non-superseded) ExtractedFacts, and the most-mentioned
     ConceptEntities for the session.

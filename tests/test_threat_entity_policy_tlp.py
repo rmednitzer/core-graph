@@ -13,10 +13,7 @@ from pathlib import Path
 import pytest
 
 POLICY_PATH = (
-    Path(__file__).resolve().parent.parent
-    / "policies"
-    / "resource"
-    / "threat_entity.yaml"
+    Path(__file__).resolve().parent.parent / "policies" / "resource" / "threat_entity.yaml"
 )
 
 # Strings we never want to see compared against TLP attrs.

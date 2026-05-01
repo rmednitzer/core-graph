@@ -55,30 +55,61 @@ class VectorSearchResult(BaseModel):
 # -- Distributed circuit breaker (Valkey-backed, local fallback) --------------
 
 _breakers: dict[str, CircuitBreaker] = {}
+_valkey_client: Any | None = None
+_valkey_init_failed: bool = False
 
 
-async def _get_breaker(model_id: str) -> CircuitBreaker:
-    """Lazy-construct a CircuitBreaker per model_id, sharing one Valkey client."""
-    if model_id in _breakers:
-        return _breakers[model_id]
+def _shared_valkey() -> Any | None:
+    """Process-wide Valkey client, lazy-initialised once.
 
-    valkey: Any | None = None
+    Returning a single client (instead of creating one per model_id) avoids
+    the connection / fd leak that arose in multi-model deployments where
+    `_get_breaker` was called repeatedly with new model ids.
+    """
+    global _valkey_client, _valkey_init_failed
+    if _valkey_client is not None or _valkey_init_failed:
+        return _valkey_client
     try:
         import redis.asyncio as aioredis
 
-        valkey = aioredis.from_url(VALKEY_URL, decode_responses=True)
+        _valkey_client = aioredis.from_url(VALKEY_URL, decode_responses=True)
     except Exception:
         logger.warning(
-            "Could not initialise Valkey client for circuit breaker; using local fallback",
+            "Could not initialise Valkey client for circuit breaker; "
+            "using local fallback for all models",
             exc_info=True,
         )
+        _valkey_init_failed = True
+    return _valkey_client
 
+
+async def close_breaker_resources() -> None:
+    """Close the shared Valkey client (call on app shutdown).
+
+    Safe to call multiple times. Resets the singleton so the next caller
+    can re-initialise it.
+    """
+    global _valkey_client, _valkey_init_failed
+    if _valkey_client is not None:
+        try:
+            await _valkey_client.aclose()
+        except Exception:
+            logger.debug("Error closing shared Valkey client", exc_info=True)
+        _valkey_client = None
+    _valkey_init_failed = False
+    _breakers.clear()
+
+
+async def _get_breaker(model_id: str) -> CircuitBreaker:
+    """Return the per-model CircuitBreaker, sharing one Valkey client."""
+    if model_id in _breakers:
+        return _breakers[model_id]
     breaker = CircuitBreaker(
         key=f"cg:cb:embedding:{model_id}",
         threshold=5,
         window_seconds=60,
         reset_seconds=60,
-        valkey=valkey,
+        valkey=_shared_valkey(),
     )
     _breakers[model_id] = breaker
     return breaker
@@ -99,9 +130,7 @@ async def generate_embedding(text: str) -> tuple[list[float], str]:
 
     breaker = await _get_breaker(EMBEDDING_MODEL)
     if not await breaker.allow():
-        raise RuntimeError(
-            f"Embedding circuit breaker open for model {EMBEDDING_MODEL!r}"
-        )
+        raise RuntimeError(f"Embedding circuit breaker open for model {EMBEDDING_MODEL!r}")
 
     import httpx
 
@@ -220,9 +249,7 @@ async def vector_search(
             "select set_config('hnsw.ef_search', %s, true)",
             (str(int(ef_search)),),
         )
-        cursor = await conn.execute(
-            sql, (qv, *extra_params, qv, limit)
-        )
+        cursor = await conn.execute(sql, (qv, *extra_params, qv, limit))
         rows = await cursor.fetchall()
 
         await conn.execute(

@@ -79,9 +79,7 @@ async def tool_remember(
     now_iso = datetime.now(UTC).isoformat()
 
     async with get_connection(caller) as conn:
-        seq_cursor = await conn.execute(
-            "select memory_next_sequence(%s) as seq", (session_id,)
-        )
+        seq_cursor = await conn.execute("select memory_next_sequence(%s) as seq", (session_id,))
         seq_row = await seq_cursor.fetchone()
         sequence_no = int(seq_row["seq"])
 
@@ -98,8 +96,9 @@ async def tool_remember(
             merge_session_sql,
             (json.dumps({"session_id": session_id, "now": now_iso, "tlp": tlp}),),
         )
-        session_row = await cur.fetchone()
-        session_graph_id = int(str(session_row["id"]).strip('"'))
+        # Drain the cursor; the Session graph_id is implicit via the
+        # subsequent MATCH (s:Session {session_id: ...}).
+        await cur.fetchone()
 
         # CREATE Episode + edge atomically. Sequence is unique by construction
         # because memory_next_sequence allocates atomically.

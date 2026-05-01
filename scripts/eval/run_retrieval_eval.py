@@ -167,9 +167,7 @@ async def _eval_mode(
     overall: list[dict[str, Any]] = []
 
     for pair in pairs:
-        ranked = await _run_query(
-            pair, mode, k=20, ef_search=ef_search, model_id=model_id
-        )
+        ranked = await _run_query(pair, mode, k=20, ef_search=ef_search, model_id=model_id)
         rec = {
             "r5": _recall_at(ranked, pair.expected_doc_ids, 5),
             "r10": _recall_at(ranked, pair.expected_doc_ids, 10),
@@ -210,29 +208,34 @@ def _format_markdown(report: dict[str, Any]) -> str:
         )
 
     for entry in report["modes"]:
-        lines.extend([
-            "",
-            f"## {entry['mode']} — per category",
-            "",
-            "| Category | queries | recall@10 | MRR | nDCG@10 |",
-            "|----------|--------:|----------:|----:|--------:|",
-        ])
+        lines.extend(
+            [
+                "",
+                f"## {entry['mode']} — per category",
+                "",
+                "| Category | queries | recall@10 | MRR | nDCG@10 |",
+                "|----------|--------:|----------:|----:|--------:|",
+            ]
+        )
         for cat, m in sorted(entry["per_category"].items()):
             lines.append(
                 f"| {cat} | {m['queries']} | {m['recall_at_10']} | {m['mrr']} | {m['ndcg_at_10']} |"
             )
 
-        lines.extend([
-            "",
-            f"## {entry['mode']} — per TLP level",
-            "",
-            "| tlp_level | queries | recall@10 | MRR | nDCG@10 |",
-            "|----------:|--------:|----------:|----:|--------:|",
-        ])
+        lines.extend(
+            [
+                "",
+                f"## {entry['mode']} — per TLP level",
+                "",
+                "| tlp_level | queries | recall@10 | MRR | nDCG@10 |",
+                "|----------:|--------:|----------:|----:|--------:|",
+            ]
+        )
         for tlp_str in sorted(entry["per_tlp"].keys(), key=int):
             m = entry["per_tlp"][tlp_str]
             lines.append(
-                f"| {tlp_str} | {m['queries']} | {m['recall_at_10']} | {m['mrr']} | {m['ndcg_at_10']} |"
+                f"| {tlp_str} | {m['queries']} | {m['recall_at_10']} | "
+                f"{m['mrr']} | {m['ndcg_at_10']} |"
             )
     return "\n".join(lines) + "\n"
 

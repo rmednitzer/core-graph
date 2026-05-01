@@ -144,9 +144,7 @@ async def _run_mode(
     }
 
 
-async def _bm25_only(
-    query: str, *, model_id: str | None, k: int
-) -> list[dict[str, Any]]:
+async def _bm25_only(query: str, *, model_id: str | None, k: int) -> list[dict[str, Any]]:
     """Direct BM25 lookup — bypasses RRF for the bm25-only mode."""
     from api.db import get_connection
 

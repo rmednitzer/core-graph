@@ -107,7 +107,10 @@ async def tool_recall(
         for r in rows:
             payload = r["row"]
             if isinstance(payload, str):
-                payload = json.loads(payload.rstrip("::vertex").rstrip(":"))
+                # Strip the "::vertex" agtype suffix and any trailing colon.
+                if payload.endswith("::vertex"):
+                    payload = payload[: -len("::vertex")]
+                payload = json.loads(payload.rstrip(":"))
             if isinstance(payload, dict):
                 gid = int(str(payload.get("id", "")).strip('"'))
                 episode_meta[gid] = {
@@ -130,32 +133,6 @@ async def tool_recall(
         )
         salience_rows = await salience_cur.fetchall()
         salience_map = {int(r["episode_graph_id"]): float(r["salience"]) for r in salience_rows}
-
-        await conn.execute(
-            """
-            update memory_episode_salience
-               set access_count = access_count + 1,
-                   last_accessed_at = now()
-             where session_id = %s
-               and episode_graph_id = any(%s)
-            """,
-            (session_id, list(episode_meta.keys())),
-        )
-
-        await conn.execute(
-            """
-            insert into audit_log
-                (entity_label, operation, actor, correlation_id)
-            values (%s, %s, %s, %s)
-            """,
-            (
-                "Episode",
-                "MEMORY_RECALL",
-                caller.get("actor", "mcp"),
-                correlation_id,
-            ),
-        )
-        await conn.commit()
 
     fused: list[RecalledEpisode] = []
     for h in hits:
@@ -181,6 +158,37 @@ async def tool_recall(
 
     fused.sort(key=lambda r: r.score, reverse=True)
     out = fused[:k]
+
+    # Bump access metrics ONLY for the episodes we actually return —
+    # otherwise non-returned candidates would get salience boosts on every
+    # query, biasing future recall.
+    returned_ids = [r.graph_id for r in out]
+    async with get_connection(caller) as conn:
+        if returned_ids:
+            await conn.execute(
+                """
+                update memory_episode_salience
+                   set access_count = access_count + 1,
+                       last_accessed_at = now()
+                 where session_id = %s
+                   and episode_graph_id = any(%s)
+                """,
+                (session_id, returned_ids),
+            )
+        await conn.execute(
+            """
+            insert into audit_log
+                (entity_label, operation, actor, correlation_id)
+            values (%s, %s, %s, %s)
+            """,
+            (
+                "Episode",
+                "MEMORY_RECALL",
+                caller.get("actor", "mcp"),
+                correlation_id,
+            ),
+        )
+        await conn.commit()
 
     logger.info(
         "Recall: session=%s query_len=%d hits=%d returned=%d correlation=%s",

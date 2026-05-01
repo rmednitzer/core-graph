@@ -100,6 +100,16 @@ bench: ## Run performance benchmarks
 	python scripts/bench/bench_graph_traversal.py
 	python scripts/bench/bench_ingest_throughput.py
 
+eval: ## Run the retrieval eval against the golden set
+	python scripts/eval/run_retrieval_eval.py \
+		--golden tests/eval/golden/retrieval_v1.jsonl \
+		--report-md eval-report.md
+
+drift: ## Run the embedding drift detector
+	python scripts/bench/embedding_drift.py \
+		--baseline tests/eval/baseline_embedding_dist.npz \
+		--sample-size 10000
+
 helm-lint: ## Lint Helm chart (lab + prod profiles)
 	@echo "==> Linting Helm chart (lab)"
 	helm lint deploy/k8s/helm

@@ -69,3 +69,11 @@ adapter_delta_lag_seconds = Gauge(
     "Seconds since last successful delta sync",
     ["adapter"],
 )
+
+# -- Embedding drift (Phase 5) ---------------------------------------------
+
+embedding_drift_kl = Gauge(
+    "cg_embedding_drift_kl",
+    "KL divergence of embedding mean distribution vs baseline. "
+    "WARN > 0.1, ERROR > 0.5.",
+)

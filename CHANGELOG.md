@@ -8,6 +8,33 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### Phase 5 — eval harness
+
+* `tests/eval/golden/retrieval_v1.jsonl` (200 hand-curated query/doc
+  pairs) covers `threat_intel`, `osint`, `identity`, `audit`, and
+  `infrastructure` verticals across TLP levels 0..4.
+* `scripts/eval/run_retrieval_eval.py`: per-mode (vector, hybrid,
+  hybrid+rerank) recall@5/10/20, MRR, nDCG@10, with per-category and
+  per-TLP-level breakdowns. Emits both JSON (stdout) and a markdown
+  report (`--report-md`).
+* `tests/eval/test_rls_retrieval_correctness.py`: hard-fail integration
+  test asserting that for every TLP level a caller cannot retrieve a
+  document above their ceiling, and that expected high-TLP docs are
+  invisible to low-TLP callers.
+* `scripts/bench/embedding_drift.py`: nightly drift detector. Pulls a
+  10k-row random sample, builds a 50-bin histogram of per-row mean
+  embedding values, computes KL divergence vs the stored baseline.
+  WARN > 0.1, ERROR > 0.5; exits 2 on ERROR (CI fails). Emits the KL
+  value as the `cg_embedding_drift_kl` Prometheus gauge added in
+  `ingest/metrics.py`.
+* `.github/workflows/eval.yml`: nightly job (03:17 UTC) that applies
+  migrations + seeds, runs the retrieval eval, the RLS correctness
+  test, and the drift detector. Reports are uploaded as workflow
+  artifacts. Manually triggerable via `workflow_dispatch`.
+* `tests/test_eval_runner.py`, `tests/test_embedding_drift.py` cover
+  the pure helpers (golden loader, aggregation, KL formula, histogram
+  binning, threshold constants).
+
 ### Phase 4 — GraphRAG skills
 
 * New skill package `api/mcp/skills/graphrag/`:

@@ -59,6 +59,7 @@ Migrations are designed to be additive. If a migration must be reverted:
 | `020_temporal_invariants.sql` | Bitemporal append-only guards: NOT-NULL mutation attribution, no-overlap exclusion, delete-block trigger |
 | `021_embedding_models_and_hybrid.sql` | Embedding model registry, per-model partial HNSW indexes, halfvec column + trigger, tsvector + GIN for BM25 |
 | `022_edge_tlp_denormalization.sql` | Denormalised `tlp_level smallint` on all AGE edge label tables, BEFORE-trigger derivation from endpoints, deferred vertex cascade, per-edge RLS policy |
+| `023_memory_layer.sql` | Layer 5 (AI memory): AGE labels Session/Episode/ExtractedFact/ConceptEntity + edges, relational shadow tables for sequence/supersession/salience, pg_cron salience refresh job |
 
 ## CI validation
 

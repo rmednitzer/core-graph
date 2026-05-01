@@ -8,6 +8,36 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### Phase 3 — AI memory layer (Layer 5)
+
+* Migration `023_memory_layer.sql`: AGE labels for `Session`, `Episode`,
+  `ExtractedFact`, `ConceptEntity` (vertices) and `belongs_to`,
+  `extracted_from`, `mentions`, `supersedes` (edges). Three relational
+  shadow tables — `memory_session_counters`, `memory_extracted_fact_index`,
+  `memory_episode_salience` — back the hot-path lookups with O(log n)
+  indexes. New SQL helpers: `memory_next_sequence`,
+  `memory_recompute_salience`, plus a `memory-salience-recompute` cron
+  job at 5-minute intervals.
+* `api/config.py`: `SALIENCE_RECENCY_WEIGHT`, `SALIENCE_ACCESS_WEIGHT`,
+  `SALIENCE_RELEVANCE_WEIGHT`, `SALIENCE_DECAY` (1-day half-life).
+* MCP tools (`api/mcp/tools/`):
+  - `memory_remember.py` — `tool_remember(session_id, content,
+    source_kind)` allocates the next sequence atomically, MERGEs the
+    Session, CREATEs the Episode, runs tier1 NER, and emits MENTIONS
+    edges to ConceptEntities. Also exports
+    `tool_record_extracted_fact` which detects supersession against
+    the relational shadow and writes the SUPERSEDES edge in AGE.
+  - `memory_recall.py` — `tool_recall(session_id, query, k=10)` runs
+    Phase-1 hybrid_search over-fetched, filters to Episodes in the
+    session, and ranks by `0.7 * hybrid + 0.3 * salience`. Bumps
+    access_count on returned episodes.
+  - `memory_session_start.py` — `tool_session_start(session_id)`
+    returns the most-salient recent Episodes, the active
+    (non-superseded) ExtractedFacts, and the most-mentioned
+    ConceptEntities for the session.
+* Two new ADRs: `ADR-0004-salience-formula.md` and
+  `ADR-0005-memory-supersession.md`.
+
 ### Phase 2 — edge TLP denormalisation
 
 * Migration `022_edge_tlp_denormalization.sql`: every AGE edge label

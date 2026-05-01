@@ -63,3 +63,13 @@ KEYCLOAK_URL = os.environ.get("CG_KEYCLOAK_URL", "http://localhost:8080")
 KEYCLOAK_REALM = os.environ.get("CG_KEYCLOAK_REALM", "master")
 KEYCLOAK_CLIENT_ID = os.environ.get("CG_KEYCLOAK_CLIENT_ID", "admin-cli")
 KEYCLOAK_CLIENT_SECRET = os.environ.get("CG_KEYCLOAK_CLIENT_SECRET", "")
+
+# AI memory (Layer 5) — salience formula constants.
+# salience = recency_weight * exp(-decay * age_seconds)
+#          + access_weight  * log(1 + access_count)
+#          + relevance_weight * cosine_sim_to_session_anchor
+# Defaults: 1-day half-life on recency, modest access boost, 30% weight on relevance.
+SALIENCE_RECENCY_WEIGHT = float(os.environ.get("CG_SALIENCE_RECENCY_WEIGHT", "0.5"))
+SALIENCE_ACCESS_WEIGHT = float(os.environ.get("CG_SALIENCE_ACCESS_WEIGHT", "0.2"))
+SALIENCE_RELEVANCE_WEIGHT = float(os.environ.get("CG_SALIENCE_RELEVANCE_WEIGHT", "0.3"))
+SALIENCE_DECAY = float(os.environ.get("CG_SALIENCE_DECAY", str(1.0 / 86400.0)))

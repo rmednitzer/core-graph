@@ -12,6 +12,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Any
 
+import psycopg
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
@@ -101,7 +102,7 @@ async def get_connection(
             try:
                 await conn.execute("select set_config('app.max_tlp', '', false)")
                 await conn.execute("select set_config('app.allowed_compartments', '', false)")
-            except Exception:
+            except psycopg.Error:
                 logger.debug("Could not reset RLS session variables (connection in error state)")
             if pool_available is not None:
                 pool_available.inc()

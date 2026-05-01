@@ -8,6 +8,31 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### Phase 2 — edge TLP denormalisation
+
+* Migration `022_edge_tlp_denormalization.sql`: every AGE edge label
+  table in `core_graph` gets a real `tlp_level smallint NOT NULL`
+  column, a CHECK constraint, a btree index, a BEFORE trigger that
+  recomputes the value on every write as `GREATEST(properties.tlp_level,
+  source.tlp_level, target.tlp_level)`, and a permissive RLS policy
+  (`tlp_edge_read_policy`) that filters by the column. IAM edges keep
+  their existing RESTRICTIVE TLP:AMBER floor — the new policy is
+  AND'd on top, never weakened.
+* SECURITY DEFINER helpers `cg_vertex_tlp_level()` and `cg_edge_tlp_sync()`
+  encapsulate the cross-table lookup and recompute logic.
+* Cascade trigger `cg_vertex_tlp_cascade` (DEFERRABLE INITIALLY DEFERRED)
+  on every vertex label table re-fires the per-edge trigger when a
+  vertex's `properties.tlp_level` changes, batching the cascade to
+  commit time so a single re-classification doesn't re-fire triggers
+  mid-transaction.
+* `ingest/graph_writer.py`: every `RELATIONSHIP_TEMPLATES` entry now
+  sets `e.tlp_level` explicitly using a `CASE WHEN ...` GREATEST
+  pattern. The trigger is the safety net, not the sole path.
+* `docs/architecture/rls-age-integration.md` updated — the documented
+  edge gap is closed.
+* `docs/architecture/adr/ADR-0003-edge-tlp-denormalization.md` records
+  the rationale, alternatives considered, and operational consequences.
+
 ### Phase 1 — vector layer modernisation
 
 * Migration `021_embedding_models_and_hybrid.sql`: introduces an

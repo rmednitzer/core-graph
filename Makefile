@@ -52,6 +52,7 @@ test: ## Run all tests
 	pytest
 	@echo "==> Running RLS enforcement tests"
 	$(PSQL) -f tests/rls/test_tlp_enforcement.sql
+	$(PSQL) -f tests/rls/test_edge_tlp.sql
 	@echo "==> All tests passed"
 
 lint: validate ## Lint Python and SQL (alias for validate)

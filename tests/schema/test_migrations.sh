@@ -7,6 +7,18 @@ set -euo pipefail
 
 MIGRATIONS_DIR="schema/migrations"
 
+apply_or_dump() {
+  # Apply one migration. On failure, print the file content with line numbers
+  # so the CI log makes the failing line obvious without needing artifacts.
+  local file="$1"
+  if ! psql -v ON_ERROR_STOP=1 --echo-errors -f "$file"; then
+    echo "==> Migration FAILED: $(basename "$file")" >&2
+    echo "==> File content (line-numbered):" >&2
+    nl -ba "$file" >&2
+    exit 3
+  fi
+}
+
 echo "==> Running migrations from ${MIGRATIONS_DIR}"
 
 mapfile -t files < <(ls "${MIGRATIONS_DIR}"/*.sql 2>/dev/null | sort)
@@ -18,14 +30,14 @@ fi
 
 for f in "${files[@]}"; do
   echo "  -> Applying $(basename "$f") (first pass)"
-  psql -v ON_ERROR_STOP=1 -f "$f"
+  apply_or_dump "$f"
 done
 
 echo "==> Idempotency check: running all migrations a second time"
 
 for f in "${files[@]}"; do
   echo "  -> Applying $(basename "$f") (idempotency check)"
-  psql -v ON_ERROR_STOP=1 -f "$f"
+  apply_or_dump "$f"
 done
 
 echo "==> Verifying expected extensions"

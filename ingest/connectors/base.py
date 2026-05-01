@@ -143,10 +143,15 @@ class AdapterBase(ABC):
                 await self._nc.close()
 
     async def _ensure_stream(self) -> None:
-        """Ensure the NATS JetStream stream exists."""
+        """Ensure the NATS JetStream stream exists.
+
+        Honours ``self.config.nats_stream`` so deployments that
+        pre-provision a non-default stream for the same enriched
+        subjects don't get a duplicate stream rejected by JetStream.
+        """
         if self._js is None:
             return
-        await ensure_enriched_stream(self._js)
+        await ensure_enriched_stream(self._js, name=self.config.nats_stream)
 
     async def _publish(self, entity: dict[str, Any]) -> None:
         """Publish an entity payload to NATS JetStream."""

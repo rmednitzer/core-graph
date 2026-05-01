@@ -31,7 +31,13 @@ def caller_from_request(
 
     tlp = 0
     if honor_tlp_header:
-        tlp = int(request.headers.get("X-CG-TLP", "0") or "0")
+        raw = request.headers.get("X-CG-TLP", "") or ""
+        try:
+            tlp = int(raw)
+        except ValueError:
+            # Non-numeric header values (e.g. "amber") fall back to the
+            # default rather than turning the request into a 500.
+            tlp = 0
 
     return {
         "max_tlp": tlp or DEFAULT_TLP,

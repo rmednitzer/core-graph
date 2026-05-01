@@ -22,12 +22,17 @@ DEFAULT_MAX_BYTES = 1_073_741_824  # 1 GiB
 async def ensure_enriched_stream(
     js: nats.js.JetStreamContext,
     *,
+    name: str = ENRICHED_STREAM,
     max_bytes: int = DEFAULT_MAX_BYTES,
 ) -> None:
-    """Ensure the ENRICHED work-queue stream exists."""
+    """Ensure the enriched-payload work-queue stream exists.
+
+    The default name is ``ENRICHED``; adapters may override it to bind
+    their published subjects to a separately provisioned stream.
+    """
     await js.add_stream(
         StreamConfig(
-            name=ENRICHED_STREAM,
+            name=name,
             subjects=ENRICHED_SUBJECTS,
             retention="work_queue",
             max_bytes=max_bytes,

@@ -16,8 +16,10 @@ from api.config import (
     EMBEDDING_MODEL,
     EMBEDDING_PROVIDER,
     EMBEDDING_URL,
+    VALKEY_URL,
 )
 from api.db import get_connection
+from api.utils.circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger(__name__)
 
@@ -50,43 +52,36 @@ class VectorSearchResult(BaseModel):
     distance: float
 
 
-# -- Circuit breaker state ---------------------------------------------------
+# -- Distributed circuit breaker (Valkey-backed, local fallback) --------------
 
-_embedding_failures = 0
-_CIRCUIT_OPEN_THRESHOLD = 5
-_circuit_opened_at: float | None = None
-_CIRCUIT_RESET_SECONDS = 60
+_breakers: dict[str, CircuitBreaker] = {}
 
 
-def _check_circuit() -> bool:
-    """Return True if the circuit is closed (requests allowed)."""
-    global _embedding_failures, _circuit_opened_at
-    if _embedding_failures < _CIRCUIT_OPEN_THRESHOLD:
-        return True
-    if _circuit_opened_at is None:
-        return True
-    elapsed = time.monotonic() - _circuit_opened_at
-    if elapsed >= _CIRCUIT_RESET_SECONDS:
-        # Half-open: allow one attempt
-        return True
-    return False
+async def _get_breaker(model_id: str) -> CircuitBreaker:
+    """Lazy-construct a CircuitBreaker per model_id, sharing one Valkey client."""
+    if model_id in _breakers:
+        return _breakers[model_id]
 
+    valkey: Any | None = None
+    try:
+        import redis.asyncio as aioredis
 
-def _record_success() -> None:
-    global _embedding_failures, _circuit_opened_at
-    _embedding_failures = 0
-    _circuit_opened_at = None
-
-
-def _record_failure() -> None:
-    global _embedding_failures, _circuit_opened_at
-    _embedding_failures += 1
-    if _embedding_failures >= _CIRCUIT_OPEN_THRESHOLD:
-        _circuit_opened_at = time.monotonic()
+        valkey = aioredis.from_url(VALKEY_URL, decode_responses=True)
+    except Exception:
         logger.warning(
-            "Embedding circuit breaker opened after %d failures",
-            _embedding_failures,
+            "Could not initialise Valkey client for circuit breaker; using local fallback",
+            exc_info=True,
         )
+
+    breaker = CircuitBreaker(
+        key=f"cg:cb:embedding:{model_id}",
+        threshold=5,
+        window_seconds=60,
+        reset_seconds=60,
+        valkey=valkey,
+    )
+    _breakers[model_id] = breaker
+    return breaker
 
 
 # -- Embedding generation ----------------------------------------------------
@@ -96,20 +91,17 @@ async def generate_embedding(text: str) -> tuple[list[float], str]:
     """Generate an embedding vector from text.
 
     Uses the configured embedding provider (ollama or openai-compatible).
-    Includes retry logic with exponential backoff and circuit breaker.
-
-    Returns:
-        Tuple of (embedding vector, model name).
-
-    Raises:
-        NotImplementedError: If provider is 'none'.
-        RuntimeError: If circuit breaker is open.
+    Includes retry logic with exponential backoff and a Valkey-backed
+    circuit breaker keyed on the model id.
     """
     if EMBEDDING_PROVIDER == "none":
         raise NotImplementedError("Embedding model not configured (CG_EMBEDDING_PROVIDER=none)")
 
-    if not _check_circuit():
-        raise RuntimeError("Embedding circuit breaker is open, skipping request")
+    breaker = await _get_breaker(EMBEDDING_MODEL)
+    if not await breaker.allow():
+        raise RuntimeError(
+            f"Embedding circuit breaker open for model {EMBEDDING_MODEL!r}"
+        )
 
     import httpx
 
@@ -119,7 +111,7 @@ async def generate_embedding(text: str) -> tuple[list[float], str]:
     for attempt in range(3):
         try:
             vector = await _call_embedding_provider(httpx, text)
-            _record_success()
+            await breaker.record_success()
             return (vector, EMBEDDING_MODEL)
         except Exception as exc:
             last_exc = exc
@@ -131,7 +123,7 @@ async def generate_embedding(text: str) -> tuple[list[float], str]:
             if attempt < 2:
                 await asyncio.sleep(backoff_delays[attempt])
 
-    _record_failure()
+    await breaker.record_failure()
     raise last_exc  # type: ignore[misc]
 
 
@@ -171,22 +163,27 @@ async def vector_search(
     *,
     vector: list[float] | None = None,
     caller_identity: dict[str, Any] | None = None,
+    model_id: str | None = None,
+    ef_search: int = 100,
+    use_halfvec: bool = False,
 ) -> list[dict[str, Any]]:
     """Search embeddings by cosine similarity.
 
-    Accepts either a pre-computed vector or raw text. For raw text,
-    calls generate_embedding() which requires an embedding provider.
+    Accepts either a pre-computed vector or raw text. For raw text, calls
+    generate_embedding() which requires an embedding provider. Set
+    `use_halfvec=True` to query the half-precision index for lower latency
+    at a small recall cost.
 
     Args:
         text: Query text (requires embedding model to be configured).
         limit: Maximum number of results to return.
         vector: Pre-computed embedding vector (list of floats).
         caller_identity: MCP session context for RLS enforcement.
-
-    Returns:
-        List of matching entities ranked by distance.
+        model_id: Restrict to embeddings produced by this model.
+        ef_search: HNSW dynamic candidate list (1..1000); higher = better recall,
+            slower latency. Set transaction-locally via SET LOCAL hnsw.ef_search.
+        use_halfvec: Query the halfvec column instead of full precision.
     """
-    # Determine the query vector
     if vector is not None:
         query_vector = vector
     elif text is not None:
@@ -197,22 +194,37 @@ async def vector_search(
     correlation_id = uuid.uuid4()
     caller = caller_identity or {"max_tlp": DEFAULT_TLP, "allowed_compartments": []}
 
+    column = "embedding_half" if use_halfvec else "embedding"
+    cast = "halfvec" if use_halfvec else "vector"
+
+    where_clause = ""
+    extra_params: list[Any] = []
+    if model_id is not None:
+        where_clause = "where model_id = %s"
+        extra_params.append(model_id)
+
+    sql = (
+        f"select graph_id, label, content, "
+        f"       {column} <=> %s::{cast} as distance "
+        f"from embeddings "
+        f"{where_clause} "
+        f"order by {column} <=> %s::{cast} "
+        f"limit %s"
+    )
+    qv = str(query_vector)
+
     t_start = time.perf_counter()
 
     async with get_connection(caller) as conn:
+        await conn.execute(
+            "select set_config('hnsw.ef_search', %s, true)",
+            (str(int(ef_search)),),
+        )
         cursor = await conn.execute(
-            """
-            select graph_id, label, content,
-                   embedding <=> %s::vector as distance
-            from embeddings
-            order by embedding <=> %s::vector
-            limit %s
-            """,
-            (str(query_vector), str(query_vector), limit),
+            sql, (qv, *extra_params, qv, limit)
         )
         rows = await cursor.fetchall()
 
-        # Write audit log entry
         await conn.execute(
             """
             insert into audit_log
@@ -232,8 +244,11 @@ async def vector_search(
             vector_search_duration.observe(time.perf_counter() - t_start)
 
         logger.info(
-            "Vector search: correlation=%s results=%d",
+            "Vector search: correlation=%s results=%d model=%s halfvec=%s ef=%d",
             correlation_id,
             len(rows),
+            model_id or "*",
+            use_halfvec,
+            ef_search,
         )
         return [dict(r) for r in rows]

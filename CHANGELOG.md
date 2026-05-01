@@ -8,6 +8,30 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### Phase 1 — vector layer modernisation
+
+* Migration `021_embedding_models_and_hybrid.sql`: introduces an
+  `embedding_models` registry, an FK from `embeddings.model_id`, a
+  `halfvec` column populated by trigger from `embedding`, a `tsvector`
+  column populated by trigger from `content`, a GIN index for BM25, and
+  helper functions `cg_register_embedding_model()` /
+  `cg_create_model_indexes()` that materialise per-model partial HNSW
+  indexes for both full and half precision.
+* `api/utils/circuit_breaker.py`: Valkey-backed `CircuitBreaker` keyed
+  `cg:cb:embedding:<model_id>`; falls back to a process-local counter
+  when Valkey is unreachable. Replaces the per-process breaker that
+  lived inside `vector_search.py`.
+* `api/mcp/tools/vector_search.py`: now optionally targets the halfvec
+  column, exposes `ef_search` per call, and constrains by `model_id`.
+* `api/mcp/tools/hybrid_search.py` (new): runs BM25 and vector retrieval
+  in parallel-from-the-DB, fuses with RRF (`k=60`), and optionally
+  invokes a reranker via `CG_RERANKER_URL`.
+* `scripts/bench/bench_retrieval_recall.py` (new): per-mode recall@5/10/20,
+  MRR, nDCG@10. Uses `tests/eval/golden/synthetic_v1.jsonl` (100 pairs,
+  4 verticals) by default — Phase 5 ships the curated 200-pair set.
+* `docs/architecture/adr/ADR-0002-hybrid-retrieval.md` documents the RRF
+  decision, halfvec trade-off, and per-model partial-index strategy.
+
 ### Phase 0 — verify and fix latent bugs
 
 * `schema/migrations/020_temporal_invariants.sql`: replaced invalid

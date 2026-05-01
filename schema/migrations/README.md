@@ -57,6 +57,7 @@ Migrations are designed to be additive. If a migration must be reverted:
 | `018_dlq_error_class.sql` | Error classification column on DLQ archive |
 | `019_embedding_metadata.sql` | Model version and timestamp tracking for embeddings |
 | `020_temporal_invariants.sql` | Bitemporal append-only guards: NOT-NULL mutation attribution, no-overlap exclusion, delete-block trigger |
+| `021_embedding_models_and_hybrid.sql` | Embedding model registry, per-model partial HNSW indexes, halfvec column + trigger, tsvector + GIN for BM25 |
 
 ## CI validation
 

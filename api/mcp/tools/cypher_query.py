@@ -3,6 +3,16 @@
 Security: Only named query templates are allowed. The tool accepts a
 template name and parameters, never raw Cypher. All execution goes through
 ag_catalog.cypher() with parameterised binding.
+
+A small extension supports `template_kind: interpolated_depth` in the
+companion .json schema. AGE openCypher does not parameterise the path
+length quantifier `*M..N`; templates that need it carry a marker token
+(e.g. `__DEPTH__`) which the loader replaces with a *validated* integer
+from the matching `depth` (or `max_hops`) parameter. The integer is
+re-validated by `api.utils.age_template.validate_max_hops` before
+substitution; the original parameter is then stripped from the JSON
+payload so it cannot collide with a real Cypher parameter binding.
+
 Never constructs Cypher strings via concatenation (CVE-2022-45786 mitigation).
 """
 
@@ -17,6 +27,7 @@ from typing import Any
 
 from api.config import DEFAULT_TLP
 from api.db import get_connection
+from api.utils.age_template import validate_max_hops
 
 logger = logging.getLogger(__name__)
 
@@ -85,6 +96,46 @@ def validate_params(
             )
 
 
+def _materialise_depth(
+    template_name: str,
+    cypher_str: str,
+    params: dict[str, Any],
+    schemas: dict[str, dict[str, Any]],
+    ceiling: int = 6,
+) -> tuple[str, dict[str, Any]]:
+    """Replace a depth marker in the Cypher with a validated integer.
+
+    Returns the substituted Cypher string and a new params dict that has
+    the depth/max_hops parameter removed (so it does not collide with
+    a Cypher `$depth` reference and inflate the agtype payload).
+    """
+    schema = schemas.get(template_name) or {}
+    if schema.get("template_kind") != "interpolated_depth":
+        return cypher_str, params
+    marker = schema.get("depth_marker")
+    if not marker:
+        raise ValueError(
+            f"template {template_name!r} marked as interpolated_depth without depth_marker"
+        )
+    candidate_keys = ("depth", "max_hops")
+    depth_value: int | None = None
+    new_params = dict(params)
+    for key in candidate_keys:
+        if key in new_params:
+            depth_value = validate_max_hops(int(new_params[key]), ceiling=ceiling)
+            new_params.pop(key)
+            break
+    if depth_value is None:
+        raise ValueError(
+            f"template {template_name!r} requires a `depth` or `max_hops` parameter"
+        )
+    if marker not in cypher_str:
+        raise ValueError(
+            f"template {template_name!r}: depth_marker {marker!r} not found in Cypher"
+        )
+    return cypher_str.replace(marker, str(depth_value)), new_params
+
+
 # Named query templates — loaded from .cypher files at import time.
 QUERY_TEMPLATES: dict[str, str] = load_query_templates(QUERIES_DIR)
 PARAMETER_SCHEMAS: dict[str, dict[str, Any]] = load_parameter_schemas(QUERIES_DIR)
@@ -112,6 +163,9 @@ async def cypher_query(
         )
 
     validate_params(template, params, PARAMETER_SCHEMAS)
+
+    # Interpolate validated depth (rejects out-of-range or non-integer input).
+    cypher_str, params = _materialise_depth(template, cypher_str, params, PARAMETER_SCHEMAS)
 
     correlation_id = uuid.uuid4()
     caller = caller_identity or {"max_tlp": DEFAULT_TLP, "allowed_compartments": []}

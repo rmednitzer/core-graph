@@ -8,6 +8,31 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### Phase 4 — GraphRAG skills
+
+* New skill package `api/mcp/skills/graphrag/`:
+  - `graphrag_anchored_retrieval` — hybrid_search candidate set,
+    optionally constrained to an anchor entity's N-hop neighbourhood,
+    re-ranked by `0.6*hybrid + 0.2*centrality + 0.2*recency`.
+  - `graphrag_path_ranking` — all paths between source/target entities
+    up to `max_hops` (1..6), ranked by
+    `product(edge.confidence) * exp(-0.25 * length)`.
+  - `graphrag_neighborhood` — N-hop subgraph from an anchor entity
+    with optional edge-type filter (validated against allowlist).
+* Cypher templates `graphrag_neighborhood.cypher`,
+  `graphrag_path_ranking.cypher` with companion `.json` schemas using
+  the new `template_kind: interpolated_depth` mechanism.
+* `api/utils/age_template.py` (new): allowlist-based label/edge
+  validators (`validate_vertex_label`, `validate_edge_label`),
+  `validate_max_hops` with per-call ceiling, `render_path_quantifier`.
+* `api/mcp/tools/cypher_query.py`: `_materialise_depth` helper does
+  validated integer substitution for path-length quantifiers (which
+  AGE openCypher cannot bind as parameters). Refuses missing or
+  out-of-range depth values; consumes the parameter so it cannot
+  collide with a real binding.
+* `api/mcp/skills/registry.py`: registered the new graphrag package
+  for skill discovery.
+
 ### Phase 3 — AI memory layer (Layer 5)
 
 * Migration `023_memory_layer.sql`: AGE labels for `Session`, `Episode`,

@@ -21,6 +21,7 @@ _SKILL_PACKAGES = [
     "api.mcp.skills.identity",
     "api.mcp.skills.threat",
     "api.mcp.skills.compliance",
+    "api.mcp.skills.graphrag",
 ]
 
 

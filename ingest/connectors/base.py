@@ -19,11 +19,11 @@ from typing import Any
 import nats
 import psycopg
 import redis.asyncio as redis
-from nats.js.api import StreamConfig
 from psycopg.rows import dict_row
 
 from api.config import NATS_URL, PG_DSN, VALKEY_URL
 from ingest.metrics import adapter_entities_total, adapter_fetch_total
+from ingest.streams import ensure_enriched_stream
 
 logger = logging.getLogger(__name__)
 
@@ -146,14 +146,7 @@ class AdapterBase(ABC):
         """Ensure the NATS JetStream stream exists."""
         if self._js is None:
             return
-        await self._js.add_stream(
-            StreamConfig(
-                name=self.config.nats_stream,
-                subjects=["enriched.entity.>", "enriched.relationship.>"],
-                retention="work_queue",
-                max_bytes=1_073_741_824,
-            )
-        )
+        await ensure_enriched_stream(self._js)
 
     async def _publish(self, entity: dict[str, Any]) -> None:
         """Publish an entity payload to NATS JetStream."""

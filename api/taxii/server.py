@@ -29,6 +29,7 @@ from api.taxii.models import (
     StatusResource,
     STIXBundle,
 )
+from api.utils.caller import caller_from_request as _shared_caller_from_request
 from api.utils.cypher_safety import validate_label
 
 logger = logging.getLogger(__name__)
@@ -41,21 +42,16 @@ taxii_router = APIRouter()
 
 
 def _caller_from_request(request: Request) -> dict[str, Any]:
-    """Extract caller identity from request state."""
-    identity = getattr(request.state, "identity", None)
-    if identity is not None:
-        return {
-            "max_tlp": identity.max_tlp,
-            "actor": identity.sub,
-            "allowed_compartments": identity.allowed_compartments,
-        }
-    from api.config import DEFAULT_TLP
+    """Extract caller identity from request state.
 
-    return {
-        "max_tlp": DEFAULT_TLP,
-        "actor": "taxii_anonymous",
-        "allowed_compartments": [],
-    }
+    TAXII does not honor the X-CG-TLP development header; clients are
+    expected to authenticate via OIDC before reaching collection data.
+    """
+    return _shared_caller_from_request(
+        request,
+        fallback_actor="taxii_anonymous",
+        honor_tlp_header=False,
+    )
 
 
 async def _write_audit(

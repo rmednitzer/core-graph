@@ -1,3 +1,4 @@
+\echo 'applying 021_embedding_models_and_hybrid.sql'
 -- 021_embedding_models_and_hybrid.sql
 -- Phase 1 — vector layer modernisation.
 --

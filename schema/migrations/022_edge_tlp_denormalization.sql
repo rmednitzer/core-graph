@@ -1,3 +1,4 @@
+\echo 'applying 022_edge_tlp_denormalization.sql'
 -- 022_edge_tlp_denormalization.sql
 -- Phase 2 — close the documented edge-level RLS gap.
 --
@@ -195,10 +196,13 @@ end $$;
 -- ---------------------------------------------------------------------------
 --
 -- When a vertex's properties.tlp_level changes (e.g. re-classification by an
--- analyst) any edge whose endpoint is that vertex must be re-evaluated. We
--- iterate edge tables and run UPDATE; the per-edge trigger does the actual
--- recompute. Trigger is DEFERRED so a single transaction touching many
--- vertices batches the cascade once at commit.
+-- analyst) any edge whose endpoint is that vertex must be re-evaluated. The
+-- cascade trigger iterates edge tables and runs a no-op UPDATE that re-fires
+-- each edge's BEFORE trigger to recompute tlp_level from the (now-changed)
+-- endpoints. Implemented as a regular AFTER trigger (not a CONSTRAINT
+-- TRIGGER) — re-classification is rare enough that batching to commit time
+-- via DEFERRABLE is unnecessary, and CONSTRAINT TRIGGER on AGE-internal
+-- tables exhibited a portability quirk in CI.
 
 create or replace function cg_vertex_tlp_cascade()
 returns trigger as $$
@@ -267,9 +271,8 @@ begin
             tbl.relname
         );
         execute format(
-            'create constraint trigger trg_vertex_tlp_cascade '
+            'create trigger trg_vertex_tlp_cascade '
             'after update of properties on core_graph.%I '
-            'deferrable initially deferred '
             'for each row execute function cg_vertex_tlp_cascade()',
             tbl.relname
         );

@@ -1,3 +1,4 @@
+\echo 'applying 023_memory_layer.sql'
 -- 023_memory_layer.sql
 -- Phase 3 — AI Memory layer (Layer 5).
 --

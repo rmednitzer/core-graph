@@ -1,3 +1,4 @@
+\echo 'applying 020_temporal_invariants.sql'
 -- 020_temporal_invariants.sql
 -- Strengthen bitemporal invariants and append-only semantics for evidentiary facts.
 -- Idempotent: every operation is wrapped in IF NOT EXISTS, DO blocks, or pg_catalog

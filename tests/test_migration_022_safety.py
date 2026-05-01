@@ -57,7 +57,8 @@ def test_iam_floor_preserved() -> None:
 def test_cascade_trigger_present() -> None:
     text = _read().lower()
     assert "cg_vertex_tlp_cascade" in text
-    assert "deferrable initially deferred" in text
+    assert "trg_vertex_tlp_cascade" in text
+    assert "after update of properties" in text
 
 
 def test_helper_is_security_definer() -> None:

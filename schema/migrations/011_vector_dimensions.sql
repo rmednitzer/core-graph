@@ -1,3 +1,4 @@
+\echo 'applying 011_vector_dimensions.sql'
 -- 011_vector_dimensions.sql
 -- Adjust embeddings table vector dimension to match configured model.
 -- Default: 768 dimensions (nomic-embed-text). Original: 1536 (OpenAI).

@@ -85,26 +85,52 @@ class CircuitBreaker:
             )
 
     async def record_failure(self) -> None:
-        """Increment failures and open the breaker if threshold reached."""
+        """Increment failures and open (or re-open) the breaker if threshold reached.
+
+        Half-open semantics: when the reset window elapses we let one probe
+        through. If that probe fails, the breaker must re-open with a fresh
+        `opened_at` timestamp — otherwise the stale timestamp keeps
+        satisfying `now - opened_at >= reset_seconds` and every subsequent
+        `allow()` would incorrectly pass.
+        """
         if self.valkey is not None:
             try:
                 count = await self.valkey.incr(self._failures_key)
                 # Keep the failure window bounded; subsequent INCRs reset the TTL.
                 await self.valkey.expire(self._failures_key, self.window_seconds)
                 if count >= self.threshold:
-                    # SET NX so the *first* failure to cross threshold sets the marker.
-                    set_ok = await self.valkey.set(
-                        self._opened_at_key,
-                        str(time.time()),
-                        nx=True,
-                        ex=self.reset_seconds + self.window_seconds,
-                    )
-                    if set_ok:
-                        logger.warning(
-                            "Circuit breaker %s opened after %d failures",
-                            self.key,
-                            count,
+                    now = time.time()
+                    existing = await self.valkey.get(self._opened_at_key)
+                    if existing is None:
+                        # First crossing — atomic SET NX so concurrent processes
+                        # only emit one "opened" log line.
+                        set_ok = await self.valkey.set(
+                            self._opened_at_key,
+                            str(now),
+                            nx=True,
+                            ex=self.reset_seconds + self.window_seconds,
                         )
+                        if set_ok:
+                            logger.warning(
+                                "Circuit breaker %s opened after %d failures",
+                                self.key,
+                                count,
+                            )
+                    else:
+                        existing_ts = float(
+                            existing if isinstance(existing, str) else existing.decode()
+                        )
+                        if (now - existing_ts) >= self.reset_seconds:
+                            # Half-open probe failed — re-open with fresh timestamp.
+                            await self.valkey.set(
+                                self._opened_at_key,
+                                str(now),
+                                ex=self.reset_seconds + self.window_seconds,
+                            )
+                            logger.warning(
+                                "Circuit breaker %s re-opened from half-open after a probe failure",
+                                self.key,
+                            )
                 return
             except Exception:
                 logger.warning(
@@ -115,13 +141,23 @@ class CircuitBreaker:
 
         # Local fallback path.
         self._local.failures += 1
-        if self._local.failures >= self.threshold and self._local.opened_at is None:
-            self._local.opened_at = time.time()
-            logger.warning(
-                "Circuit breaker %s opened after %d failures (local-fallback)",
-                self.key,
-                self._local.failures,
-            )
+        now = time.time()
+        if self._local.failures >= self.threshold:
+            if self._local.opened_at is None:
+                self._local.opened_at = now
+                logger.warning(
+                    "Circuit breaker %s opened after %d failures (local-fallback)",
+                    self.key,
+                    self._local.failures,
+                )
+            elif (now - self._local.opened_at) >= self.reset_seconds:
+                # Half-open probe failed — re-open with fresh timestamp.
+                self._local.opened_at = now
+                logger.warning(
+                    "Circuit breaker %s re-opened from half-open "
+                    "after a probe failure (local-fallback)",
+                    self.key,
+                )
 
     async def state(self) -> str:
         """Return one of {'closed', 'half_open', 'open'} for observability."""

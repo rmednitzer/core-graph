@@ -169,6 +169,51 @@ async def test_local_only_breaker_no_valkey() -> None:
 
 
 @pytest.mark.asyncio
+async def test_half_open_failure_reopens_with_fresh_timestamp() -> None:
+    """A failed probe in the half-open window must re-open the breaker.
+
+    Regression test: previously record_failure used SET NX on opened_at,
+    so a stale timestamp persisted indefinitely once half-open elapsed —
+    every subsequent allow() call would erroneously pass.
+    """
+    fake = _FakeValkey()
+    cb = CircuitBreaker(
+        key="cg:cb:test",
+        threshold=2,
+        window_seconds=60,
+        reset_seconds=1,
+        valkey=fake,
+    )
+    await cb.record_failure()
+    await cb.record_failure()
+    assert await cb.state() == "open"
+
+    # Simulate elapsed reset window.
+    fake.store[cb._opened_at_key] = str(time.time() - 5)
+    assert await cb.state() == "half_open"
+
+    # Half-open allows one attempt — the probe fails.
+    await cb.record_failure()
+    # State must be 'open' again (NOT half-open) because opened_at refreshed.
+    assert await cb.state() == "open"
+    assert await cb.allow() is False
+
+
+@pytest.mark.asyncio
+async def test_local_fallback_half_open_failure_reopens() -> None:
+    cb = CircuitBreaker(key="cg:cb:test", threshold=2, reset_seconds=1, valkey=None)
+    await cb.record_failure()
+    await cb.record_failure()
+    assert await cb.state() == "open"
+
+    cb._local.opened_at = time.time() - 5  # simulate elapsed window
+    assert await cb.state() == "half_open"
+
+    await cb.record_failure()
+    assert await cb.state() == "open"
+
+
+@pytest.mark.asyncio
 async def test_concurrent_failures_share_valkey_state() -> None:
     fake = _FakeValkey()
     cb_a = CircuitBreaker(key="cg:cb:shared", threshold=4, valkey=fake)

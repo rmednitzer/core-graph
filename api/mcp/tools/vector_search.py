@@ -216,6 +216,16 @@ async def vector_search(
     if vector is not None:
         query_vector = vector
     elif text is not None:
+        # Same cross-model guard as hybrid_search: when model_id is supplied
+        # and differs from CG_EMBEDDING_MODEL, refuse rather than silently
+        # mix embedding spaces (or fail at HNSW with a dimension mismatch).
+        if model_id is not None and model_id != EMBEDDING_MODEL:
+            raise ValueError(
+                f"vector_search refuses cross-model retrieval for text=...: "
+                f"model_id={model_id!r} does not match the process-default "
+                f"embedding model {EMBEDDING_MODEL!r}. Pass a pre-computed "
+                "vector via the `vector=` parameter to bypass this check."
+            )
         query_vector, _ = await generate_embedding(text)
     else:
         raise ValueError("Either 'text' or 'vector' must be provided")

@@ -70,11 +70,22 @@ Run `make help` for the full list. Most-used targets:
 
 ## Configuration
 
-All runtime configuration uses the `CG_` prefix and is read in `api/config.py`.
-Service code must import from `api.config`; do not call `os.environ` directly.
-New variables are added to `api/config.py` with a sensible default.
+`api/config.py` is the canonical binding site for environment variables in
+new code. The convention is: `CG_`-prefixed name, default value, read once
+at import. Service code added from now on imports from `api.config` rather
+than calling `os.environ` directly.
 
-Key groups (see `api/config.py` for the complete list):
+Two pre-existing exceptions to be aware of (do not extend either pattern):
+
+- A few satellite-system connectors keep their upstream env-var names
+  without the `CG_` prefix — `NETBOX_URL`, `NETBOX_TOKEN` (read in both
+  `api/config.py` and `ingest/connectors/netbox/config.py`) and
+  `OPENCTI_URL`, `OPENCTI_TOKEN` (read in
+  `ingest/connectors/opencti/adapter.py`).
+- `api/rest/main.py` reads `CG_CORS_ORIGINS` directly via `os.environ`
+  rather than through `api.config`.
+
+Groups currently bound in `api/config.py`:
 
 - Database / pool: `CG_PG_DSN`, `CG_PG_POOL_MIN`, `CG_PG_POOL_MAX`
 - Bus / cache: `CG_NATS_URL`, `CG_VALKEY_URL`
@@ -86,8 +97,9 @@ Key groups (see `api/config.py` for the complete list):
   `CG_EMBEDDING_URL`, `CG_EMBEDDING_DIMENSIONS`
 - Memory salience: `CG_SALIENCE_RECENCY_WEIGHT`, `CG_SALIENCE_ACCESS_WEIGHT`,
   `CG_SALIENCE_RELEVANCE_WEIGHT`, `CG_SALIENCE_DECAY`
-- Operational defaults: `CG_DEFAULT_TLP`, `CG_CORS_ORIGINS`,
-  `CG_PROMETHEUS_WEBHOOK_HOST`, `CG_PROMETHEUS_WEBHOOK_PORT`
+- Operational defaults: `CG_DEFAULT_TLP`, `CG_PROMETHEUS_WEBHOOK_HOST`,
+  `CG_PROMETHEUS_WEBHOOK_PORT`
+- Connector-specific (legacy, unprefixed): `NETBOX_URL`, `NETBOX_TOKEN`
 
 ## Coding conventions
 
@@ -155,7 +167,8 @@ subdirectory. For a single file: `pytest tests/<subdir>/test_<name>.py -v`.
   - `ingest/ner/`, `ingest/resolver/` — NER and entity resolution
   - `ingest/graph_writer.py` — NATS JetStream → PostgreSQL writer
 - `api/` — Service code
-  - `api/config.py` — All `CG_*` env var bindings
+  - `api/config.py` — Canonical env-var binding site (see "Configuration"
+    for the prefix convention and the known exceptions)
   - `api/db.py` — Shared psycopg-pool connection pool
   - `api/authz/` — Cerbos and SpiceDB clients
   - `api/mcp/` — MCP server
@@ -197,9 +210,10 @@ changes RLS or temporal invariants, add or update the matching test.
 `policies/derived_roles.yaml`). Add a corresponding decision test under
 `tests/auth/`. Run `make validate` to lint the YAML.
 
-**Add a config flag.** Bind it in `api/config.py` with a sensible default.
-Reference via `from api import config`, never via `os.environ` in service
-code. Document the new variable in the relevant section of `docs/`.
+**Add a config flag.** Bind it in `api/config.py` with a `CG_` prefix and a
+sensible default. Reference via `from api import config` rather than
+`os.environ` in new service code. Document the new variable in the
+relevant section of `docs/`.
 
 ## What not to do
 
@@ -215,8 +229,9 @@ code. Document the new variable in the relevant section of `docs/`.
 - Do not bypass `SkillBase` by adding ad-hoc query handlers to the MCP server
 - Do not introduce per-request database connections; use the pool in
   `api/db.py`
-- Do not call `os.environ` from service code; route all config through
-  `api/config.py`
+- Do not introduce new `os.environ` reads in service code; route new
+  config through `api/config.py` (a few legacy exceptions exist — see
+  "Configuration")
 - Do not create `Principal--same_as--ThreatActor` edges from automated flows;
   they require `cg_ciso` via `tool_assert_identity_attribution`
 - Do not add a pytest marker without registering it in `pyproject.toml`

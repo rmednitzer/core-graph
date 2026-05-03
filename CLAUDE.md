@@ -123,18 +123,26 @@ Groups currently bound in `api/config.py`:
 
 Test layout (`tests/`):
 
-- `tests/auth/` — Cerbos policy decision tests (YAML)
-- `tests/rls/` — Row-Level Security enforcement (SQL, executed by `make test`)
-- `tests/schema/` — Migration numbering and validity
-- `tests/ingest/` — Connector adapters, NER, entity resolution
-- `tests/skills/` — MCP skill registry and individual skills
-- `tests/taxii/` — TAXII 2.1 endpoint compliance
-- `tests/eval/` — Retrieval evaluation against the golden set
+- `tests/auth/` — Cerbos policy decision tests (YAML). Runner:
+  `cerbos compile --tests=tests/auth policies/`
+- `tests/rls/` — Row-Level Security enforcement (SQL). Runner: `psql -f
+  tests/rls/<file>.sql`; all RLS suites run as part of `make test`
+- `tests/schema/` — Migration numbering and validity. Mixed pytest
+  (`tests/schema/test_*.py`) and a shell script
+  (`tests/schema/test_migrations.sh`) that re-applies every migration
+- `tests/ingest/` — Connector adapters, NER, entity resolution (pytest)
+- `tests/skills/` — MCP skill registry and individual skills (pytest)
+- `tests/taxii/` — TAXII 2.1 endpoint compliance (pytest)
+- `tests/eval/` — Retrieval evaluation against the golden set (pytest +
+  the `make eval` runner)
 - `tests/integration/` — End-to-end flows; mark with
   `@pytest.mark.integration` and run via `make integration-test`
 
 Schema, RLS, or policy changes require a corresponding test in the matching
-subdirectory. For a single file: `pytest tests/<subdir>/test_<name>.py -v`.
+subdirectory. Use the runner that matches the file type — single Python
+test: `pytest tests/<subdir>/test_<name>.py -v`; single SQL test:
+`psql -f tests/rls/<name>.sql`; Cerbos: the `cerbos compile` command
+above; migration replay: `bash tests/schema/test_migrations.sh`.
 
 ## Security constraints
 

@@ -4,6 +4,7 @@ A converged graph-vector knowledge platform built on PostgreSQL with Apache AGE
 and pgvector. Designed for EU-sovereign deployment with security, compliance,
 and operational assurance as structural properties.
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/rmednitzer/core-graph)
 ![CI](https://github.com/rmednitzer/core-graph/actions/workflows/test.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue)
 

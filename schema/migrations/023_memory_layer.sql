@@ -39,7 +39,7 @@ begin
              where name = l
                and graph = (select graphid from ag_catalog.ag_graph where name = 'core_graph')
         ) then
-            perform ag_catalog.create_vlabel('core_graph', l);
+            perform ag_catalog.create_vlabel('core_graph'::cstring, l::cstring);
         end if;
     end loop;
 end $$;
@@ -59,7 +59,7 @@ begin
              where name = l
                and graph = (select graphid from ag_catalog.ag_graph where name = 'core_graph')
         ) then
-            perform ag_catalog.create_elabel('core_graph', l);
+            perform ag_catalog.create_elabel('core_graph'::cstring, l::cstring);
         end if;
     end loop;
 end $$;

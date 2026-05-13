@@ -59,7 +59,7 @@ begin
              where name = l
                and graph = (select graphid from ag_catalog.ag_graph where name = 'core_graph')
         ) then
-            perform ag_catalog.create_label('core_graph', l, 'e'::"char");
+            perform ag_catalog.create_elabel('core_graph', l);
         end if;
     end loop;
 end $$;

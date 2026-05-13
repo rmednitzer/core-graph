@@ -39,17 +39,7 @@ begin
              where name = l
                and graph = (select graphid from ag_catalog.ag_graph where name = 'core_graph')
         ) then
-            if exists (
-                select 1
-                  from pg_proc p
-                  join pg_namespace n on n.oid = p.pronamespace
-                 where n.nspname = 'ag_catalog'
-                   and p.proname = 'create_label'
-            ) then
-                perform ag_catalog.create_label('core_graph', l, 'v');
-            else
-                perform ag_catalog.create_vlabel('core_graph'::cstring, l::cstring);
-            end if;
+            perform ag_catalog.create_vlabel('core_graph'::cstring, l::cstring);
         end if;
     end loop;
 end $$;
@@ -69,17 +59,7 @@ begin
              where name = l
                and graph = (select graphid from ag_catalog.ag_graph where name = 'core_graph')
         ) then
-            if exists (
-                select 1
-                  from pg_proc p
-                  join pg_namespace n on n.oid = p.pronamespace
-                 where n.nspname = 'ag_catalog'
-                   and p.proname = 'create_label'
-            ) then
-                perform ag_catalog.create_label('core_graph', l, 'e');
-            else
-                perform ag_catalog.create_elabel('core_graph'::cstring, l::cstring);
-            end if;
+            perform ag_catalog.create_elabel('core_graph'::cstring, l::cstring);
         end if;
     end loop;
 end $$;

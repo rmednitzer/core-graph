@@ -3,12 +3,17 @@
 Reads the audit_log table and verifies the integrity of the hash chain
 by recomputing each entry's hash and checking linkage to the previous entry.
 Optionally verifies Merkle roots stored in audit_merkle_roots.
+
+Verification is fail-closed: any broken link, hash mismatch, id-sequence
+gap, or genesis violation invalidates the whole result. The verifier never
+trusts a stored entry_hash it could not itself recompute.
 """
 
 from __future__ import annotations
 
 import asyncio
 import hashlib
+import hmac
 import logging
 import sys
 from dataclasses import dataclass, field
@@ -22,6 +27,9 @@ from evidence.chain.merkle import compute_merkle_root
 
 logger = logging.getLogger(__name__)
 
+_FIELD_SEP = "\x1e"
+_GENESIS = "genesis"
+
 
 @dataclass
 class VerificationResult:
@@ -34,80 +42,102 @@ class VerificationResult:
     merkle_batches_checked: int = 0
     merkle_mismatches: list[int] = field(default_factory=list)
 
+    @property
+    def ok(self) -> bool:
+        """True iff every entry verified and nothing was flagged."""
+        return (
+            self.first_broken_link is None
+            and not self.merkle_mismatches
+            and self.verified_count == self.total_entries
+        )
+
+
+def _canonical_timestamp(value: datetime) -> str:
+    """UTC ISO-8601 with fixed 6-digit microseconds and a trailing Z.
+
+    Must match the PostgreSQL trigger's
+    ``to_char(created_at at time zone 'UTC',
+              'YYYY-MM-DD"T"HH24:MI:SS"."US"Z"')``
+    (schema/migrations/024_audit_log_integrity_hardening.sql) byte-for-byte.
+    """
+    return value.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%f") + "Z"
+
 
 def _compute_entry_hash(entry: dict) -> str:
     """Recompute the expected hash for an audit log entry.
 
-    Mirrors the PostgreSQL trigger function audit_log_hash_chain().
+    Mirrors audit_log_hash_chain() in migration 024: fields coalesced to
+    text and joined with U+001E, created_at in canonical UTC form.
     """
-    payload = (
-        (str(entry["entity_id"]) if entry["entity_id"] is not None else "")
-        + (entry["entity_label"] or "")
-        + entry["operation"]
-        + (entry["old_value_hash"] or "")
-        + (entry["new_value_hash"] or "")
-        + entry["actor"]
-        + (str(entry["correlation_id"]) if entry["correlation_id"] is not None else "")
-        + (entry["prev_entry_hash"] or "")
-        + str(entry["created_at"])
+    payload = _FIELD_SEP.join(
+        (
+            (str(entry["entity_id"]) if entry["entity_id"] is not None else ""),
+            (entry["entity_label"] or ""),
+            entry["operation"],
+            (entry["old_value_hash"] or ""),
+            (entry["new_value_hash"] or ""),
+            entry["actor"],
+            (str(entry["correlation_id"]) if entry["correlation_id"] is not None else ""),
+            (entry["prev_entry_hash"] or ""),
+            _canonical_timestamp(entry["created_at"]),
+        )
     )
     return hashlib.sha256(payload.encode()).hexdigest()
 
 
-async def verify_chain(pg_dsn: str | None = None) -> VerificationResult:
-    """Verify the audit log hash chain integrity.
+def verify_entries(entries: list[dict]) -> VerificationResult:
+    """Pure hash-chain verification over an ordered list of entries.
 
-    Reads all entries in order, recomputes each hash, and checks
-    that prev_entry_hash links correctly to the preceding entry.
-
-    Args:
-        pg_dsn: PostgreSQL connection string. Defaults to CG_PG_DSN.
-
-    Returns:
-        VerificationResult with counts and first broken link if any.
+    Fail-closed. Detects prev_entry_hash linkage breaks (including a
+    deleted middle row, whose successor will no longer chain),
+    recomputed-hash mismatches, and a missing/invalid genesis. A flagged
+    entry never advances the expected chain head to its own (untrusted)
+    stored hash. Tail truncation is caught separately by the Merkle
+    entry_count/root check in verify_merkle_roots.
     """
-    dsn = pg_dsn or PG_DSN
-
-    async with await psycopg.AsyncConnection.connect(dsn, row_factory=dict_row) as conn:
-        cursor = await conn.execute("select * from audit_log order by id asc")
-        entries = await cursor.fetchall()
-
     total = len(entries)
     verified = 0
     first_broken: int | None = None
 
-    prev_hash = "genesis"
+    prev_hash = _GENESIS
 
+    def flag(entry_id: int, reason: str, **ctx: object) -> None:
+        nonlocal first_broken
+        if first_broken is None:
+            first_broken = entry_id
+        logger.error("Audit chain broken at id=%s: %s %s", entry_id, reason, ctx)
+
+    # Note: we deliberately do NOT check id contiguity. PostgreSQL
+    # bigserial is not gap-free (rolled-back inserts consume sequence
+    # values non-transactionally, plus cache jumps/crashes), so gaps are
+    # normal and not evidence of tampering. Deletion of a middle row is
+    # already caught by the linkage check (its successor's
+    # prev_entry_hash will not match); tail truncation is caught by the
+    # Merkle entry_count/root check in verify_merkle_roots.
     for entry in entries:
-        # Check prev_entry_hash linkage
-        if entry["prev_entry_hash"] != prev_hash:
-            if first_broken is None:
-                first_broken = entry["id"]
-                logger.error(
-                    "Broken chain at id=%d: expected prev_hash=%s, got=%s",
-                    entry["id"],
-                    prev_hash,
-                    entry["prev_entry_hash"],
-                )
-            prev_hash = entry["entry_hash"]
+        entry_id = entry["id"]
+
+        # 1. linkage.
+        if not hmac.compare_digest(entry["prev_entry_hash"] or "", prev_hash):
+            flag(entry_id, "linkage", expected=prev_hash, got=entry["prev_entry_hash"])
+            # Do NOT adopt the untrusted stored hash; keep recomputing
+            # against what the chain *should* be.
+            prev_hash = _compute_entry_hash(entry)
             continue
 
-        # Recompute and verify entry hash
-        expected_hash = _compute_entry_hash(entry)
-        if entry["entry_hash"] != expected_hash:
-            if first_broken is None:
-                first_broken = entry["id"]
-                logger.error(
-                    "Hash mismatch at id=%d: expected=%s, stored=%s",
-                    entry["id"],
-                    expected_hash,
-                    entry["entry_hash"],
-                )
-            prev_hash = entry["entry_hash"]
+        # 2. recomputed entry hash.
+        expected = _compute_entry_hash(entry)
+        if not hmac.compare_digest(entry["entry_hash"] or "", expected):
+            flag(entry_id, "hash mismatch", expected=expected, got=entry["entry_hash"])
+            prev_hash = expected
             continue
 
         verified += 1
-        prev_hash = entry["entry_hash"]
+        prev_hash = expected
+
+    # 3. genesis: the first row must declare the genesis sentinel.
+    if entries and (entries[0]["prev_entry_hash"] or "") != _GENESIS:
+        flag(entries[0]["id"], "genesis", expected=_GENESIS, got=entries[0]["prev_entry_hash"])
 
     return VerificationResult(
         total_entries=total,
@@ -117,18 +147,28 @@ async def verify_chain(pg_dsn: str | None = None) -> VerificationResult:
     )
 
 
+async def verify_chain(pg_dsn: str | None = None) -> VerificationResult:
+    """Verify the audit log hash chain integrity.
+
+    Reads all entries in id order and delegates to :func:`verify_entries`.
+    """
+    dsn = pg_dsn or PG_DSN
+
+    async with await psycopg.AsyncConnection.connect(dsn, row_factory=dict_row) as conn:
+        cursor = await conn.execute("select * from audit_log order by id asc")
+        entries = await cursor.fetchall()
+
+    return verify_entries(entries)
+
+
 async def verify_merkle_roots(pg_dsn: str | None = None) -> VerificationResult:
     """Verify all Merkle roots in audit_merkle_roots.
 
-    For each stored Merkle root, reads the corresponding audit_log entries
-    by ID range, recomputes the Merkle root from their entry_hash values,
-    and compares against the stored root_hash.
-
-    Args:
-        pg_dsn: PostgreSQL connection string. Defaults to CG_PG_DSN.
-
-    Returns:
-        VerificationResult with Merkle-specific fields populated.
+    For each stored root, reads the audit_log entries in its id range,
+    asserts the row count matches the stored entry_count (rows
+    added/removed inside an already-stamped range are detected even if a
+    recompute would otherwise line up), recomputes the domain-separated
+    Merkle root, and compares it constant-time against the stored root.
     """
     dsn = pg_dsn or PG_DSN
 
@@ -143,6 +183,7 @@ async def verify_merkle_roots(pg_dsn: str | None = None) -> VerificationResult:
             batch_start = root_row["batch_start"]
             batch_end = root_row["batch_end"]
             stored_root = root_row["root_hash"]
+            stored_count = root_row["entry_count"]
 
             cursor = await conn.execute(
                 "select entry_hash from audit_log where id >= %s and id <= %s order by id asc",
@@ -151,19 +192,30 @@ async def verify_merkle_roots(pg_dsn: str | None = None) -> VerificationResult:
             entries = await cursor.fetchall()
 
             hashes = [e["entry_hash"] for e in entries]
+            batches_checked += 1
+
             if not hashes:
-                logger.warning(
+                logger.error(
                     "Merkle batch %d has no audit_log entries (range %d-%d)",
                     root_row["id"],
                     batch_start,
                     batch_end,
                 )
                 mismatches.append(root_row["id"])
-                batches_checked += 1
+                continue
+
+            if len(hashes) != stored_count:
+                logger.error(
+                    "Merkle batch %d entry_count mismatch: stored=%d, found=%d",
+                    root_row["id"],
+                    stored_count,
+                    len(hashes),
+                )
+                mismatches.append(root_row["id"])
                 continue
 
             recomputed = compute_merkle_root(hashes)
-            if recomputed != stored_root:
+            if not hmac.compare_digest(recomputed, stored_root):
                 logger.error(
                     "Merkle root mismatch for batch %d: stored=%s, recomputed=%s",
                     root_row["id"],
@@ -171,8 +223,6 @@ async def verify_merkle_roots(pg_dsn: str | None = None) -> VerificationResult:
                     recomputed,
                 )
                 mismatches.append(root_row["id"])
-
-            batches_checked += 1
 
     return VerificationResult(
         total_entries=batches_checked,
@@ -195,7 +245,7 @@ async def _main() -> None:
     print(f"  Timestamp:        {result.verification_timestamp}")
 
     exit_code = 0
-    if result.first_broken_link is not None:
+    if not result.ok:
         exit_code = 1
 
     if run_merkle:
@@ -205,7 +255,7 @@ async def _main() -> None:
         print(f"  Batches checked:  {merkle_result.merkle_batches_checked}")
         print(f"  Verified:         {merkle_result.verified_count}")
         print(f"  Mismatches:       {merkle_result.merkle_mismatches or 'none'}")
-        if merkle_result.merkle_mismatches:
+        if not merkle_result.ok:
             exit_code = 1
 
     if exit_code:

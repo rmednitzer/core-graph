@@ -57,6 +57,9 @@ EMBEDDING_DIMENSIONS = int(os.environ.get("CG_EMBEDDING_DIMENSIONS", "768"))
 # RFC 3161 Timestamping
 TSA_URL = os.environ.get("CG_TSA_URL", "https://freetsa.org/tsr")
 TSA_ENABLED = os.environ.get("CG_TSA_ENABLED", "false").lower() == "true"
+# Optional path to the TSA's CA certificate. When set, timestamp tokens are
+# verified to chain to this CA before they are persisted (fail-closed).
+TSA_CERT_PATH = os.environ.get("CG_TSA_CERT_PATH", "") or None
 
 # Keycloak (IAM)
 KEYCLOAK_URL = os.environ.get("CG_KEYCLOAK_URL", "http://localhost:8080")

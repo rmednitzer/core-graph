@@ -13,8 +13,8 @@ import logging
 import psycopg
 from psycopg.rows import dict_row
 
-from api.config import PG_DSN, TSA_ENABLED
-from evidence.signing.timestamp import request_timestamp
+from api.config import PG_DSN, TSA_CERT_PATH, TSA_ENABLED
+from evidence.signing.timestamp import request_timestamp, verify_timestamp
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,16 @@ async def stamp_pending_roots(pg_dsn: str | None = None) -> int:
             token = await request_timestamp(digest)
             if token is None:
                 logger.warning("Failed to stamp Merkle root %d", row["id"])
+                continue
+
+            # Fail-closed: never persist a token we cannot verify binds this
+            # exact digest. An unverified token is decorative and worse than
+            # none (false assurance of tamper-evidence).
+            if not verify_timestamp(token, digest, ca_cert_path=TSA_CERT_PATH):
+                logger.error(
+                    "TSA token for Merkle root %d failed verification; not storing",
+                    row["id"],
+                )
                 continue
 
             await conn.execute(

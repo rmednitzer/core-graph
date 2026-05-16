@@ -88,17 +88,18 @@ def _compute_entry_hash(entry: dict) -> str:
 def verify_entries(entries: list[dict]) -> VerificationResult:
     """Pure hash-chain verification over an ordered list of entries.
 
-    Fail-closed. Detects: prev_entry_hash linkage breaks, recomputed-hash
-    mismatches, id-sequence gaps (rows dropped by restore/PITR), and a
-    missing/invalid genesis. A flagged entry never advances the expected
-    chain head to its own (untrusted) stored hash.
+    Fail-closed. Detects prev_entry_hash linkage breaks (including a
+    deleted middle row, whose successor will no longer chain),
+    recomputed-hash mismatches, and a missing/invalid genesis. A flagged
+    entry never advances the expected chain head to its own (untrusted)
+    stored hash. Tail truncation is caught separately by the Merkle
+    entry_count/root check in verify_merkle_roots.
     """
     total = len(entries)
     verified = 0
     first_broken: int | None = None
 
     prev_hash = _GENESIS
-    prev_id: int | None = None
 
     def flag(entry_id: int, reason: str, **ctx: object) -> None:
         nonlocal first_broken
@@ -106,15 +107,17 @@ def verify_entries(entries: list[dict]) -> VerificationResult:
             first_broken = entry_id
         logger.error("Audit chain broken at id=%s: %s %s", entry_id, reason, ctx)
 
+    # Note: we deliberately do NOT check id contiguity. PostgreSQL
+    # bigserial is not gap-free (rolled-back inserts consume sequence
+    # values non-transactionally, plus cache jumps/crashes), so gaps are
+    # normal and not evidence of tampering. Deletion of a middle row is
+    # already caught by the linkage check (its successor's
+    # prev_entry_hash will not match); tail truncation is caught by the
+    # Merkle entry_count/root check in verify_merkle_roots.
     for entry in entries:
         entry_id = entry["id"]
 
-        # 1. id contiguity — a gap means rows were removed/inserted.
-        if prev_id is not None and entry_id != prev_id + 1:
-            flag(entry_id, "id-sequence gap", expected=prev_id + 1, got=entry_id)
-        prev_id = entry_id
-
-        # 2. linkage.
+        # 1. linkage.
         if not hmac.compare_digest(entry["prev_entry_hash"] or "", prev_hash):
             flag(entry_id, "linkage", expected=prev_hash, got=entry["prev_entry_hash"])
             # Do NOT adopt the untrusted stored hash; keep recomputing
@@ -122,7 +125,7 @@ def verify_entries(entries: list[dict]) -> VerificationResult:
             prev_hash = _compute_entry_hash(entry)
             continue
 
-        # 3. recomputed entry hash.
+        # 2. recomputed entry hash.
         expected = _compute_entry_hash(entry)
         if not hmac.compare_digest(entry["entry_hash"] or "", expected):
             flag(entry_id, "hash mismatch", expected=expected, got=entry["entry_hash"])
@@ -132,7 +135,7 @@ def verify_entries(entries: list[dict]) -> VerificationResult:
         verified += 1
         prev_hash = expected
 
-    # 4. genesis: the first row must declare the genesis sentinel.
+    # 3. genesis: the first row must declare the genesis sentinel.
     if entries and (entries[0]["prev_entry_hash"] or "") != _GENESIS:
         flag(entries[0]["id"], "genesis", expected=_GENESIS, got=entries[0]["prev_entry_hash"])
 

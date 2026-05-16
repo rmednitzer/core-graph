@@ -83,12 +83,31 @@ def test_tampered_entry_fails_closed() -> None:
     assert result.first_broken_link == 2
 
 
-def test_id_gap_detected() -> None:
+def test_mid_row_deletion_detected_via_linkage() -> None:
+    """A deleted middle row is caught by the chain (its successor's
+    prev_entry_hash no longer matches) — without needing an id-gap
+    heuristic."""
     e1 = _entry(1, "genesis")
-    e3 = _entry(3, e1["entry_hash"])  # id 2 dropped (restore/PITR)
+    e2 = _entry(2, e1["entry_hash"])
+    e3 = _entry(3, e2["entry_hash"])  # legitimately chains off e2
+    # e2 physically removed (restore/PITR/raw edit); e3 still points at
+    # the original e2 hash, which no longer follows e1.
     result = verify_entries([e1, e3])
     assert not result.ok
     assert result.first_broken_link == 3
+
+
+def test_legitimate_sequence_gap_is_not_flagged() -> None:
+    """PostgreSQL bigserial is not gap-free (rolled-back inserts, cache
+    jumps). Non-contiguous ids with correct linkage must verify cleanly —
+    no false positives."""
+    e1 = _entry(1, "genesis")
+    e2 = _entry(2, e1["entry_hash"])
+    e5 = _entry(5, e2["entry_hash"])  # ids 3,4 burned by rolled-back tx
+    result = verify_entries([e1, e2, e5])
+    assert result.ok
+    assert result.verified_count == 3
+    assert result.first_broken_link is None
 
 
 def test_missing_genesis_detected() -> None:

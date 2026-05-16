@@ -26,6 +26,7 @@ def caller_from_request(
         return {
             "max_tlp": identity.max_tlp,
             "actor": identity.sub,
+            "roles": identity.roles,
             "allowed_compartments": identity.allowed_compartments,
         }
 

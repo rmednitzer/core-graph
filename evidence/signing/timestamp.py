@@ -83,25 +83,13 @@ def _build_timestamp_request_openssl(digest: bytes) -> bytes | None:
         return None
 
 
-def verify_timestamp(token: bytes, digest: bytes, ca_cert_path: str | None = None) -> bool:
-    """Verify an RFC 3161 timestamp token against a digest.
+def _verify_timestamp_openssl(token: bytes, digest: bytes, ca_cert_path: str | None) -> bool:
+    """Verify via ``openssl ts -verify``.
 
-    Args:
-        token: DER-encoded TimeStampResp bytes.
-        digest: Expected SHA-256 digest bytes.
-        ca_cert_path: Path to CA certificate for TSA verification.
-
-    Returns:
-        True if the timestamp is valid for the given digest.
+    With ``-CAfile`` this builds and validates the TSA signing
+    certificate's chain to the pinned root — the only path here that
+    actually anchors trust to a CA.
     """
-    try:
-        import rfc3161ng
-
-        return rfc3161ng.check_timestamp(tst=token, digest=digest, hashname="sha256", nonce=None)
-    except ImportError:
-        pass
-
-    # Fallback: openssl ts -verify
     import tempfile
 
     try:
@@ -125,4 +113,47 @@ def verify_timestamp(token: bytes, digest: bytes, ca_cert_path: str | None = Non
             return result.returncode == 0
     except (FileNotFoundError, subprocess.SubprocessError):
         logger.warning("openssl not available for timestamp verification")
+        return False
+
+
+def verify_timestamp(token: bytes, digest: bytes, ca_cert_path: str | None = None) -> bool:
+    """Verify an RFC 3161 timestamp token against a digest.
+
+    Args:
+        token: DER-encoded TimeStampResp bytes.
+        digest: Expected SHA-256 digest bytes.
+        ca_cert_path: Path to the TSA CA certificate. When set, the
+            token's signing certificate MUST chain to this CA.
+
+    Returns:
+        True iff the timestamp is valid for the given digest (and, when
+        ``ca_cert_path`` is set, chains to that CA). Fail-closed.
+
+    Note:
+        ``rfc3161ng.check_timestamp`` verifies the message imprint and the
+        token signature but does NOT validate the signer certificate's
+        chain to a trusted CA. ``rfc3161ng`` is a hard dependency, so if
+        the rfc3161ng branch were allowed to run while a CA is pinned, the
+        CA would be silently ignored and the caller would get false
+        assurance. Therefore a pinned CA forces the openssl ``-CAfile``
+        path (real chain validation) and never falls back.
+    """
+    if ca_cert_path:
+        # CA pinning requested — only the openssl -CAfile path enforces
+        # it. Do not fall back to rfc3161ng (which ignores the CA).
+        return _verify_timestamp_openssl(token, digest, ca_cert_path)
+
+    try:
+        import rfc3161ng
+    except ImportError:
+        return _verify_timestamp_openssl(token, digest, None)
+
+    try:
+        return bool(
+            rfc3161ng.check_timestamp(tst=token, digest=digest, hashname="sha256", nonce=None)
+        )
+    except Exception:
+        # check_timestamp raises on an invalid token; fail closed rather
+        # than propagate and abort the whole stamping batch.
+        logger.warning("RFC 3161 token verification failed", exc_info=True)
         return False

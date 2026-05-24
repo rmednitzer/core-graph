@@ -253,7 +253,7 @@ core-graph/
 │   ├── dlq/             Dead-letter queue processor
 │   └── graph_writer.py  Batch graph writer with bitemporal versioning
 ├── schema/
-│   ├── migrations/      Numbered SQL files (001_ through 019_), idempotent
+│   ├── migrations/      Numbered SQL files (001_ through 026_), idempotent
 │   └── seed/            Reference data (MITRE ATT&CK, STIX vocabularies, roles)
 ├── policies/            Cerbos YAML policies (threat entities, evidence, incidents, IAM)
 ├── evidence/            Evidence integrity
@@ -277,9 +277,10 @@ Detailed documentation lives in [`docs/`](docs/):
 | Area | Documents |
 |---|---|
 | **Architecture** | [Overview](docs/architecture/overview.md), [Authorization model](docs/architecture/authorization-model.md), [RLS + AGE integration](docs/architecture/rls-age-integration.md), [IAM layer](docs/architecture/iam-layer.md), [Data residency](docs/architecture/data-residency.md) |
+| **ADRs** | [0002 Hybrid retrieval](docs/architecture/adr/ADR-0002-hybrid-retrieval.md), [0003 Edge TLP denormalisation](docs/architecture/adr/ADR-0003-edge-tlp-denormalization.md), [0004 Salience formula](docs/architecture/adr/ADR-0004-salience-formula.md), [0005 Memory supersession](docs/architecture/adr/ADR-0005-memory-supersession.md), [0006 Code-base validation 2026-05](docs/architecture/adr/ADR-0006-codebase-validation-2026-05.md) |
 | **Ontology** | [Schema design](docs/ontology/schema-design.md), [STIX mapping](docs/ontology/stix-mapping.md), [OCSF normalization](docs/ontology/ocsf-normalization.md) |
 | **Compliance** | [NIS2 controls](docs/compliance/nis2-controls.md), [BSI IT-Grundschutz](docs/compliance/bsi-grundschutz-map.md) |
-| **Operations** | [Backup and restore](docs/operations/backup-restore.md), [PostgreSQL hardening](docs/operations/postgresql-hardening.md), [Break-glass procedure](docs/operations/break-glass.md), [PG major upgrade](docs/operations/pg-major-upgrade.md) |
+| **Operations** | [Backup and restore](docs/operations/backup-restore.md), [PostgreSQL hardening](docs/operations/postgresql-hardening.md), [Break-glass procedure](docs/operations/break-glass.md), [PG major upgrade](docs/operations/pg-major-upgrade.md), [Database migration runbook](docs/operations/database-migration-runbook.md) |
 | **Runbooks** | [Audit chain broken](docs/operations/runbooks/audit-chain-broken.md), [Ingest pipeline stalled](docs/operations/runbooks/ingest-pipeline-stalled.md), [DLQ overflow](docs/operations/runbooks/dlq-overflow.md), [RLS misconfiguration](docs/operations/runbooks/rls-misconfiguration.md) |
 | **Skills** | [MCP skill registry](docs/skills/README.md) |
 

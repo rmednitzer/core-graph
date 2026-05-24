@@ -72,3 +72,37 @@
 
 - `pytest tests/test_migration_numbering.py` (pass)
 - `python -m compileall api/db.py` (pass)
+
+## Validation pass (2026-05-24)
+
+A full code index and cross-check against authoritative upstream
+documentation was performed and recorded in
+[ADR-0006](adr/ADR-0006-codebase-validation-2026-05.md). Schema-layer
+outcomes relevant to this report:
+
+- **Migration count.** 26 numbered files (`001_` through
+  `026_`). No anti-patterns surfaced: every migration is idempotent
+  (`IF NOT EXISTS`, `DO`-block catalog lookups where `ADD CONSTRAINT IF
+  NOT EXISTS` is unavailable), every trigger body uses function calls
+  rather than string-concat DDL.
+- **Bitemporal invariants.** Migration `020` (window + overlap
+  exclusion + mandatory mutation attribution) is in force; `026`
+  corrects the predicate on the single-active-fact partial unique
+  index. The contract from this report stands.
+- **Vector layer.** Migration `021` (model registry + halfvec column
+  + tsvector + GIN + per-model partial HNSW pair) is the canonical
+  vector path. Model-id validation (`cg_validate_model_suffix`) gates
+  the DDL interpolation, mitigating injection in the per-model index
+  helper.
+- **AGE-RLS edge gap.** Closed by `022` (denormalised `tlp_level` on
+  every edge label table with trigger + RLS policy). Documented in
+  `rls-age-integration.md`.
+- **Audit-log integrity.** `008` enforces append-only via
+  `BEFORE UPDATE / BEFORE DELETE` triggers that always raise; `024`
+  hardens the hash-chain computation; `025` adds Merkle
+  domain-separation aligned with RFC 6962. Verified by
+  `tests/test_merkle.py` (CVE-2012-2459 second-preimage) and
+  `tests/test_audit_chain_verify.py`.
+
+No new findings required schema changes. ADR-0006 records the
+documentation drift fixes shipped alongside this appendix.

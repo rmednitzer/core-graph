@@ -17,6 +17,17 @@
 - [Data residency](architecture/data-residency.md) -- EU-sovereign controls,
   approved providers (Hetzner, Quad9, PTB), self-hosted registries and proxies,
   prohibited services
+- [Database optimization report](architecture/database-optimization-report.md) --
+  bitemporal hardening, integrity invariants, session-context handling, and the
+  2026-05 validation appendix
+
+### Architecture Decision Records
+
+- [ADR-0002 Hybrid retrieval (BM25 + vector with RRF)](architecture/adr/ADR-0002-hybrid-retrieval.md)
+- [ADR-0003 Edge TLP denormalisation](architecture/adr/ADR-0003-edge-tlp-denormalization.md)
+- [ADR-0004 Salience formula for AI memory layer](architecture/adr/ADR-0004-salience-formula.md)
+- [ADR-0005 Memory-layer supersession detection](architecture/adr/ADR-0005-memory-supersession.md)
+- [ADR-0006 Code-base validation against authoritative sources (2026-05)](architecture/adr/ADR-0006-codebase-validation-2026-05.md)
 
 ## Ontology
 
@@ -44,6 +55,9 @@
   time-limited access, mandatory audit trail, automatic revocation
 - [PostgreSQL major upgrade](operations/pg-major-upgrade.md) -- dump/restore
   procedure for AGE compatibility, pre/post upgrade checklists
+- [Database migration runbook](operations/database-migration-runbook.md) --
+  numbered SQL migration workflow, the `app.allow_embedding_truncate` GUC for
+  the dimension migration, and operator preflight checks
 
 ### Runbooks
 

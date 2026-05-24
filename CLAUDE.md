@@ -75,7 +75,7 @@ new code. The convention is: `CG_`-prefixed name, default value, read once
 at import. Service code added from now on imports from `api.config` rather
 than calling `os.environ` directly.
 
-Two pre-existing exceptions to be aware of (do not extend either pattern):
+Pre-existing exceptions to be aware of (do not extend any of these patterns):
 
 - A few satellite-system connectors keep their upstream env-var names
   without the `CG_` prefix — `NETBOX_URL`, `NETBOX_TOKEN` (read in both
@@ -84,6 +84,22 @@ Two pre-existing exceptions to be aware of (do not extend either pattern):
   `ingest/connectors/opencti/adapter.py`).
 - `api/rest/main.py` reads `CG_CORS_ORIGINS` directly via `os.environ`
   rather than through `api.config`.
+- Three service-internal `CG_*` reads are not bound through `api.config`
+  and exist at the call site only: `CG_RERANKER_URL`
+  (`api/mcp/tools/hybrid_search.py`), `CG_DLQ_MAX_RETRIES`
+  (`ingest/dlq/processor.py`), and `CG_PROMETHEUS_WEBHOOK_SECRET`
+  (`ingest/connectors/prometheus/adapter.py`). New code adding similar
+  knobs should bind them in `api.config` instead.
+- Each satellite connector (`ingest/connectors/{netbox,keycloak,
+  prometheus,misp}/`) carries a self-contained `Config` dataclass that
+  reads its own `CG_*` (or unprefixed legacy) vars so the connector can
+  run as a standalone service. This is a deliberate convention, not a
+  bug; defaults set in `api/config.py` for these vars are mirrored, not
+  the source of truth for the connector.
+
+ADR-0006 (`docs/architecture/adr/ADR-0006-codebase-validation-2026-05.md`)
+records the full audit of these reads and the alignment of code against
+authoritative upstream documentation as of 2026-05.
 
 Groups currently bound in `api/config.py`:
 

@@ -125,6 +125,15 @@ SpiceDB manages relationship-based access using a Zanzibar-style permissions
 model. Where Cerbos answers "does this role have permission?", SpiceDB answers
 "does this specific user have a relationship that grants access?"
 
+> **Status (2026-05, recorded in [ADR-0006](adr/ADR-0006-codebase-validation-2026-05.md)).**
+> The SpiceDB schema (`api/authz/schema.zed`) and gRPC client
+> (`api/authz/spicedb.py`) are production-ready. No REST route or MCP
+> tool currently calls `check_permission()` or `lookup_resources()`;
+> compartment scoping is handled at the Cypher template layer using the
+> caller's `compartments` attribute. The diagram and the schema below
+> describe the target shape; request-path integration is planned Phase-4
+> hardening.
+
 ### What SpiceDB decides
 
 - **Investigation compartments**: Users are added to specific investigations.
@@ -226,6 +235,7 @@ CREATE POLICY tlp_read_policy ON core.indicator
     <= coalesce(current_setting('app.max_tlp', true)::int, 1)
   );
 
+-- Target state — not currently in any migration. See note below.
 CREATE POLICY compartment_read_policy ON core.indicator
   FOR SELECT
   USING (
@@ -240,6 +250,18 @@ CREATE POLICY compartment_read_policy ON core.indicator
 
 The `current_setting(..., true)` form returns NULL instead of raising an error
 when the variable is not set, defaulting to the most restrictive posture.
+
+> **Status (2026-05, recorded in [ADR-0006](adr/ADR-0006-codebase-validation-2026-05.md)).**
+> Only the TLP policy (`tlp_read_policy` on vertices,
+> `tlp_edge_read_policy` on edges, `iam_tlp_floor` RESTRICTIVE on IAM
+> tables) is currently in any migration. The compartment policy above
+> shows the target shape; today, the session variable
+> `app.allowed_compartments` is set in `api/db.py` but read only by
+> Cypher templates, not by any RLS policy. The Cypher template
+> allow-list in `api/mcp/tools/cypher_query.py` is the effective gate.
+> Promoting compartment enforcement to RLS requires adding a
+> `compartment_id` column on every label table and is on the Phase-4
+> hardening list.
 
 ### Why RLS is essential
 

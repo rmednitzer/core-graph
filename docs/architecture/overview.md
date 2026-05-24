@@ -258,7 +258,9 @@ Target: production-grade Kubernetes deployment, inter-organisational sharing.
 - ✅ Air-gapped deployment: Zarf package for disconnected clusters
 - ✅ Monitoring stack: Prometheus metrics, Grafana dashboards
 - ✅ Keycloak IAM integration: delta-sync adapter with TLP:AMBER floor enforcement
-- ✅ MCP skill registry: 10 composable skills across asset, identity, threat, and compliance domains
+- ✅ MCP skill registry: 13 composable skills across asset, identity, threat,
+  compliance, and graphrag domains (the graphrag skills were added in Phase 4;
+  see [skills registry](../skills/README.md))
 - ✅ REST API middleware: OIDC authentication, request tracing, Prometheus metrics
 - Horizontal read scaling: PostgreSQL streaming replicas with read routing (planned)
 - NATS cluster: multi-node JetStream for message bus resilience (planned)

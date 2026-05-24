@@ -8,6 +8,44 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### Phase 6 — code-base validation (2026-05)
+
+* New ADR
+  `docs/architecture/adr/ADR-0006-codebase-validation-2026-05.md` records
+  a full code index of the repository and a cross-check of each
+  implementation against authoritative upstream documentation (Apache
+  AGE, pgvector, NATS JetStream, Cerbos, SpiceDB, OASIS STIX 2.1 /
+  TAXII 2.1, Sigstore cosign + Rekor, MCP Python SDK, OCSF 1.1,
+  RFC 6962, RFC 3161). The ADR also enumerates the documentation
+  drift surfaced during the pass and the architectural-intent gaps
+  (compartment enforcement is application-layer rather than RLS;
+  SpiceDB schema is defined but not in the request path; the
+  `identity_attribution.yaml` policy lacks a Cerbos test fixture).
+* `README.md` — repository layout corrected to reflect that the
+  `schema/migrations/` directory now holds `001_` through `026_`
+  (was `001_` through `019_`); added an ADRs row to the documentation
+  index that links to ADR-0002 through ADR-0006 and added the
+  database-migration runbook to the operations row.
+* `CLAUDE.md` — the "Configuration" exceptions list now records the
+  three service-internal direct `os.environ` reads found by the audit
+  (`CG_RERANKER_URL`, `CG_DLQ_MAX_RETRIES`,
+  `CG_PROMETHEUS_WEBHOOK_SECRET`) and the deliberate
+  connector-internal config-dataclass convention.
+* `docs/architecture/authorization-model.md` — status notes added to
+  the Layer-2 (SpiceDB) and Layer-3 (RLS) sections distinguishing the
+  documented target state from currently implemented enforcement. The
+  TLP policy is implemented at the engine level; the compartment
+  policy is currently enforced at the Cypher template layer rather
+  than via RLS.
+* `docs/skills/README.md` — skill table extended with the three Phase-4
+  graphrag skills (`graphrag_anchored_retrieval`, `graphrag_path_ranking`,
+  `graphrag_neighborhood`) that were registered in `api/mcp/skills/graphrag/`
+  but not previously listed.
+* `docs/architecture/database-optimization-report.md` — appendix added
+  summarising the schema-layer findings of the 2026-05 pass.
+
+No code or schema changes — this phase is documentation only.
+
 ### Phase 5 — eval harness
 
 * `tests/eval/golden/retrieval_v1.jsonl` (200 hand-curated query/doc

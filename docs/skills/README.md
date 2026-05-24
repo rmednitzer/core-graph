@@ -88,15 +88,18 @@ Each Cypher template has a companion `.json` schema file:
 
 ## Available skills
 
-| Skill name                | Domain     | Description                                    |
-| ------------------------- | ---------- | ---------------------------------------------- |
-| `asset_full_summary`      | asset      | Complete asset profile across all domains       |
-| `asset_compliance_status` | asset      | Compliance controls and evidence freshness      |
-| `asset_vulnerabilities`   | asset      | CVEs affecting an asset                         |
-| `asset_active_alerts`     | asset      | Firing alerts for an asset                      |
-| `asset_security_events`   | asset      | Recent security events                          |
-| `asset_topology`          | asset      | Infrastructure topology                         |
-| `identity_access_map`     | identity   | Effective permissions (direct and inherited)    |
-| `identity_audit_trail`    | identity   | Security events involving a principal           |
-| `threat_actor_to_asset`   | threat     | Assets affected by a threat actor               |
-| `alert_to_compliance_gap` | compliance | Compliance gaps created by an alert             |
+| Skill name                     | Domain     | Description                                              |
+| ------------------------------ | ---------- | -------------------------------------------------------- |
+| `asset_full_summary`           | asset      | Complete asset profile across all domains                |
+| `asset_compliance_status`      | asset      | Compliance controls and evidence freshness               |
+| `asset_vulnerabilities`        | asset      | CVEs affecting an asset                                  |
+| `asset_active_alerts`          | asset      | Firing alerts for an asset                               |
+| `asset_security_events`        | asset      | Recent security events                                   |
+| `asset_topology`               | asset      | Infrastructure topology                                  |
+| `identity_access_map`          | identity   | Effective permissions (direct and inherited)             |
+| `identity_audit_trail`         | identity   | Security events involving a principal                    |
+| `threat_actor_to_asset`        | threat     | Assets affected by a threat actor                        |
+| `alert_to_compliance_gap`      | compliance | Compliance gaps created by an alert                      |
+| `graphrag_anchored_retrieval`  | graphrag   | Hybrid search constrained to an anchor's N-hop neighbourhood, re-ranked by `0.6 hybrid + 0.2 centrality + 0.2 recency` |
+| `graphrag_path_ranking`        | graphrag   | All paths between source and target up to `max_hops`, ranked by `product(edge.confidence) * exp(-0.25 * length)` |
+| `graphrag_neighborhood`        | graphrag   | N-hop subgraph from an anchor entity, optional edge-type allowlist filter |

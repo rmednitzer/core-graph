@@ -127,21 +127,21 @@ implementation bugs in future reviews.
 
 ## Tests covering these claims
 
-- AGE label safety: `tests/test_label_safety_coverage.py`,
+* AGE label safety: `tests/test_label_safety_coverage.py`,
   `tests/test_cypher_safety.py`, `tests/test_cypher_template_safety.py`
-- Bitemporal: `tests/test_migration_020_safety.py`,
+* Bitemporal: `tests/test_migration_020_safety.py`,
   `tests/integration/test_graph_write.py::test_audit_log_hash_chain_intact`
-- RLS TLP: `tests/rls/test_tlp_enforcement.sql`,
+* RLS TLP: `tests/rls/test_tlp_enforcement.sql`,
   `tests/rls/test_iam_tlp_floor.sql`, `tests/rls/test_edge_tlp.sql`,
   `tests/integration/test_rls_age.py`,
   `tests/eval/test_rls_retrieval_correctness.py`
-- Merkle: `tests/test_merkle.py` (CVE-2012-2459 second-preimage),
+* Merkle: `tests/test_merkle.py` (CVE-2012-2459 second-preimage),
   `tests/test_audit_chain_verify.py`
-- TAXII: `tests/taxii/test_taxii_endpoints.py`
-- Cerbos policy compile: `.github/workflows/test.yml` (`cerbos compile
+* TAXII: `tests/taxii/test_taxii_endpoints.py`
+* Cerbos policy compile: `.github/workflows/test.yml` (`cerbos compile
   --tests=tests/auth policies/`)
-- Statement timeout uniformity: `tests/test_statement_timeout_uniformity.py`
-- TLP encoding: `tests/test_threat_entity_policy_tlp.py`
+* Statement timeout uniformity: `tests/test_statement_timeout_uniformity.py`
+* TLP encoding: `tests/test_threat_entity_policy_tlp.py`
 
 ## Consequences
 
@@ -188,7 +188,7 @@ implementation bugs in future reviews.
   (`->`) permissions for delegation chains.
 * Sigstore — `cosign sign-blob --yes` keyless flow with bundle output
   and Rekor index extraction; verification via `--certificate-identity`
-  + `--certificate-oidc-issuer`.
+  and `--certificate-oidc-issuer`.
 * modelcontextprotocol/python-sdk — `FastMCP` (now `MCPServer`)
   tool-registration via `@mcp.tool()`; recommended `streamable-http`
   transport for networked deployment.

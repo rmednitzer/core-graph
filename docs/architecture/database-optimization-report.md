@@ -89,8 +89,8 @@ outcomes relevant to this report:
   exclusion + mandatory mutation attribution) is in force; `026`
   corrects the predicate on the single-active-fact partial unique
   index. The contract from this report stands.
-- **Vector layer.** Migration `021` (model registry + halfvec column
-  + tsvector + GIN + per-model partial HNSW pair) is the canonical
+- **Vector layer.** Migration `021` (model registry, halfvec column,
+  tsvector, GIN, and per-model partial HNSW pair) is the canonical
   vector path. Model-id validation (`cg_validate_model_suffix`) gates
   the DDL interpolation, mitigating injection in the per-model index
   helper.

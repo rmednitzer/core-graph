@@ -1,0 +1,16 @@
+# core-graph .trivyignore — applies to docker-scan job in .github/workflows/security.yml
+#
+# CVE-2025-68121
+#   crypto/tls: Incorrect certificate validation during TLS session resumption.
+#   Reported against /usr/local/bin/gosu (Go stdlib v1.24.0) inherited from
+#   apache/age:release_PG16_1.6.0. gosu is a setuid helper used by the postgres
+#   entrypoint; it does not exercise crypto/tls anywhere in its code path, so
+#   the vulnerable bytes bundled into the static binary are unreachable at
+#   runtime. apt-get dist-upgrade cannot fix this because gosu is shipped as a
+#   downloaded binary, not via apt.
+#
+#   Latest upstream gosu release (1.19, 2025-09-23) is built with Go 1.24.6,
+#   still below the Go 1.24.13 fix line. No upstream binary update available.
+#   Drop this entry once tianon/gosu publishes a release built against
+#   Go 1.24.13+ and Dockerfile.postgres is rebuilt to pick it up.
+CVE-2025-68121

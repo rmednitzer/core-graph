@@ -106,8 +106,11 @@ Groups currently bound in `api/config.py`:
 - Database / pool: `CG_PG_DSN`, `CG_PG_POOL_MIN`, `CG_PG_POOL_MAX`
 - Bus / cache: `CG_NATS_URL`, `CG_VALKEY_URL`
 - Authz: `CG_SPICEDB_ENDPOINT`, `CG_SPICEDB_TOKEN`, `CG_CERBOS_ENDPOINT`
-- Auth: `CG_OIDC_ENABLED`, `CG_OIDC_ISSUER_URL`, `CG_OIDC_AUDIENCE`,
-  `CG_OIDC_JWKS_CACHE_TTL`
+- Auth: `CG_OIDC_ENABLED` (default `true`, fail-closed), `CG_OIDC_ISSUER_URL`,
+  `CG_OIDC_AUDIENCE`, `CG_OIDC_JWKS_CACHE_TTL`, `CG_DEV_MODE` (default
+  `false`; required to be `true` when `CG_OIDC_ENABLED=false` to opt into
+  the synthetic dev identity, otherwise the middleware refuses requests
+  with 503)
 - Evidence: `CG_MINIO_*`, `CG_TSA_URL`, `CG_TSA_ENABLED`
 - Embedding: `CG_EMBEDDING_PROVIDER`, `CG_EMBEDDING_MODEL`,
   `CG_EMBEDDING_URL`, `CG_EMBEDDING_DIMENSIONS`

@@ -16,11 +16,22 @@ NATS_URL = os.environ.get("CG_NATS_URL", "nats://localhost:4222")
 VALKEY_URL = os.environ.get("CG_VALKEY_URL", "redis://localhost:6379")
 DEFAULT_TLP = int(os.environ.get("CG_DEFAULT_TLP", "2"))
 
-# OIDC authentication
-OIDC_ENABLED = os.environ.get("CG_OIDC_ENABLED", "false").lower() == "true"
+# OIDC authentication.
+#
+# OIDC_ENABLED defaults to true (fail-closed). A misconfigured deployment
+# that forgets to set CG_OIDC_ISSUER_URL will return 401 on every request,
+# not silently fall back to a synthetic admin identity.
+#
+# DEV_MODE is the explicit opt-in for the synthetic dev identity (admin
+# role, max_tlp from X-CG-TLP header). It is only consulted when
+# OIDC_ENABLED is false. Without DEV_MODE the OIDC middleware refuses
+# requests with 503, surfacing the misconfiguration immediately instead
+# of opening the door.
+OIDC_ENABLED = os.environ.get("CG_OIDC_ENABLED", "true").lower() == "true"
 OIDC_ISSUER_URL = os.environ.get("CG_OIDC_ISSUER_URL", "")
 OIDC_AUDIENCE = os.environ.get("CG_OIDC_AUDIENCE", "core-graph")
 OIDC_JWKS_CACHE_TTL = int(os.environ.get("CG_OIDC_JWKS_CACHE_TTL", "3600"))
+DEV_MODE = os.environ.get("CG_DEV_MODE", "false").lower() == "true"
 
 # SpiceDB (ReBAC)
 SPICEDB_ENDPOINT = os.environ.get("CG_SPICEDB_ENDPOINT", "localhost:50051")

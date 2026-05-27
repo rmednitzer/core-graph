@@ -11,6 +11,7 @@ import asyncio
 import json
 import logging
 import os
+import random
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -132,8 +133,13 @@ async def _process_dlq_message(
     first_failed = payload.get("first_failed", datetime.now(UTC).isoformat())
 
     if retry_count < MAX_RETRIES:
-        # Exponential backoff
-        backoff = BASE_BACKOFF_S ** (retry_count + 1)
+        # Exponential backoff with full jitter to avoid thundering-herd
+        # against the upstream that originally rejected the message.
+        # Reference: AWS Architecture Blog, "Exponential Backoff and Jitter"
+        # (Marc Brooker, 2015). At retry_count=0 the window is 0..2 s;
+        # at retry_count=2 (max with MAX_RETRIES=3) the window is 0..8 s.
+        ceiling = BASE_BACKOFF_S ** (retry_count + 1)
+        backoff = random.uniform(0, ceiling)  # noqa: S311 — not crypto
         await asyncio.sleep(backoff)
 
         # Republish to original subject with incremented retry count

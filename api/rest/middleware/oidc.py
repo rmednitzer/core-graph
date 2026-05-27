@@ -1,8 +1,9 @@
 """api.rest.middleware.oidc — OIDC JWT validation middleware.
 
-Validates JWT tokens from an OIDC-compliant IdP. When CG_OIDC_ENABLED is
-false (default for local dev), falls back to the existing X-CG-TLP header
-behaviour with a synthetic CallerIdentity.
+Validates JWT tokens from an OIDC-compliant IdP. CG_OIDC_ENABLED defaults
+to true (fail-closed). When OIDC is disabled, the synthetic dev identity
+is only injected if CG_DEV_MODE=true is set explicitly; otherwise the
+middleware refuses requests with 503 so the misconfiguration is loud.
 """
 
 from __future__ import annotations
@@ -81,8 +82,12 @@ def _build_dev_identity(request: Request) -> CallerIdentity:
 class OIDCMiddleware(BaseHTTPMiddleware):
     """Validate OIDC JWT tokens and attach CallerIdentity to request state.
 
-    When ``CG_OIDC_ENABLED`` is false, injects a synthetic dev identity
-    derived from the ``X-CG-TLP`` header.
+    When ``CG_OIDC_ENABLED`` is false:
+      - if ``CG_DEV_MODE`` is true, injects a synthetic dev identity
+        derived from the ``X-CG-TLP`` header (local dev only);
+      - otherwise refuses the request with 503 so a misconfigured
+        deployment surfaces the gap loudly instead of admitting requests
+        as the synthetic admin user.
     """
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
@@ -92,6 +97,18 @@ class OIDCMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         if not config.OIDC_ENABLED:
+            if not config.DEV_MODE:
+                return JSONResponse(
+                    status_code=503,
+                    content={
+                        "detail": (
+                            "Authentication misconfigured: CG_OIDC_ENABLED=false "
+                            "and CG_DEV_MODE=false. Set CG_OIDC_ENABLED=true with "
+                            "a valid OIDC issuer, or set CG_DEV_MODE=true to opt "
+                            "into the synthetic dev identity (local use only)."
+                        )
+                    },
+                )
             request.state.identity = _build_dev_identity(request)
             return await call_next(request)
 

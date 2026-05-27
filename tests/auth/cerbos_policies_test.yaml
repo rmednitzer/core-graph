@@ -143,6 +143,50 @@ tests:
         actions:
           assert: EFFECT_DENY
 
+  - name: identity_attribution — Compliance officer cannot assert attribution
+    input:
+      principals: [compliance_user]
+      resources: [identity_attribution_target]
+      actions: [assert]
+    expected:
+      - principal: compliance_user
+        resource: identity_attribution_target
+        actions:
+          assert: EFFECT_DENY
+
+  - name: identity_attribution — IT operations cannot assert attribution
+    input:
+      principals: [it_ops_user]
+      resources: [identity_attribution_target]
+      actions: [assert]
+    expected:
+      - principal: it_ops_user
+        resource: identity_attribution_target
+        actions:
+          assert: EFFECT_DENY
+
+  - name: identity_attribution — DPO cannot assert attribution
+    input:
+      principals: [dpo_user]
+      resources: [identity_attribution_target]
+      actions: [assert]
+    expected:
+      - principal: dpo_user
+        resource: identity_attribution_target
+        actions:
+          assert: EFFECT_DENY
+
+  - name: identity_attribution — External auditor cannot assert attribution
+    input:
+      principals: [auditor_user]
+      resources: [identity_attribution_target]
+      actions: [assert]
+    expected:
+      - principal: auditor_user
+        resource: identity_attribution_target
+        actions:
+          assert: EFFECT_DENY
+
   # ------------------------------------------------------------------
   # incident
   # ------------------------------------------------------------------
@@ -198,6 +242,11 @@ principals:
   ai_user:
     id: ai_user
     roles: [ai_agent]
+    attr: {}
+
+  dpo_user:
+    id: dpo_user
+    roles: [dpo]
     attr: {}
 
 resources:

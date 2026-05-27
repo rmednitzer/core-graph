@@ -12,14 +12,20 @@ expected behaviour without requiring a live database.
 
 from __future__ import annotations
 
-from api.mcp.tools.identity_attribution import _widen_compartments
+import pytest
+
+from api.mcp.tools.identity_attribution import (
+    _widen_compartments,
+    assert_identity_attribution,
+)
 
 
 class TestWidenCompartments:
     def test_none_caller_yields_max_tlp_and_compartment(self) -> None:
         widened = _widen_compartments(None, "INV-42")
         assert "INV-42" in widened["allowed_compartments"]
-        assert widened["max_tlp"] >= 4
+        # Fallback dict (caller_identity is None) ships max_tlp=4.
+        assert widened["max_tlp"] == 4
 
     def test_existing_compartments_preserved(self) -> None:
         caller = {
@@ -40,14 +46,20 @@ class TestWidenCompartments:
         # No duplicate, single occurrence preserved.
         assert widened["allowed_compartments"].count("INV-9") == 1
 
-    def test_low_max_tlp_is_raised_to_red(self) -> None:
+    def test_max_tlp_is_preserved_not_silently_widened(self) -> None:
+        """The helper widens *compartments*, not max_tlp.
+
+        Callers arriving below TLP:RED are rejected upstream by
+        ``assert_identity_attribution``'s precondition check. The helper
+        itself preserves whatever max_tlp the caller carries.
+        """
         caller = {
             "actor": "soc@core",
             "max_tlp": 2,
             "allowed_compartments": [],
         }
         widened = _widen_compartments(caller, "INV-X")
-        assert widened["max_tlp"] >= 4
+        assert widened["max_tlp"] == 2
 
     def test_does_not_mutate_caller(self) -> None:
         caller = {
@@ -60,3 +72,36 @@ class TestWidenCompartments:
         _widen_compartments(caller, "B")
         assert caller["allowed_compartments"] == original_compartments
         assert caller["max_tlp"] == original_tlp
+
+
+class TestAssertIdentityAttributionPrecondition:
+    """The TLP:RED precondition must reject lower-clearance callers before
+    any Cerbos or DB call. Exercises the early-return path."""
+
+    @pytest.mark.asyncio
+    async def test_rejects_caller_below_tlp_red(self) -> None:
+        with pytest.raises(ValueError, match=r"max_tlp.*==.*4"):
+            await assert_identity_attribution(
+                principal_id="P-1",
+                threat_actor_stix_id="threat-actor--1234",
+                justification="test",
+                investigation_id="INV-1",
+                caller_identity={
+                    "actor": "soc@core",
+                    "max_tlp": 2,
+                    "allowed_compartments": [],
+                    "roles": ["soc_analyst"],
+                },
+            )
+
+    @pytest.mark.asyncio
+    async def test_rejects_caller_with_no_max_tlp(self) -> None:
+        # Default fallback to CG_DEFAULT_TLP (which is below 4).
+        with pytest.raises(ValueError, match=r"max_tlp.*==.*4"):
+            await assert_identity_attribution(
+                principal_id="P-1",
+                threat_actor_stix_id="threat-actor--1234",
+                justification="test",
+                investigation_id="INV-1",
+                caller_identity={"actor": "ciso@core", "roles": ["ciso"]},
+            )

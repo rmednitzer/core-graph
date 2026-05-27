@@ -16,12 +16,14 @@ from fastapi.responses import JSONResponse
 from minio import Minio
 
 from api.config import (
+    DEV_MODE,
     MINIO_ACCESS_KEY,
     MINIO_ENDPOINT,
     MINIO_EVIDENCE_BUCKET,
     MINIO_SECRET_KEY,
     MINIO_USE_SSL,
     NATS_URL,
+    OIDC_ENABLED,
     PG_DSN,
     VALKEY_URL,
 )
@@ -60,9 +62,20 @@ app = FastAPI(
 # CG_CORS_ORIGINS to an explicit allow-list; wildcards combined with
 # credentialed requests are a well-known browser footgun.
 cors_origins = [o.strip() for o in os.environ.get("CG_CORS_ORIGINS", "*").split(",") if o.strip()]
-if "*" in cors_origins and os.environ.get("CG_OIDC_ENABLED", "false").lower() == "true":
+if "*" in cors_origins and OIDC_ENABLED:
     logger.warning(
         "CG_CORS_ORIGINS contains '*' while OIDC is enabled; set an explicit origin list."
+    )
+
+# Surface auth misconfiguration at startup. The OIDCMiddleware refuses
+# every non-health request when both flags are off, so flag the
+# operational gap once at boot in addition to the per-request 503.
+if not OIDC_ENABLED and not DEV_MODE:
+    logger.warning(
+        "Authentication is disabled and CG_DEV_MODE is not set. "
+        "All non-health requests will return 503. Set CG_OIDC_ENABLED=true "
+        "with a valid CG_OIDC_ISSUER_URL for production, or set "
+        "CG_DEV_MODE=true for local development only."
     )
 app.add_middleware(
     CORSMiddleware,

@@ -15,7 +15,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import os
 from datetime import UTC, datetime
 from typing import Any
 
@@ -24,13 +23,18 @@ import zmq
 import zmq.asyncio
 from nats.js.api import StreamConfig
 
+from ingest.connectors.misp.config import MispConfig
+
 logger = logging.getLogger(__name__)
 
-# Configuration
-MISP_ZMQ_URL = os.environ.get("CG_MISP_ZMQ_URL", "tcp://localhost:50000")
-MISP_API_URL = os.environ.get("CG_MISP_API_URL", "https://localhost")
-MISP_API_KEY = os.environ.get("CG_MISP_API_KEY", "")
-NATS_URL = os.environ.get("CG_NATS_URL", "nats://localhost:4222")
+# Module-level constants are sourced from MispConfig so the env reads
+# happen in one place (matching netbox / keycloak / prometheus). Names
+# are kept stable for any importer holding a reference.
+_CONFIG = MispConfig()
+MISP_ZMQ_URL = _CONFIG.zmq_url
+MISP_API_URL = _CONFIG.api_url
+MISP_API_KEY = _CONFIG.api_key
+NATS_URL = _CONFIG.nats_url
 
 # MISP distribution level → TLP integer mapping
 DISTRIBUTION_TLP_MAP: dict[int, int] = {

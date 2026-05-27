@@ -22,6 +22,7 @@ State at engagement start (HEAD `bfcb62e`):
 - Backlog sources: 0 open issues, 0 open PRs, 1 source TODO marker (incidental, in `docs/operations/break-glass.md`). Backlog effectively driven by ADR-0006 gaps + Phase 2 audit findings. [V]
 
 Delta at engagement end (HEAD `acd95e6`):
+
 - 10 commits added on `claude/keen-lamport-K5zYW`. Tree size grew 19 MB → ~19.1 MB. Test count grew 438 → 440. No commits removed; no files deleted. [V]
 
 ---
@@ -208,6 +209,7 @@ Total turn count: ~40 turns. Total tool calls: ~120 (mostly parallel batches).
 ## 10. Artefacts
 
 Stored under `audit/2026-05-27/evidence/`:
+
 - (none committed in this run — all evidence captured inline in this report and in the commit log of `claude/keen-lamport-K5zYW`).
 
 To preserve specific tool outputs (semgrep findings, pip-audit JSON, osv-scanner output) as separate evidence files, add them to `audit/2026-05-27/evidence/` in a follow-up commit. Not done in this engagement because all material findings are reproducible by re-running the same commands listed in § 5 above.

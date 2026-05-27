@@ -40,15 +40,25 @@ runs:
         # container, which exhibited intermittent exit 128 in CI). The
         # pgvector source is small (~200 KB) so curl is faster anyway.
         # Mirrors the spirit of deploy/docker/Dockerfile.postgres.
+        #
+        # The tarball is downloaded to a local file and verified against
+        # an in-action SHA-256 before extraction (SLSA Build Track L3:
+        # build steps consume only checksum-pinned inputs). Bump the
+        # PGVECTOR_TAG and PGVECTOR_SHA256 together when upgrading.
         docker exec pgsetup bash -c '
           set -euo pipefail
+          PGVECTOR_TAG=v0.8.0
+          PGVECTOR_SHA256=867a2c328d4928a5a9d6f052cd3bc78c7d60228a9b914ad32aa3db88e9de27b0
           apt-get update -qq
           apt-get install -y --no-install-recommends \
             build-essential curl ca-certificates postgresql-server-dev-16 \
             postgresql-16-pgaudit postgresql-16-cron
           mkdir -p /tmp/pgvector
-          curl -fsSL https://github.com/pgvector/pgvector/archive/refs/tags/v0.8.0.tar.gz \
-            | tar xz -C /tmp/pgvector --strip-components=1
+          curl -fsSL -o /tmp/pgvector.tar.gz \
+            "https://github.com/pgvector/pgvector/archive/refs/tags/${PGVECTOR_TAG}.tar.gz"
+          echo "${PGVECTOR_SHA256}  /tmp/pgvector.tar.gz" | sha256sum -c -
+          tar xz -C /tmp/pgvector --strip-components=1 -f /tmp/pgvector.tar.gz
+          rm /tmp/pgvector.tar.gz
           cd /tmp/pgvector && make && make install
           cd / && rm -rf /tmp/pgvector
           apt-get purge -y --auto-remove build-essential curl postgresql-server-dev-16

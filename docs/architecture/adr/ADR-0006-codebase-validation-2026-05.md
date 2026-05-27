@@ -197,6 +197,24 @@ explicit. The shared `check_resource` client is retained as a known
 future-facing API and not deleted in this engagement; deletion or
 adoption is a candidate for a future ADR (ADR-0007).
 
+### Correction to § "Architectural-intent gaps" item 3
+
+Gap 3 stated: "`tests/auth/cerbos_policies_test.yaml` does not declare
+a principals/resources/tests block for this policy." That claim was
+inaccurate at the time ADR-0006 was written. The block has existed
+since commit `abe9190` (2026-03-29, "feat: identity attribution tool
+with Cerbos cg_ciso enforcement"), covering `cg_ciso` ALLOW plus
+deny for `soc_analyst` and `ai_agent`.
+
+The accurate gap is that coverage was *partial*: the deny rules in
+`policies/resource/identity_attribution.yaml` name six roles
+(`soc_analyst`, `compliance_officer`, `it_operations`, `dpo`,
+`external_auditor`, `ai_agent`), and only two were exercised. The
+2026-05-27 follow-up adds deny-cases for the remaining four
+(`compliance_officer`, `it_operations`, `dpo`, `external_auditor`)
+and adds the missing `dpo_user` principal. All six deny-roles are now
+covered.
+
 ## References
 
 * RFC 6962 — Certificate Transparency Merkle tree construction (leaf

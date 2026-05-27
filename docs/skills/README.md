@@ -7,6 +7,24 @@ more Cypher query templates with result formatting, confidence tagging, and a
 natural language description. Skills are what the AI agent calls. Query
 templates are what skills use internally.
 
+## Trust model
+
+The MCP server is **trusted-internal**. The MCP transport does not
+carry an OIDC-attested caller identity, so the read-side MCP tool
+wrappers (`tool_cypher_query`, `tool_vector_search`,
+`tool_entity_resolve`, `tool_stix_lookup`, `tool_ingest_event`) call
+the underlying tool functions without a `caller_identity` argument.
+The underlying tools fall back to `{"max_tlp": CG_DEFAULT_TLP,
+"allowed_compartments": []}` for RLS session-variable setup. The
+single write-side tool that touches a high-trust edge,
+`tool_assert_identity_attribution`, takes `caller_roles` and
+`caller_actor` explicitly and fails closed in Cerbos if they are
+absent.
+
+If the MCP server is ever exposed to less-trusted callers, the read
+wrappers must be reworked to source a `CallerIdentity` from an MCP
+request context before reaching the data layer.
+
 ## Architecture
 
 ```

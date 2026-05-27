@@ -3,6 +3,28 @@
 Exposes tools for AI agent interaction with the graph-vector
 knowledge platform. Each tool enforces RLS via PostgreSQL session
 variables and logs requests to the audit trail.
+
+Trust model
+-----------
+
+The MCP server is intended for **trusted-internal** invocation only.
+The MCP transport does not carry an OIDC-attested ``CallerIdentity``,
+so the read-side tool wrappers below (``tool_cypher_query``,
+``tool_vector_search``, ``tool_entity_resolve``, ``tool_stix_lookup``,
+``tool_ingest_event``) call the underlying tool functions without a
+``caller_identity`` argument. The underlying tools then fall back to
+``{"max_tlp": CG_DEFAULT_TLP, "allowed_compartments": []}`` for RLS
+session-variable setup.
+
+If the MCP server is exposed to less-trusted callers, the wrappers
+must be reworked to receive a ``CallerIdentity`` from an MCP request
+context (or equivalent) before reaching the data layer.
+
+The single write-side tool that mutates a high-trust edge,
+``tool_assert_identity_attribution``, takes ``caller_roles`` and
+``caller_actor`` explicitly and fails closed in Cerbos if they are
+absent. This is the only MCP tool that asserts caller attestation
+end-to-end.
 """
 
 from __future__ import annotations

@@ -23,7 +23,7 @@ interfaces.
 | **Threat intelligence** | TTPs, indicators, campaigns, threat actors, malware, vulnerabilities | STIX 2.1, MITRE ATT&CK |
 | **Security events** | Normalised alerts and detections from Wazuh, EDR, IDS/IPS | OCSF 1.1 |
 | **OSINT** | Feed aggregation, entity extraction, deduplication | STIX 2.1 |
-| **Audit and compliance** | Evidence chains, control mapping (NIS2, DORA, ISO 27001, BSI) | OSCAL |
+| **Audit and compliance** | Evidence chains, control mapping (NIS2, BSI Grundschutz) | OSCAL |
 | **AI memory** | Agent conversation context, reasoning traces, semantic embeddings | MCP-aligned |
 | **Forensic timelines** | Bitemporal facts, chain of custody, immutable evidence | CASE/UCO, STIX 2.1 |
 | **Infrastructure and assets** | CMDB, network inventory, monitoring alerts | Netbox/Prometheus aligned |

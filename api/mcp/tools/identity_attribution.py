@@ -78,6 +78,12 @@ def _widen_compartments(
     This is required for write-through visibility: the RLS policy on edges
     filters by compartment membership. Without this widening the writer would
     create a row that it cannot subsequently SELECT.
+
+    The caller MUST already have ``max_tlp == 4`` (TLP:RED). Identity
+    attribution writes a TLP:RED edge; a session ceiling below that would
+    leave the writer unable to read back its own edge. ``max_tlp`` is not
+    silently widened: callers that arrive with a lower ceiling are
+    rejected by ``assert_identity_attribution`` before this helper runs.
     """
     base = (
         dict(caller_identity)
@@ -91,10 +97,6 @@ def _widen_compartments(
     if investigation_id not in compartments:
         compartments.append(investigation_id)
     base["allowed_compartments"] = compartments
-    # CISO-driven attribution writes TLP:RED — make sure the session ceiling
-    # permits reading back the edge.
-    if int(base.get("max_tlp", DEFAULT_TLP)) < 4:
-        base["max_tlp"] = 4
     return base
 
 
@@ -126,6 +128,19 @@ async def assert_identity_attribution(
         PermissionError: If Cerbos denies the action.
     """
     cerbos_caller = caller_identity or {"max_tlp": DEFAULT_TLP, "allowed_compartments": []}
+
+    # Precondition: the caller must arrive with TLP:RED clearance. The edge
+    # this tool writes is TLP:RED; a lower session ceiling would leave the
+    # writer unable to read back its own edge under RLS. The MCP wrapper
+    # at api/mcp/server.py hardcodes max_tlp=4 for this tool; direct
+    # callers (REST, tests, future glue) must match.
+    if int(cerbos_caller.get("max_tlp", DEFAULT_TLP)) < 4:
+        raise ValueError(
+            "Identity attribution requires caller_identity['max_tlp'] == 4 "
+            "(TLP:RED). The edge written by this tool is TLP:RED; a session "
+            "ceiling below that would leave the writer unable to read back "
+            "its own edge under RLS."
+        )
 
     resource_id = f"{principal_id}:{threat_actor_stix_id}"
     authorized = await _check_cerbos_authorization(cerbos_caller, resource_id)

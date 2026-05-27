@@ -161,6 +161,42 @@ implementation bugs in future reviews.
 * No code changes are introduced by this ADR. The validation pass
   surfaced no security regressions and no new bugs.
 
+## 2026-05-27 follow-up — Cerbos read-path enforcement scope
+
+A subsequent audit (Phase 2 of the 2026-05-27 engagement) made one of
+the validated alignments above more explicit. The original "Cerbos TLP
+gating" row in §"Validated alignments" confirmed that the *policy
+files* (`policies/resource/threat_entity.yaml`, `evidence_record.yaml`,
+`incident.yaml`) are well-formed and use the canonical
+`request.resource.attr.tlp_level <= request.principal.attr.max_tlp`
+pattern. The validation did not assert that those policies are
+*invoked* on the read path, and the runtime code does not invoke them.
+
+State at HEAD (2026-05-27):
+
+* `api/authz/cerbos.py::check_resource` is a well-formed shared client
+  (fail-closed, 5 s timeout) with **zero call sites** in the request
+  path.
+* The only runtime Cerbos invocation is the inlined
+  `_check_cerbos_authorization` in `api/mcp/tools/identity_attribution.py`,
+  which guards the `Principal--same_as--ThreatActor` MERGE before any
+  DB write.
+* All read paths (REST `/query`, `/search`, `/entities`, `/stix`; MCP
+  read tools; TAXII collection endpoints) acquire a connection via
+  `api/db.get_connection`, which sets `app.max_tlp` and
+  `app.allowed_compartments` GUCs from the caller identity. Subsequent
+  RLS policies on the labelled tables filter rows by TLP. Compartment
+  scoping is enforced by Cypher templates, not by RLS (see Gap 1
+  above).
+
+Implication: the three-layer authz model is the *target* architecture.
+The runtime enforcement model is "Cerbos on the identity-attribution
+write path; PostgreSQL RLS on all reads; SpiceDB defined but not yet
+invoked". `SECURITY.md` was updated in the same change to make this
+explicit. The shared `check_resource` client is retained as a known
+future-facing API and not deleted in this engagement; deletion or
+adoption is a candidate for a future ADR (ADR-0007).
+
 ## References
 
 * RFC 6962 — Certificate Transparency Merkle tree construction (leaf

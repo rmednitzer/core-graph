@@ -31,6 +31,7 @@ from api.taxii.models import (
 )
 from api.utils.caller import caller_from_request as _shared_caller_from_request
 from api.utils.cypher_safety import validate_label
+from ingest.streams import ensure_ingest_stream
 
 logger = logging.getLogger(__name__)
 
@@ -427,8 +428,11 @@ async def add_objects(
 
     # Publish each object to NATS for ingestion
     try:
-        nc = await nats.connect(NATS_URL)
+        nc = await nats.connect(NATS_URL, connect_timeout=5)
         js = nc.jetstream()
+        # Shared INGEST stream; the enrichment worker maps these STIX objects
+        # into enriched.entity.* for the graph writer.
+        await ensure_ingest_stream(js)
 
         for obj in stix_objects:
             try:
@@ -439,6 +443,7 @@ async def add_objects(
                 await js.publish(
                     f"ingest.taxii.{collection_id}",
                     payload,
+                    timeout=10,
                 )
                 success_count += 1
             except Exception:

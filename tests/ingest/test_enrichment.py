@@ -132,3 +132,48 @@ def test_enrich_dispatches_by_subject_prefix():
         {"label": "CanonicalIP", "properties": {"value": "9.9.9.9"}},
     )
     assert enrichment.enrich("ingest.unknown.x", {"foo": "bar"}) == []
+
+
+def test_raw_stix_observable_maps_to_canonical_ip():
+    obj = {"type": "ipv4-addr", "value": "198.51.100.9"}
+    out = enrichment.entities_from_stix_object(obj, default_tlp=1)
+    assert out == [
+        {
+            "label": "CanonicalIP",
+            "properties": {"value": "198.51.100.9", "tlp": 1, "source": "taxii"},
+        }
+    ]
+
+
+def test_raw_stix_indicator_pattern_exploded():
+    obj = {"type": "indicator", "pattern": "[domain-name:value = 'bad.example']"}
+    out = enrichment.entities_from_stix_object(obj, default_tlp=1)
+    assert [e["label"] for e in out] == ["CanonicalDomain"]
+
+
+def test_raw_stix_file_hashes_become_indicators():
+    obj = {"type": "file", "hashes": {"SHA-256": "c" * 64, "MD5": "d" * 32}}
+    out = enrichment.entities_from_stix_object(obj, default_tlp=1)
+    types = sorted(e["properties"]["indicator_type"] for e in out)
+    assert types == ["md5", "sha256"]
+
+
+def test_raw_stix_sdo_is_deferred():
+    assert enrichment.entities_from_stix_object({"type": "malware", "name": "X"}, 1) == []
+
+
+def test_stix_tlp_marking_is_honoured_not_defaulted():
+    # TLP:RED marking must win over the GREEN default, never under-classify.
+    obj = {
+        "type": "ipv4-addr",
+        "value": "203.0.113.9",
+        "object_marking_refs": ["marking-definition--826578e1-40ad-459f-bc73-ede076f81f37"],
+    }
+    out = enrichment.entities_from_stix_object(obj, default_tlp=1)
+    assert out[0]["properties"]["tlp"] == 4
+
+
+def test_enrich_routes_taxii_and_api():
+    # TAXII raw STIX -> threatintel handler; API OCSF -> ocsf handler.
+    assert enrichment.enrich("ingest.taxii.c1", {"type": "ipv4-addr", "value": "1.1.1.1"})
+    assert enrichment.enrich("ingest.api.events", {"category": "finding", "class_uid": 1})

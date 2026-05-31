@@ -122,8 +122,8 @@ Groups currently bound in `api/config.py`:
 
 ## Coding conventions
 
-- Python 3.12+, type hints required, ruff for linting (`line-length = 100`,
-  `target-version = "py312"`)
+- Python 3.13+, type hints required, ruff for linting (`line-length = 100`,
+  `target-version = "py313"`)
 - Ruff `select = ["E", "F", "I", "W", "UP", "B", "S"]`. Do not silence
   S-rules outside the per-file-ignores already declared in `pyproject.toml`
 - SQL migrations are numbered files (`001_`, `002_`, ...). No ORM. Idempotent
@@ -192,6 +192,9 @@ above; migration replay: `bash tests/schema/test_migrations.sh`.
   - `ingest/connectors/{keycloak,misp,netbox,opencti,osint,prometheus,wazuh}/`
   - `ingest/dlq/` — Dead-letter queue processor
   - `ingest/ner/`, `ingest/resolver/` — NER and entity resolution
+  - `ingest/enrichment.py` + `ingest/enrichment_worker.py` — normalise the
+    feed-style connectors' raw `ingest.*` messages into graph-writable
+    `enriched.entity.*` envelopes (the NER/resolution stage)
   - `ingest/graph_writer.py` — NATS JetStream → PostgreSQL writer
 - `api/` — Service code
   - `api/config.py` — Canonical env-var binding site (see "Configuration"
@@ -208,7 +211,7 @@ above; migration replay: `bash tests/schema/test_migrations.sh`.
   - `api/rest/` — FastAPI app, middleware, routes
   - `api/taxii/` — TAXII 2.1 endpoint
   - `api/graphql/` — Optional GraphQL interface
-- `deploy/` — `docker/` (Compose), `k8s/` (Kustomize base+overlays, Helm
+- `deploy/` — `docker/` (Compose), `k8s/` (Helm
   chart, ArgoCD apps), `nats/`, `grafana/`
 - `evidence/` — cosign signing, hash-chain computation, Rekor config
 - `scripts/` — bootstrap, MinIO init, migration validation, Merkle stamping;

@@ -13,21 +13,15 @@ from datetime import UTC, datetime
 from typing import Any
 
 import nats
-from nats.js.api import StreamConfig
+
+from ingest.streams import ensure_ingest_stream
 
 
 async def connect_nats(url: str = "nats://localhost:4222") -> nats.NATS:
-    """Connect to NATS and ensure the ingest stream exists."""
+    """Connect to NATS and ensure the shared raw-ingest stream exists."""
     nc = await nats.connect(url)
     js = nc.jetstream()
-    await js.add_stream(
-        StreamConfig(
-            name="INGEST_SIEM",
-            subjects=["ingest.siem.>"],
-            retention="limits",
-            max_bytes=1_073_741_824,  # 1 GiB
-        )
-    )
+    await ensure_ingest_stream(js)
     return nc
 
 

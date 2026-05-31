@@ -109,6 +109,35 @@ spec:
         - port: 53
           protocol: TCP
 ---
+# Enrichment-worker: allow egress to nats and DNS
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "enrichment-worker") }}-egress
+  labels:
+    {{- include "core-graph.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "enrichment-worker") | nindent 6 }}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "nats") | nindent 14 }}
+      ports:
+        - port: 4222
+          protocol: TCP
+    # DNS resolution
+    - to: []
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+---
 # PostgreSQL: allow ingress from api and graph-writer
 {{- if .Values.postgres.enabled }}
 apiVersion: networking.k8s.io/v1
@@ -158,6 +187,9 @@ spec:
         - podSelector:
             matchLabels:
               {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "graph-writer") | nindent 14 }}
+        - podSelector:
+            matchLabels:
+              {{- include "core-graph.selectorLabels" (dict "Release" .Release "component" "enrichment-worker") | nindent 14 }}
       ports:
         - port: 4222
           protocol: TCP

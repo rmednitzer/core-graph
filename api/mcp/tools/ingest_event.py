@@ -8,11 +8,11 @@ import uuid
 from typing import Any
 
 import nats
-from nats.js.api import StreamConfig
 from pydantic import BaseModel
 
 from api.config import NATS_URL
 from api.db import get_connection
+from ingest.streams import ensure_ingest_stream
 
 logger = logging.getLogger(__name__)
 
@@ -79,21 +79,16 @@ async def ingest_event(
 
     correlation_id = uuid.uuid4()
 
-    # Publish to NATS
-    nc = await nats.connect(NATS_URL)
+    # Publish to NATS. The shared INGEST stream is consumed by the enrichment
+    # worker, which maps these OCSF events into enriched.entity.* for the writer.
+    nc = await nats.connect(NATS_URL, connect_timeout=5)
     try:
         js = nc.jetstream()
-        await js.add_stream(
-            StreamConfig(
-                name="INGEST_API",
-                subjects=["ingest.api.>"],
-                retention="limits",
-                max_bytes=1_073_741_824,
-            )
-        )
+        await ensure_ingest_stream(js)
         ack = await js.publish(
             "ingest.api.events",
             json.dumps(event, default=str).encode(),
+            timeout=10,
         )
 
         logger.info("Event ingested: stream=%s seq=%d", ack.stream, ack.seq)

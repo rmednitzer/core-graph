@@ -39,7 +39,7 @@ The dev stack (`make up`) starts the following services (among others):
 | Service | Port | Purpose |
 |---|---|---|
 | API (FastAPI) | 8000 | REST API (containerised) |
-| PostgreSQL 16 (AGE + pgvector) | 5432 | Core database |
+| PostgreSQL 18 (AGE + pgvector) | 5432 | Core database |
 | NATS JetStream | 4222, 8222 | Message bus, monitoring |
 | Valkey | 6379 | Cache (session, rate limiting) |
 | SpiceDB | 50051 | ReBAC engine |

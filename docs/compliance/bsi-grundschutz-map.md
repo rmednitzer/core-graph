@@ -38,7 +38,7 @@ control, auditing, and hardening.
 
 | Requirement | Platform implementation |
 |---|---|
-| Hardened configuration | PostgreSQL 16+ with hardened configuration. Unnecessary extensions disabled, `listen_addresses` restricted, connection limits enforced, SSL required for all connections. |
+| Hardened configuration | PostgreSQL 18+ with hardened configuration. Unnecessary extensions disabled, `listen_addresses` restricted, connection limits enforced, SSL required for all connections. |
 | Mandatory access control | RLS (Row-Level Security) for mandatory access control at engine level. TLP markings are enforced by the database itself -- application code cannot bypass these policies. |
 | Operation-level auditing | pgAudit for operation-level audit logging. All DDL and DML operations are captured with session context, user identity, and timestamp. |
 | Injection prevention | Parameterised queries exclusively (no string concatenation). Cypher queries through Apache AGE use query templates. This mitigates CVE-2022-45786 and equivalent injection vectors. |
@@ -114,7 +114,7 @@ runtime isolation, and network segmentation.
 
 - Harbor scan reports per image tag and digest
 - cosign signature verification logs
-- NetworkPolicy definitions in `deploy/kustomize/`
+- NetworkPolicy definitions in `deploy/k8s/helm/templates/common/networkpolicies.yaml`
 - Container runtime configuration (seccomp profiles, read-only root filesystem)
 
 ---

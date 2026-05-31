@@ -15,7 +15,7 @@ metadata:
   name: core-graph
   description: >-
     Converged graph-vector knowledge platform for air-gapped Kubernetes
-    deployments. Includes REST API, graph writer, PostgreSQL 16 (AGE/pgvector),
+    deployments. Includes REST API, graph writer, PostgreSQL 18 (AGE/pgvector),
     NATS JetStream, and Valkey.
   version: 0.1.0
   url: https://github.com/rmednitzer/core-graph
@@ -38,8 +38,8 @@ components:
     images:
       # Core-graph API + graph-writer
       - ghcr.io/rmednitzer/core-graph:0.1.0-alpha
-      # PostgreSQL 16 (with AGE, pgvector, pgaudit, pg_cron)
-      - ghcr.io/rmednitzer/core-graph-postgres:16-extensions
+      # PostgreSQL 18 (with AGE, pgvector, pgaudit, pg_cron)
+      - ghcr.io/rmednitzer/core-graph-postgres:18-extensions
       # NATS JetStream
       - docker.io/library/nats:2.10
       # Valkey (Redis-compatible cache)

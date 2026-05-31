@@ -14,9 +14,9 @@ from typing import Any
 
 import httpx
 import nats
-from nats.js.api import StreamConfig
 
 from api.config import NATS_URL
+from ingest.streams import ensure_ingest_stream
 
 logger = logging.getLogger(__name__)
 
@@ -196,15 +196,9 @@ async def run(
     nc = await nats.connect(nats_addr)
     js = nc.jetstream()
 
-    # Ensure the ingest stream exists
-    await js.add_stream(
-        StreamConfig(
-            name="INGEST_THREATINTEL",
-            subjects=["ingest.threatintel.>"],
-            retention="limits",
-            max_bytes=1_073_741_824,
-        )
-    )
+    # Ensure the shared raw-ingest stream exists. The enrichment worker
+    # consumes ingest.> and normalises onto enriched.entity.>.
+    await ensure_ingest_stream(js)
 
     logger.info("Starting OpenCTI connector: %s → NATS %s", url, nats_addr)
 

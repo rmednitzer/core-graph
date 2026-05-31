@@ -1,4 +1,4 @@
-.PHONY: help up down migrate seed validate test lint clean reset psql serve mcp graph-writer integration-test verify-chain verify-merkle stamp-merkle bench helm-lint helm-template helm-validate zarf-validate deploy-lint
+.PHONY: help up down migrate seed validate test lint clean reset psql serve mcp graph-writer enrichment-worker integration-test verify-chain verify-merkle stamp-merkle bench helm-lint helm-template helm-validate zarf-validate deploy-lint
 
 # Database connection defaults (override via environment)
 PGHOST   ?= localhost
@@ -82,6 +82,9 @@ mcp: ## Run the MCP server
 
 graph-writer: ## Run the graph writer worker
 	python -m ingest.graph_writer
+
+enrichment-worker: ## Run the enrichment worker (ingest.* -> enriched.*)
+	python -m ingest.enrichment_worker
 
 integration-test: ## Run integration tests only
 	pytest -m integration -v

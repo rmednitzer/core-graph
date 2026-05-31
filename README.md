@@ -42,9 +42,9 @@ functional, Helm chart and ArgoCD manifests ready.
 
 ## Prerequisites
 
-- Python 3.12+
+- Python 3.13+
 - Docker and Docker Compose (for the local dev stack)
-- PostgreSQL 16+ with [Apache AGE](https://age.apache.org/) and
+- PostgreSQL 18+ with [Apache AGE](https://age.apache.org/) and
   [pgvector](https://github.com/pgvector/pgvector) (provided by the dev stack)
 - NATS Server 2.10+ (provided by the dev stack)
 
@@ -154,7 +154,7 @@ zarf package deploy zarf-package-core-graph-amd64-0.1.0.tar.zst \
   Keycloak (IdP)  ──┘                                  │
                                                        ▼
                                           ┌────────────────────────┐
-                                          │    PostgreSQL 16+      │
+                                          │    PostgreSQL 18+      │
                                           │  ┌────────┐ ┌────────┐ │
                                           │  │  AGE   │ │pgvector│ │
                                           │  │(graph) │ │(embed.)│ │
@@ -251,6 +251,7 @@ core-graph/
 │   ├── ner/             Named entity recognition (tier 1: regex + STIX patterns)
 │   ├── resolver/        Entity resolution and deduplication
 │   ├── dlq/             Dead-letter queue processor
+│   ├── enrichment.py    ingest.* → enriched.* normalisation (+ enrichment_worker.py)
 │   └── graph_writer.py  Batch graph writer with bitemporal versioning
 ├── schema/
 │   ├── migrations/      Numbered SQL files (001_ through 026_), idempotent
@@ -261,7 +262,7 @@ core-graph/
 │   └── signing/         cosign signing, MinIO WORM storage, RFC 3161 timestamps
 ├── deploy/
 │   ├── docker/          Docker Compose dev stack + hardened PostgreSQL config
-│   ├── k8s/             Helm chart, Kustomize overlays, ArgoCD manifests
+│   ├── k8s/             Helm chart, ArgoCD manifests
 │   ├── nats/            NATS server config (dev + prod)
 │   └── grafana/         Dashboards and provisioning
 ├── tests/               Schema, RLS, ingest, integration, skills, TAXII tests
@@ -277,7 +278,7 @@ Detailed documentation lives in [`docs/`](docs/):
 | Area | Documents |
 |---|---|
 | **Architecture** | [Overview](docs/architecture/overview.md), [Authorization model](docs/architecture/authorization-model.md), [RLS + AGE integration](docs/architecture/rls-age-integration.md), [IAM layer](docs/architecture/iam-layer.md), [Data residency](docs/architecture/data-residency.md) |
-| **ADRs** | [0002 Hybrid retrieval](docs/architecture/adr/ADR-0002-hybrid-retrieval.md), [0003 Edge TLP denormalisation](docs/architecture/adr/ADR-0003-edge-tlp-denormalization.md), [0004 Salience formula](docs/architecture/adr/ADR-0004-salience-formula.md), [0005 Memory supersession](docs/architecture/adr/ADR-0005-memory-supersession.md), [0006 Code-base validation 2026-05](docs/architecture/adr/ADR-0006-codebase-validation-2026-05.md) |
+| **ADRs** | [0002 Hybrid retrieval](docs/architecture/adr/ADR-0002-hybrid-retrieval.md), [0003 Edge TLP denormalisation](docs/architecture/adr/ADR-0003-edge-tlp-denormalization.md), [0004 Salience formula](docs/architecture/adr/ADR-0004-salience-formula.md), [0005 Memory supersession](docs/architecture/adr/ADR-0005-memory-supersession.md), [0006 Code-base validation 2026-05](docs/architecture/adr/ADR-0006-codebase-validation-2026-05.md), [0007 Modernization audit 2026-05](docs/architecture/adr/ADR-0007-modernization-audit-2026-05.md) |
 | **Ontology** | [Schema design](docs/ontology/schema-design.md), [STIX mapping](docs/ontology/stix-mapping.md), [OCSF normalization](docs/ontology/ocsf-normalization.md) |
 | **Compliance** | [NIS2 controls](docs/compliance/nis2-controls.md), [BSI IT-Grundschutz](docs/compliance/bsi-grundschutz-map.md) |
 | **Operations** | [Backup and restore](docs/operations/backup-restore.md), [PostgreSQL hardening](docs/operations/postgresql-hardening.md), [Break-glass procedure](docs/operations/break-glass.md), [PG major upgrade](docs/operations/pg-major-upgrade.md), [Database migration runbook](docs/operations/database-migration-runbook.md) |

@@ -55,9 +55,26 @@ graphWriter:
     requests:
       cpu: 200m
       memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
 
 # ---------------------------------------------------------------------------
-# PostgreSQL 16 — graph store (AGE), vector store (pgvector), audit log
+# Enrichment Worker — NATS ingest.* → enriched.* normalisation
+# (opencti / misp / osint / wazuh feeds → graph-writable entities)
+# ---------------------------------------------------------------------------
+enrichmentWorker:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# ---------------------------------------------------------------------------
+# PostgreSQL 18 — graph store (AGE), vector store (pgvector), audit log
 # Set enabled=false and configure external.* to use an external instance.
 # ---------------------------------------------------------------------------
 postgres:
@@ -66,7 +83,7 @@ postgres:
   # Built from deploy/docker/Dockerfile.postgres.
   image:
     repository: rmednitzer/core-graph-postgres
-    tag: "16-extensions"
+    tag: "18-extensions"
   storage: 10Gi
   storageClass: ""
   resources:
@@ -104,6 +121,10 @@ nats:
     requests:
       cpu: 100m
       memory: 128Mi
+    # JetStream maxMem is 256MB; the pod limit leaves headroom above it.
+    limits:
+      cpu: "1"
+      memory: 512Mi
 
   external:
     url: ""
@@ -123,6 +144,9 @@ valkey:
     requests:
       cpu: 100m
       memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
   external:
     url: ""
 

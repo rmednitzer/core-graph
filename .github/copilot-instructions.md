@@ -2,7 +2,7 @@
 
 ## Project
 
-core-graph is a converged graph-vector knowledge platform. PostgreSQL 16+ with
+core-graph is a converged graph-vector knowledge platform. PostgreSQL 18+ with
 Apache AGE (openCypher graph queries) and pgvector (HNSW vector similarity
 search) is the canonical store. Satellite systems (Wazuh, OpenCTI, MISP,
 OpenSearch, MinIO) feed structured entities through NATS JetStream into the
@@ -10,11 +10,11 @@ core.
 
 ## Stack
 
-- **Database**: PostgreSQL 16+ / Apache AGE / pgvector
+- **Database**: PostgreSQL 18+ / Apache AGE / pgvector
 - **Message bus**: NATS JetStream
 - **Authorisation**: Cerbos (ABAC) + SpiceDB (ReBAC)
 - **Evidence integrity**: cosign + Rekor + MinIO WORM
-- **Language**: Python 3.12+, SQL (no ORM), YAML (Cerbos policies)
+- **Language**: Python 3.13+, SQL (no ORM), YAML (Cerbos policies)
 
 ## Style rules
 

@@ -85,7 +85,7 @@ A restore test is executed on the first Monday of each month. Results are
 recorded as compliance evidence in Layer 4 (audit/compliance).
 
 1. **Create isolated test instance.**
-   Provision a temporary PostgreSQL 16 container or VM with no network access
+   Provision a temporary PostgreSQL 18 container or VM with no network access
    to production systems.
 
 2. **Restore latest full + incrementals.**
@@ -169,7 +169,7 @@ size and network throughput from S3.
 
 If the local PostgreSQL data directory is lost (disk failure, node loss):
 
-1. Provision a replacement node with PostgreSQL 16 and pgBackRest.
+1. Provision a replacement node with PostgreSQL 18 and pgBackRest.
 2. Configure `pgbackrest.conf` with the same stanza and S3 credentials.
 3. Run a full restore from the S3 backup repository.
 4. Verify hash chain integrity in `audit_log`.

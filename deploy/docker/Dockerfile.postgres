@@ -1,35 +1,45 @@
-FROM apache/age:release_PG16_1.6.0
+FROM apache/age:release_PG18_1.7.0
 
-# Pull OS-level security patches into the image. The apache/age base
-# is updated infrequently and accumulates fixable CRITICAL CVEs between
-# rebuilds; `dist-upgrade` is needed (not `upgrade`) because some PG16
-# security patches change package dependencies and `upgrade` holds them
-# back. Mirrors the spirit of the patch in Dockerfile.app.
-RUN apt-get update -qq \
-    && apt-get dist-upgrade -y \
+# Build pgaudit + pg_cron (PG18) and compile pgvector from a checksum-pinned
+# tarball. Mirrors the .github/actions/setup-pg-age steps so the runtime image
+# and the CI database are built identically.
+#
+# pgvector 0.8.2 is the first 0.8.x release with PostgreSQL 18 support — 0.8.0
+# predates PG18 and fails to compile against the PG18 server headers.
+#
+# DEBIAN_FRONTEND=noninteractive + --force-confold keep apt from stopping the
+# build on a config-file prompt; `dist-upgrade` pulls CVE fixes even when they
+# change dependencies; a curl tarball (not git clone) lets the build consume
+# only a checksum-pinned input and carry no git in the final layer.
+ARG PGVECTOR_TAG=v0.8.2
+ARG PGVECTOR_SHA256=69f4019389af05dc1c9548deb8628e62878e6e207c03907f2b8af2016472cdaa
+RUN export DEBIAN_FRONTEND=noninteractive \
+    && apt-get update -qq \
+    && apt-get -y -o Dpkg::Options::="--force-confold" dist-upgrade \
     && apt-get install -y --no-install-recommends \
         build-essential \
-        git \
-        postgresql-server-dev-16 \
-        postgresql-16-cron \
-        postgresql-16-pgaudit \
+        curl \
         ca-certificates \
-    # pgvector is built from source. Bumping past v0.7.4 picks up
-    # the upstream security and correctness fixes shipped in the v0.8
-    # line.
-    && git clone --branch v0.8.0 --depth 1 https://github.com/pgvector/pgvector.git /tmp/pgvector \
+        postgresql-server-dev-18 \
+        postgresql-18-cron \
+        postgresql-18-pgaudit \
+    && mkdir -p /tmp/pgvector \
+    && curl -fsSL -o /tmp/pgvector.tar.gz \
+        "https://github.com/pgvector/pgvector/archive/refs/tags/${PGVECTOR_TAG}.tar.gz" \
+    && echo "${PGVECTOR_SHA256}  /tmp/pgvector.tar.gz" | sha256sum -c - \
+    && tar xz -C /tmp/pgvector --strip-components=1 -f /tmp/pgvector.tar.gz \
+    && rm /tmp/pgvector.tar.gz \
     && cd /tmp/pgvector \
     && make \
     && make install \
     && cd / \
     && rm -rf /tmp/pgvector \
-    # Drop build toolchain after pgvector is installed — it isn't
-    # needed at runtime and would otherwise dominate the CVE surface
-    # area of the final image.
+    # Drop the build toolchain — not needed at runtime and otherwise the
+    # dominant CVE surface of the final image.
     && apt-get purge -y --auto-remove \
         build-essential \
-        git \
-        postgresql-server-dev-16 \
+        curl \
+        postgresql-server-dev-18 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

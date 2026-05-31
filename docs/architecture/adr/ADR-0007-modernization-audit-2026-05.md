@@ -33,8 +33,9 @@ sources rather than search summaries.
 - Apache AGE — `release_PG18_1.7.0` is the current release and is published
   for PostgreSQL 18 (and 17). AGE is no longer the version ceiling it
   historically was. <https://github.com/apache/age/releases>
-- pgvector 0.8.0 — adds `halfvec`/`sparsevec` and HNSW/IVFFlat **iterative
-  index scans** for filtered search.
+- pgvector — 0.8.0 adds `halfvec`/`sparsevec` and HNSW/IVFFlat **iterative
+  index scans**; **0.8.1+ adds PostgreSQL 18 support** (0.8.0 will not compile
+  against the PG18 headers), so the build pins 0.8.2.
   <https://www.postgresql.org/about/news/pgvector-080-released-2952/>
 - MCP Python SDK (`mcp`) — current line is 1.x (1.27+).
   <https://github.com/modelcontextprotocol/python-sdk>
@@ -57,7 +58,7 @@ restricted) to a tracked roadmap rather than shipping them untested.
 |---|---|---|---|
 | PostgreSQL | 16 | 18 | PG18 GA 2025-09-25 |
 | Apache AGE | 1.6.0 (PG16) | 1.7.0 (PG18) | apache/age releases |
-| pgvector | 0.8.0 | 0.8.0 + iterative scans enabled | pgvector 0.8 notes |
+| pgvector | 0.8.0 | 0.8.2 (+ iterative scans enabled) | 0.8.1+ adds PG18 |
 | Python (runtime + CI + floor) | 3.13 runtime / 3.12 CI & floor | 3.13 throughout | — |
 
 - The PG16→18 / AGE1.6→1.7 bump spans the `setup-pg-age` CI action,

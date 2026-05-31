@@ -35,7 +35,7 @@ runs:
           -e POSTGRES_DB \
           apache/age:release_PG18_1.7.0
         until docker exec pgsetup pg_isready -U "$POSTGRES_USER"; do sleep 1; done
-        # Install pgaudit + pg_cron from Debian; fetch pgvector v0.8.0
+        # Install pgaudit + pg_cron from Debian; fetch pgvector v0.8.2
         # source as a tarball (avoids depending on git inside the
         # container, which exhibited intermittent exit 128 in CI). The
         # pgvector source is small (~200 KB) so curl is faster anyway.
@@ -47,8 +47,8 @@ runs:
         # PGVECTOR_TAG and PGVECTOR_SHA256 together when upgrading.
         docker exec pgsetup bash -c '
           set -euo pipefail
-          PGVECTOR_TAG=v0.8.0
-          PGVECTOR_SHA256=867a2c328d4928a5a9d6f052cd3bc78c7d60228a9b914ad32aa3db88e9de27b0
+          PGVECTOR_TAG=v0.8.2
+          PGVECTOR_SHA256=69f4019389af05dc1c9548deb8628e62878e6e207c03907f2b8af2016472cdaa
           apt-get update -qq
           apt-get install -y --no-install-recommends \
             build-essential curl ca-certificates postgresql-server-dev-18 \

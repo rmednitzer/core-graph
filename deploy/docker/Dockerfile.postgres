@@ -1,19 +1,21 @@
 FROM apache/age:release_PG18_1.7.0
 
-# Build pgaudit + pg_cron (PG18) and compile pgvector v0.8.0 from a
-# checksum-pinned tarball. This mirrors the proven .github/actions/setup-pg-age
-# steps so the runtime image and the CI database are built identically.
+# Build pgaudit + pg_cron (PG18) and compile pgvector from a checksum-pinned
+# tarball. Mirrors the .github/actions/setup-pg-age steps so the runtime image
+# and the CI database are built identically.
+#
+# pgvector 0.8.2 is the first 0.8.x release with PostgreSQL 18 support — 0.8.0
+# predates PG18 and fails to compile against the PG18 server headers.
 #
 # DEBIAN_FRONTEND=noninteractive + --force-confold keep apt from stopping the
-# build on a config-file prompt. We use `upgrade` (not `dist-upgrade`) to patch
-# CVEs without the dependency churn that can break a freshly cut base image,
-# and a curl tarball (not git clone) so the build consumes only a checksum-
-# pinned input and carries no git in the final layer.
-ARG PGVECTOR_TAG=v0.8.0
-ARG PGVECTOR_SHA256=867a2c328d4928a5a9d6f052cd3bc78c7d60228a9b914ad32aa3db88e9de27b0
+# build on a config-file prompt; `dist-upgrade` pulls CVE fixes even when they
+# change dependencies; a curl tarball (not git clone) lets the build consume
+# only a checksum-pinned input and carry no git in the final layer.
+ARG PGVECTOR_TAG=v0.8.2
+ARG PGVECTOR_SHA256=69f4019389af05dc1c9548deb8628e62878e6e207c03907f2b8af2016472cdaa
 RUN export DEBIAN_FRONTEND=noninteractive \
     && apt-get update -qq \
-    && apt-get -y -o Dpkg::Options::="--force-confold" upgrade \
+    && apt-get -y -o Dpkg::Options::="--force-confold" dist-upgrade \
     && apt-get install -y --no-install-recommends \
         build-essential \
         curl \

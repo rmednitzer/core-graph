@@ -8,6 +8,44 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### Phase 7 — modernization audit (2026-05)
+
+* New ADR
+  `docs/architecture/adr/ADR-0007-modernization-audit-2026-05.md` records a
+  full-repository modernization pass validated against primary sources
+  (PostgreSQL 18 release notes, Apache AGE releases, the pgvector changelog,
+  the MCP Python SDK, Sigstore) with a prioritised roadmap for deferred
+  items.
+* **Engine currency.** PostgreSQL 16 → 18 and Apache AGE 1.6.0 → 1.7.0 across
+  the `setup-pg-age` CI action, `Dockerfile.postgres`, the Helm values, the
+  Zarf package, and all docs. pgvector 0.8.0 → 0.8.2 — the first 0.8.x line
+  with PostgreSQL 18 support (0.8.0 does not compile against the PG18 server
+  headers) — with the tarball SHA-256 pinned in both build paths.
+* **Migration 027** (`027_pgvector_iterative_scan.sql`) enables pgvector 0.8
+  HNSW iterative index scans (`strict_order`) at the database level, fixing
+  RLS "overfiltering" where a TLP- or compartment-filtered vector query could
+  silently return fewer than the requested `LIMIT`.
+* **Toolchain.** Python aligned on 3.13 throughout (the runtime image already
+  shipped 3.13 but CI and the `requires-python` floor were still 3.12):
+  `requires-python >=3.13`, ruff `target-version = py313`, and
+  `python-version: "3.13"` across the test/lint/eval workflows.
+* **Ingest enrichment stage.** New `ingest/enrichment.py` +
+  `ingest/enrichment_worker.py` consume the raw `ingest.*` messages published
+  by the feed-style connectors (OpenCTI, MISP, OSINT, Wazuh), run the
+  NER/resolution stage, and republish graph-writable `enriched.entity.*` /
+  `enriched.relationship.*` envelopes. Previously those four connectors
+  published to `ingest.*` with no consumer, so their data never reached the
+  graph. Covered by `tests/ingest/test_enrichment.py`.
+* **Supply chain.** New `.github/workflows/release.yml` builds, generates SLSA
+  build provenance, and signs the container images with cosign (keyless OIDC)
+  on tagged releases.
+* **Deployment hygiene.** Removed the duplicate Kustomize tree
+  (`deploy/k8s/base/` and `overlays/`, since ArgoCD, CI, and Zarf all consume
+  the Helm chart) and the empty `api/graphql/` placeholder. Added CPU/memory
+  `limits` for the NATS, Valkey, and graph-writer workloads, and a readiness
+  probe for the graph-writer, which now drops a `/tmp/graph-writer.ready`
+  marker once its JetStream subscription is live.
+
 ### Phase 6 — code-base validation (2026-05)
 
 * New ADR

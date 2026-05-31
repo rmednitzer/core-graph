@@ -23,11 +23,13 @@
 
 ### Architecture Decision Records
 
+- [ADR-0001 Establish ADR practice](architecture/adr/ADR-0001-establish-adr-practice.md)
 - [ADR-0002 Hybrid retrieval (BM25 + vector with RRF)](architecture/adr/ADR-0002-hybrid-retrieval.md)
 - [ADR-0003 Edge TLP denormalisation](architecture/adr/ADR-0003-edge-tlp-denormalization.md)
 - [ADR-0004 Salience formula for AI memory layer](architecture/adr/ADR-0004-salience-formula.md)
 - [ADR-0005 Memory-layer supersession detection](architecture/adr/ADR-0005-memory-supersession.md)
 - [ADR-0006 Code-base validation against authoritative sources (2026-05)](architecture/adr/ADR-0006-codebase-validation-2026-05.md)
+- [ADR-0007 Modernization audit against authoritative sources (2026-05)](architecture/adr/ADR-0007-modernization-audit-2026-05.md)
 
 ## Ontology
 

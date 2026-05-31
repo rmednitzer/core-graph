@@ -4,7 +4,7 @@ about: Non-vulnerability security discussion
 labels: security
 ---
 
-> **Actual vulnerabilities must be reported via [SECURITY.md](../SECURITY.md), not here.**
+> **Actual vulnerabilities must be reported via [SECURITY.md](../../SECURITY.md), not here.**
 > This template is for non-exploitable security discussions only.
 
 ## Description

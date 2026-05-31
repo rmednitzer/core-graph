@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 from collections.abc import AsyncIterator
@@ -124,7 +125,7 @@ async def readyz() -> dict:
 
     # Check NATS
     try:
-        nc = await nats.connect(NATS_URL)
+        nc = await nats.connect(NATS_URL, connect_timeout=3)
         await nc.close()
         nats_ok = True
     except Exception:
@@ -132,15 +133,17 @@ async def readyz() -> dict:
 
     # Check Valkey
     try:
-        r = aioredis.from_url(VALKEY_URL)
+        r = aioredis.from_url(VALKEY_URL, socket_connect_timeout=3, socket_timeout=3)
         await r.ping()
         await r.aclose()
         valkey_ok = True
     except Exception:
         logger.warning("readyz: Valkey check failed", exc_info=True)
 
-    # Check MinIO
-    try:
+    # Check MinIO. The minio client is synchronous, so run the network call in
+    # a worker thread — calling it inline would block the event loop and stall
+    # every other request for the duration of the readiness probe.
+    def _check_minio() -> None:
         mc = Minio(
             MINIO_ENDPOINT,
             access_key=MINIO_ACCESS_KEY,
@@ -148,6 +151,9 @@ async def readyz() -> dict:
             secure=MINIO_USE_SSL,
         )
         mc.bucket_exists(MINIO_EVIDENCE_BUCKET)
+
+    try:
+        await asyncio.to_thread(_check_minio)
         minio_ok = True
     except Exception:
         logger.warning("readyz: MinIO check failed", exc_info=True)

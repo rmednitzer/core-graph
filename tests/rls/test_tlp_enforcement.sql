@@ -14,6 +14,13 @@
 -- In production the real graph nodes live in AGE / temporal tables;
 -- here we use a lightweight stand-in to exercise RLS logic.
 
+-- Pin the stand-in to public: migration 001 sets the database search_path to
+-- ag_catalog,"$user",public, so an unqualified CREATE TABLE lands in
+-- ag_catalog where the non-superuser test roles lack USAGE — the table is then
+-- invisible to them ("relation does not exist"), silently voiding every
+-- assertion below unless the script is run with ON_ERROR_STOP.
+set search_path = public;
+
 create table if not exists rls_test_nodes (
     id          serial primary key,
     label       text        not null,

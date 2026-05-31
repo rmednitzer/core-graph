@@ -47,7 +47,7 @@ async def pg_conn():
     # sequence number cannot suppress a fresh test message. The ledger is
     # writer-internal metadata, so clearing it is safe.
     try:
-        await conn.execute("truncate table processed_messages")
+        await conn.execute("truncate table public.processed_messages")
         await conn.commit()
     except Exception:
         await conn.rollback()

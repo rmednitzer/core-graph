@@ -27,7 +27,12 @@ from nats.js.api import ConsumerConfig
 from api.config import NATS_URL
 from ingest.enrichment import enrich
 from ingest.metrics import adapter_entities_total
-from ingest.streams import ensure_dlq_stream, ensure_enriched_stream, ensure_ingest_stream
+from ingest.streams import (
+    ensure_dlq_stream,
+    ensure_enriched_stream,
+    ensure_ingest_stream,
+    jetstream_delivery_key,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +54,16 @@ async def _process_message(js: nats.js.JetStreamContext, msg: Any) -> None:
         logger.debug("No writable entity from %s (deferred or unmapped)", msg.subject)
         return
     target = _enriched_subject(msg.subject)
-    for envelope in envelopes:
+    # Carry a stable idempotency key from THIS ingest delivery into each enriched
+    # envelope. If the worker crashes after publishing but before acking, the
+    # ingest message is redelivered and re-enriched; the graph writer dedups on
+    # this key (not the new ENRICHED sequence it would otherwise get), so the
+    # audit/temporal rows are not duplicated. One ingest message fans out to N
+    # envelopes, so the index keeps each enriched message's key distinct.
+    src_key = jetstream_delivery_key(msg)
+    for i, envelope in enumerate(envelopes):
+        if src_key is not None:
+            envelope["_idem"] = f"{src_key}:{i}"
         await js.publish(target, json.dumps(envelope, default=str).encode())
         adapter_entities_total.labels(adapter="enrichment", label=envelope["label"]).inc()
 

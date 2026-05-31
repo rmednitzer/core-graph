@@ -11,8 +11,13 @@
 --
 -- Vertex tables carry tlp_level inside the `properties` agtype; edge tables
 -- carry the denormalized tlp_level column added in 022. The write predicate
--- mirrors the existing read predicate per table type, so "a role may write only
--- within its clearance" matches "a role may read only within its clearance".
+-- mirrors the existing read predicate per table type (including the migration
+-- 014 nullif guard, so a rolled-back SET LOCAL leaving an empty string falls
+-- back to GREEN rather than aborting on ''::int).
+--
+-- IAM tables (Layer 8) additionally carry a RESTRICTIVE TLP:AMBER write floor
+-- mirroring the read floor from 010, so a sub-AMBER session can never mint IAM
+-- rows even if granted writes.
 --
 -- Idempotent: guarded create-or-replace of each policy.
 
@@ -42,9 +47,9 @@ begin
                  || 'coalesce(nullif(current_setting(''app.max_tlp'', true), '''')::smallint, '
                  || '1::smallint)';
         else
-            -- Vertex table: tlp_level inside properties agtype (matches 004's read policy).
+            -- Vertex table: tlp_level inside properties agtype (matches 004 + 014).
             pred := 'coalesce(((properties::text)::jsonb->>''tlp_level'')::int, 1) '
-                 || '<= coalesce(current_setting(''app.max_tlp'', true)::int, 1)';
+                 || '<= coalesce(nullif(current_setting(''app.max_tlp'', true), '''')::int, 1)';
         end if;
 
         execute format('drop policy if exists tlp_write_insert on core_graph.%I', tbl.relname);
@@ -73,5 +78,43 @@ begin
             'for all to cg_ciso using (true) with check (true)',
             tbl.relname
         );
+    end loop;
+end $$;
+
+-- RESTRICTIVE TLP:AMBER write floor on IAM tables (parity with the read floor
+-- in 010). RESTRICTIVE policies AND with the clearance check above and apply to
+-- every role (including cg_ciso), so IAM writes always require app.max_tlp >= 2.
+do $$
+declare
+    iam_tbl text;
+    floor_expr constant text :=
+        'coalesce(nullif(current_setting(''app.max_tlp'', true), '''')::int, 1) >= 2';
+    iam_tables constant text[] := array[
+        'Principal', 'Role', 'Group', 'Permission', 'AccessPolicy',
+        'has_role', 'grants', 'actor_in', 'manages', 'owns', 'member_of'
+    ];
+begin
+    foreach iam_tbl in array iam_tables loop
+        if exists (
+            select 1 from pg_class c
+              join pg_namespace n on n.oid = c.relnamespace
+             where n.nspname = 'core_graph' and c.relname = iam_tbl and c.relkind = 'r'
+        ) then
+            execute format('drop policy if exists iam_write_floor_insert on core_graph.%I', iam_tbl);
+            execute format(
+                'create policy iam_write_floor_insert on core_graph.%I as restrictive '
+                'for insert with check (%s)', iam_tbl, floor_expr
+            );
+            execute format('drop policy if exists iam_write_floor_update on core_graph.%I', iam_tbl);
+            execute format(
+                'create policy iam_write_floor_update on core_graph.%I as restrictive '
+                'for update using (%s) with check (%s)', iam_tbl, floor_expr, floor_expr
+            );
+            execute format('drop policy if exists iam_write_floor_delete on core_graph.%I', iam_tbl);
+            execute format(
+                'create policy iam_write_floor_delete on core_graph.%I as restrictive '
+                'for delete using (%s)', iam_tbl, floor_expr
+            );
+        end if;
     end loop;
 end $$;

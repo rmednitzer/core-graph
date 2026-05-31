@@ -25,9 +25,13 @@ from nats.js.api import ConsumerConfig
 from psycopg.rows import dict_row
 
 from api.config import NATS_URL, PG_DSN
-from ingest.streams import ensure_dlq_stream, ensure_enriched_stream
+from ingest.streams import ensure_dlq_stream, ensure_enriched_stream, jetstream_delivery_key
 
 logger = logging.getLogger(__name__)
+
+# Re-exported under the private name used by _process_message and
+# tests/test_graph_writer_idempotency.py.
+_delivery_key = jetstream_delivery_key
 
 # Readiness marker. The graph writer is a headless NATS consumer with no HTTP
 # port, so the Kubernetes readinessProbe checks for this file. It is created
@@ -87,7 +91,9 @@ MERGE_TEMPLATES: dict[str, str] = {
                           v.primary_motivation = $primary_motivation,
                           v.tlp_level = $tlp, v.first_seen = $now
             on match set v.last_seen = $now, v.name = $name,
-                         v.description = $description
+                         v.description = $description,
+                         v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
+                                            then $tlp else coalesce(v.tlp_level, 0) end
             return id(v)
         $$, $1) as (id agtype)
     """,
@@ -99,7 +105,9 @@ MERGE_TEMPLATES: dict[str, str] = {
                           v.kill_chain_phases = $kill_chain_phases,
                           v.tlp_level = $tlp, v.first_seen = $now
             on match set v.last_seen = $now, v.name = $name,
-                         v.description = $description
+                         v.description = $description,
+                         v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
+                                            then $tlp else coalesce(v.tlp_level, 0) end
             return id(v)
         $$, $1) as (id agtype)
     """,
@@ -112,7 +120,9 @@ MERGE_TEMPLATES: dict[str, str] = {
                           v.stix_last_seen = $stix_last_seen,
                           v.tlp_level = $tlp, v.first_seen = $now
             on match set v.last_seen = $now, v.name = $name,
-                         v.description = $description
+                         v.description = $description,
+                         v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
+                                            then $tlp else coalesce(v.tlp_level, 0) end
             return id(v)
         $$, $1) as (id agtype)
     """,
@@ -125,7 +135,9 @@ MERGE_TEMPLATES: dict[str, str] = {
                           v.external_references = $external_references,
                           v.tlp_level = $tlp, v.first_seen = $now
             on match set v.last_seen = $now, v.name = $name,
-                         v.description = $description
+                         v.description = $description,
+                         v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
+                                            then $tlp else coalesce(v.tlp_level, 0) end
             return id(v)
         $$, $1) as (id agtype)
     """,
@@ -137,7 +149,9 @@ MERGE_TEMPLATES: dict[str, str] = {
                           v.external_references = $external_references,
                           v.tlp_level = $tlp, v.first_seen = $now
             on match set v.last_seen = $now, v.name = $name,
-                         v.description = $description
+                         v.description = $description,
+                         v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
+                                            then $tlp else coalesce(v.tlp_level, 0) end
             return id(v)
         $$, $1) as (id agtype)
     """,
@@ -149,7 +163,9 @@ MERGE_TEMPLATES: dict[str, str] = {
                           v.kill_chain_phases = $kill_chain_phases,
                           v.tlp_level = $tlp, v.first_seen = $now
             on match set v.last_seen = $now, v.name = $name,
-                         v.description = $description
+                         v.description = $description,
+                         v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
+                                            then $tlp else coalesce(v.tlp_level, 0) end
             return id(v)
         $$, $1) as (id agtype)
     """,
@@ -434,19 +450,6 @@ async def _merge_relationship(
     return None
 
 
-def _delivery_key(msg: Any) -> str | None:
-    """Stable idempotency key for a JetStream delivery: ``stream:stream_seq``.
-
-    Returns None when JetStream metadata is unavailable (e.g. a non-JetStream
-    message), in which case dedup is skipped rather than failing the write.
-    """
-    try:
-        meta = msg.metadata
-        return f"{meta.stream}:{meta.sequence.stream}"
-    except Exception:
-        return None
-
-
 async def _process_message(
     conn: psycopg.AsyncConnection[Any],
     msg: Any,
@@ -463,10 +466,13 @@ async def _process_message(
     # already-committed message is skipped instead of re-audited. The claim
     # shares the transaction with the writes below, so it only becomes durable
     # if the whole unit commits (a failed/rolled-back message is retried).
-    delivery_key = _delivery_key(msg)
+    # Prefer the source ingest delivery id carried through enrichment (_idem)
+    # over the ENRICHED stream sequence, so a re-enriched feed message (the
+    # enrichment worker republishing after a crash) still dedups correctly.
+    delivery_key = payload.get("_idem") or _delivery_key(msg)
     if delivery_key is not None:
         claim = await conn.execute(
-            "insert into processed_messages (delivery_key) values (%s) "
+            "insert into public.processed_messages (delivery_key) values (%s) "
             "on conflict (delivery_key) do nothing",
             (delivery_key,),
         )
@@ -486,7 +492,7 @@ async def _process_message(
 
     if is_relationship:
         rel_type = payload.get("type", "")
-        params = {k: v for k, v in payload.items() if k != "type"}
+        params = {k: v for k, v in payload.items() if k not in ("type", "_idem")}
         vertex_id = await _merge_relationship(conn, rel_type, params)
         label = f"rel:{rel_type}"
     else:

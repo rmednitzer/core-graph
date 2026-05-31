@@ -7,6 +7,8 @@ truth. Stream creation is idempotent (NATS no-ops on identical config).
 
 from __future__ import annotations
 
+from typing import Any
+
 import nats
 from nats.js.api import StreamConfig
 
@@ -25,6 +27,20 @@ DLQ_STREAM = "DLQ"
 DLQ_SUBJECTS = ["dlq.>"]
 
 DEFAULT_MAX_BYTES = 1_073_741_824  # 1 GiB
+
+
+def jetstream_delivery_key(msg: Any) -> str | None:
+    """Stable idempotency key for a JetStream delivery: ``stream:stream_seq``.
+
+    The (stream, stream-sequence) pair is constant across redeliveries of the
+    same stored message. Returns None when JetStream metadata is unavailable
+    (e.g. a non-JetStream message), so callers skip dedup rather than fail.
+    """
+    try:
+        meta = msg.metadata
+        return f"{meta.stream}:{meta.sequence.stream}"
+    except Exception:
+        return None
 
 
 async def ensure_enriched_stream(

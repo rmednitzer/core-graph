@@ -4,10 +4,17 @@
 -- the read-path enforcement. Part 1 exercises the predicate behaviourally on a
 -- stand-in table (the project's RLS-test convention); Part 2 asserts the real
 -- policies are attached to every core_graph table.
+--
+-- Run with ON_ERROR_STOP=1 so any failed assertion fails the job.
 
 -- ============================================================
 -- Part 1: behavioural enforcement on a stand-in table
 -- ============================================================
+
+-- Pin the stand-in to public (see test_tlp_enforcement.sql): the migration
+-- search_path is ag_catalog-first, so an unqualified table would be created
+-- where the non-superuser role cannot see it.
+set search_path = public;
 
 create table if not exists rls_write_test (
     id        serial primary key,
@@ -27,37 +34,37 @@ end $$;
 grant select, insert, update, delete on rls_write_test to write_test_role;
 grant usage, select on sequence rls_write_test_id_seq to write_test_role;
 
-drop policy if exists wt_read   on rls_write_test;
 drop policy if exists wt_insert on rls_write_test;
 drop policy if exists wt_update on rls_write_test;
 drop policy if exists wt_delete on rls_write_test;
 
-create policy wt_read on rls_write_test for select using (
-    tlp_level <= coalesce(current_setting('app.max_tlp', true)::int, 1)
-);
+-- No read policy: keep the test focused on write enforcement. (Superuser
+-- verifies final state below, bypassing RLS.)
 create policy wt_insert on rls_write_test for insert with check (
-    tlp_level <= coalesce(current_setting('app.max_tlp', true)::int, 1)
+    tlp_level <= coalesce(nullif(current_setting('app.max_tlp', true), '')::int, 1)
 );
 create policy wt_update on rls_write_test for update using (
-    tlp_level <= coalesce(current_setting('app.max_tlp', true)::int, 1)
+    tlp_level <= coalesce(nullif(current_setting('app.max_tlp', true), '')::int, 1)
 ) with check (
-    tlp_level <= coalesce(current_setting('app.max_tlp', true)::int, 1)
+    tlp_level <= coalesce(nullif(current_setting('app.max_tlp', true), '')::int, 1)
 );
 create policy wt_delete on rls_write_test for delete using (
-    tlp_level <= coalesce(current_setting('app.max_tlp', true)::int, 1)
+    tlp_level <= coalesce(nullif(current_setting('app.max_tlp', true), '')::int, 1)
 );
 
 -- Seed one row at each TLP as the superuser test runner (bypasses RLS).
+delete from rls_write_test;
 insert into rls_write_test (label, tlp_level) values ('green', 1), ('red', 4);
 
 -- Act as a low-clearance role at app.max_tlp = 1.
 set role write_test_role;
 select set_config('app.max_tlp', '1', false);
 
--- INSERT within clearance: allowed.
+-- INSERT within clearance: allowed (top level, must not error).
 insert into rls_write_test (label, tlp_level) values ('green-ok', 1);
 
--- INSERT above clearance: rejected by the WITH CHECK predicate.
+-- INSERT above clearance: rejected by the WITH CHECK predicate (wrap so the
+-- expected error does not abort the script under ON_ERROR_STOP).
 do $$
 begin
     insert into rls_write_test (label, tlp_level) values ('red-bad', 4);
@@ -66,35 +73,38 @@ exception
     when insufficient_privilege or check_violation then null;  -- expected
 end $$;
 
--- UPDATE of a row above clearance: USING hides it -> 0 rows affected.
-do $$
-declare
-    n int;
-begin
-    with upd as (
-        update rls_write_test set label = 'hacked' where label = 'red' returning 1
-    )
-    select count(*) into n from upd;
-    if n <> 0 then
-        raise exception 'TEST FAILED: updated % row(s) above clearance', n;
-    end if;
-end $$;
-
--- DELETE of a row above clearance: USING hides it -> 0 rows affected.
-do $$
-declare
-    n int;
-begin
-    with del as (
-        delete from rls_write_test where label = 'red' returning 1
-    )
-    select count(*) into n from del;
-    if n <> 0 then
-        raise exception 'TEST FAILED: deleted % row(s) above clearance', n;
-    end if;
-end $$;
+-- UPDATE / DELETE of a row above clearance: the USING predicate hides it, so
+-- these affect zero rows without error.
+update rls_write_test set label = 'hacked' where label = 'red';
+delete from rls_write_test where label = 'red';
 
 reset role;
+
+-- Verify the final state as superuser (RLS-bypassing): the high-TLP row was
+-- neither updated nor deleted, the in-clearance insert landed, and the
+-- above-clearance insert did not.
+do $$
+declare
+    n int;
+begin
+    select count(*) into n from rls_write_test where label = 'red' and tlp_level = 4;
+    if n <> 1 then
+        raise exception 'TEST FAILED: high-TLP row was modified/deleted (found % expected 1)', n;
+    end if;
+    select count(*) into n from rls_write_test where label = 'hacked';
+    if n <> 0 then
+        raise exception 'TEST FAILED: above-clearance UPDATE took effect';
+    end if;
+    select count(*) into n from rls_write_test where label = 'green-ok';
+    if n <> 1 then
+        raise exception 'TEST FAILED: in-clearance INSERT was rejected';
+    end if;
+    select count(*) into n from rls_write_test where label = 'red-bad';
+    if n <> 0 then
+        raise exception 'TEST FAILED: above-clearance INSERT landed';
+    end if;
+    raise notice 'OK: write-path RLS enforces TLP clearance on INSERT/UPDATE/DELETE';
+end $$;
 
 -- ============================================================
 -- Part 2: the real policies are attached to every core_graph table

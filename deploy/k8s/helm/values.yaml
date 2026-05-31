@@ -55,6 +55,9 @@ graphWriter:
     requests:
       cpu: 200m
       memory: 256Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
 
 # ---------------------------------------------------------------------------
 # PostgreSQL 18 — graph store (AGE), vector store (pgvector), audit log
@@ -104,6 +107,10 @@ nats:
     requests:
       cpu: 100m
       memory: 128Mi
+    # JetStream maxMem is 256MB; the pod limit leaves headroom above it.
+    limits:
+      cpu: "1"
+      memory: 512Mi
 
   external:
     url: ""
@@ -123,6 +130,9 @@ valkey:
     requests:
       cpu: 100m
       memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
   external:
     url: ""
 

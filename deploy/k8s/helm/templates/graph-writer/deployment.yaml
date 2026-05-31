@@ -45,6 +45,14 @@ spec:
               command: ["sh", "-c", "kill -0 1"]
             initialDelaySeconds: 10
             periodSeconds: 15
+          # The worker creates /tmp/graph-writer.ready only after its
+          # JetStream subscription is live (ingest/graph_writer.py), so the
+          # pod is reported Ready only while it is actually consuming.
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", "test -f /tmp/graph-writer.ready"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
           securityContext:
             {{- include "core-graph.restrictedSecurityContext" (dict "runAsUser" 10001) | nindent 12 }}
       {{- include "core-graph.nodeScheduling" . | nindent 6 }}

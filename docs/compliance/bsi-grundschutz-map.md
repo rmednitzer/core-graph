@@ -114,7 +114,7 @@ runtime isolation, and network segmentation.
 
 - Harbor scan reports per image tag and digest
 - cosign signature verification logs
-- NetworkPolicy definitions in `deploy/kustomize/`
+- NetworkPolicy definitions in `deploy/k8s/helm/templates/common/networkpolicies.yaml`
 - Container runtime configuration (seccomp profiles, read-only root filesystem)
 
 ---

@@ -261,7 +261,7 @@ core-graph/
 │   └── signing/         cosign signing, MinIO WORM storage, RFC 3161 timestamps
 ├── deploy/
 │   ├── docker/          Docker Compose dev stack + hardened PostgreSQL config
-│   ├── k8s/             Helm chart, Kustomize overlays, ArgoCD manifests
+│   ├── k8s/             Helm chart, ArgoCD manifests
 │   ├── nats/            NATS server config (dev + prod)
 │   └── grafana/         Dashboards and provisioning
 ├── tests/               Schema, RLS, ingest, integration, skills, TAXII tests

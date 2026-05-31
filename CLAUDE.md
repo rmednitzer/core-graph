@@ -208,7 +208,7 @@ above; migration replay: `bash tests/schema/test_migrations.sh`.
   - `api/rest/` — FastAPI app, middleware, routes
   - `api/taxii/` — TAXII 2.1 endpoint
   - `api/graphql/` — Optional GraphQL interface
-- `deploy/` — `docker/` (Compose), `k8s/` (Kustomize base+overlays, Helm
+- `deploy/` — `docker/` (Compose), `k8s/` (Helm
   chart, ArgoCD apps), `nats/`, `grafana/`
 - `evidence/` — cosign signing, hash-chain computation, Rekor config
 - `scripts/` — bootstrap, MinIO init, migration validation, Merkle stamping;

@@ -13,8 +13,10 @@ import asyncio
 import hashlib
 import json
 import logging
+import tempfile
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 import nats
@@ -26,6 +28,13 @@ from api.config import NATS_URL, PG_DSN
 from ingest.streams import ensure_dlq_stream, ensure_enriched_stream
 
 logger = logging.getLogger(__name__)
+
+# Readiness marker. The graph writer is a headless NATS consumer with no HTTP
+# port, so the Kubernetes readinessProbe checks for this file. It is created
+# only after the JetStream subscription is live (see run()) and removed on
+# shutdown, so a pod is reported Ready only while it is actually consuming.
+# Resolves to /tmp/graph-writer.ready in-container.
+_READY_MARKER = Path(tempfile.gettempdir()) / "graph-writer.ready"
 
 # -- Cypher merge templates (parameterised, never concatenated) ----------------
 
@@ -444,6 +453,7 @@ async def run(
     )
 
     logger.info("Graph writer started, consuming enriched.entity.> and enriched.relationship.>")
+    _READY_MARKER.touch(exist_ok=True)
 
     try:
         async for msg in sub.messages:
@@ -469,6 +479,7 @@ async def run(
                     logger.exception("Failed to publish to DLQ, nacking message")
                 await msg.ack()  # Ack original since it's now in DLQ
     finally:
+        _READY_MARKER.unlink(missing_ok=True)
         await conn.close()
         await nc.close()
 

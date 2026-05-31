@@ -152,8 +152,14 @@ their own change. Ordered by value.
 6. **Third-party action SHA-pinning.** `trufflehog@main` and
    `trivy-action@master` should be pinned to release SHAs. Dependabot already
    surfaces their tagged releases; SHA resolution needs network access.
-7. **NATS connection pooling** for ingest_event/TAXII (currently one
-   connection per request) and **multi-arch image builds**.
+7. **Multi-arch image builds** — done for the app image (release.yml builds
+   linux/amd64 + linux/arm64; the postgres image stays amd64 until an arm64
+   Apache AGE base exists). **NATS connection pooling** for ingest_event/TAXII
+   remains a perf optimization (still one connection per request); the
+   connect/publish timeouts that were the correctness concern are already in
+   place. Action SHA-pinning is mechanised through the existing
+   `dependabot.yml` (github-actions ecosystem); a `uv.lock` still needs a
+   networked CI step to generate.
 
 ## Validation performed
 

@@ -210,7 +210,6 @@ above; migration replay: `bash tests/schema/test_migrations.sh`.
     - `api/mcp/tools/` — Direct tools (cypher_query, identity_attribution, …)
   - `api/rest/` — FastAPI app, middleware, routes
   - `api/taxii/` — TAXII 2.1 endpoint
-  - `api/graphql/` — Optional GraphQL interface
 - `deploy/` — `docker/` (Compose), `k8s/` (Helm
   chart, ArgoCD apps), `nats/`, `grafana/`
 - `evidence/` — cosign signing, hash-chain computation, Rekor config

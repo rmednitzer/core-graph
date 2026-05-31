@@ -9,7 +9,7 @@ you are expected to uphold it.
 
 ### Prerequisites
 
-- Python 3.12+
+- Python 3.13+
 - Docker and Docker Compose
 - `ruff` and `yamllint` (installed via `pip install -e ".[dev]"`)
 
@@ -125,7 +125,7 @@ make lint
 
 ## Code style
 
-- **Python:** ruff for linting and formatting, type hints required, Python 3.12+
+- **Python:** ruff for linting and formatting, type hints required, Python 3.13+
 - **SQL:** lowercase keywords, 4-space indent, parameterised queries only
 - **YAML:** 2-space indent
 - **Markdown:** no trailing whitespace (except explicit line breaks)

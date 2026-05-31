@@ -84,14 +84,26 @@ MERGE_TEMPLATES: dict[str, str] = {
     "ThreatActor": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:ThreatActor {stix_id: $stix_id})
-            on create set v.name = $name, v.description = $description,
-                          v.aliases = $aliases, v.roles = $roles, v.goals = $goals,
+            on create set v.stix_type = $stix_type, v.name = $name,
+                          v.description = $description, v.aliases = $aliases,
+                          v.roles = $roles, v.goals = $goals,
                           v.sophistication = $sophistication,
                           v.resource_level = $resource_level,
                           v.primary_motivation = $primary_motivation,
-                          v.tlp_level = $tlp, v.first_seen = $now
-            on match set v.last_seen = $now, v.name = $name,
-                         v.description = $description,
+                          v.created = $created, v.modified = $modified,
+                          v.confidence = $confidence, v.tlp_level = $tlp,
+                          v.first_seen = $now, v.t_recorded = $now
+            on match set v.last_seen = $now, v.stix_type = $stix_type,
+                         v.name = coalesce($name, v.name),
+                         v.description = coalesce($description, v.description),
+                         v.aliases = coalesce($aliases, v.aliases),
+                         v.roles = coalesce($roles, v.roles),
+                         v.goals = coalesce($goals, v.goals),
+                         v.sophistication = coalesce($sophistication, v.sophistication),
+                         v.resource_level = coalesce($resource_level, v.resource_level),
+                         v.primary_motivation = coalesce($primary_motivation, v.primary_motivation),
+                         v.modified = coalesce($modified, v.modified),
+                         v.confidence = coalesce($confidence, v.confidence),
                          v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
                                             then $tlp else coalesce(v.tlp_level, 0) end
             return id(v)
@@ -100,12 +112,20 @@ MERGE_TEMPLATES: dict[str, str] = {
     "Malware": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:Malware {stix_id: $stix_id})
-            on create set v.name = $name, v.description = $description,
-                          v.malware_types = $malware_types, v.is_family = $is_family,
-                          v.kill_chain_phases = $kill_chain_phases,
-                          v.tlp_level = $tlp, v.first_seen = $now
-            on match set v.last_seen = $now, v.name = $name,
-                         v.description = $description,
+            on create set v.stix_type = $stix_type, v.name = $name,
+                          v.description = $description, v.malware_types = $malware_types,
+                          v.is_family = $is_family, v.kill_chain_phases = $kill_chain_phases,
+                          v.created = $created, v.modified = $modified,
+                          v.confidence = $confidence, v.tlp_level = $tlp,
+                          v.first_seen = $now, v.t_recorded = $now
+            on match set v.last_seen = $now, v.stix_type = $stix_type,
+                         v.name = coalesce($name, v.name),
+                         v.description = coalesce($description, v.description),
+                         v.malware_types = coalesce($malware_types, v.malware_types),
+                         v.is_family = coalesce($is_family, v.is_family),
+                         v.kill_chain_phases = coalesce($kill_chain_phases, v.kill_chain_phases),
+                         v.modified = coalesce($modified, v.modified),
+                         v.confidence = coalesce($confidence, v.confidence),
                          v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
                                             then $tlp else coalesce(v.tlp_level, 0) end
             return id(v)
@@ -114,13 +134,23 @@ MERGE_TEMPLATES: dict[str, str] = {
     "Campaign": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:Campaign {stix_id: $stix_id})
-            on create set v.name = $name, v.description = $description,
-                          v.aliases = $aliases, v.objective = $objective,
+            on create set v.stix_type = $stix_type, v.name = $name,
+                          v.description = $description, v.aliases = $aliases,
+                          v.objective = $objective,
                           v.stix_first_seen = $stix_first_seen,
                           v.stix_last_seen = $stix_last_seen,
-                          v.tlp_level = $tlp, v.first_seen = $now
-            on match set v.last_seen = $now, v.name = $name,
-                         v.description = $description,
+                          v.created = $created, v.modified = $modified,
+                          v.confidence = $confidence, v.tlp_level = $tlp,
+                          v.first_seen = $now, v.t_recorded = $now
+            on match set v.last_seen = $now, v.stix_type = $stix_type,
+                         v.name = coalesce($name, v.name),
+                         v.description = coalesce($description, v.description),
+                         v.aliases = coalesce($aliases, v.aliases),
+                         v.objective = coalesce($objective, v.objective),
+                         v.stix_first_seen = coalesce($stix_first_seen, v.stix_first_seen),
+                         v.stix_last_seen = coalesce($stix_last_seen, v.stix_last_seen),
+                         v.modified = coalesce($modified, v.modified),
+                         v.confidence = coalesce($confidence, v.confidence),
                          v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
                                             then $tlp else coalesce(v.tlp_level, 0) end
             return id(v)
@@ -129,13 +159,22 @@ MERGE_TEMPLATES: dict[str, str] = {
     "AttackPattern": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:AttackPattern {stix_id: $stix_id})
-            on create set v.name = $name, v.description = $description,
-                          v.mitre_id = $mitre_id,
+            on create set v.stix_type = $stix_type, v.name = $name,
+                          v.description = $description, v.mitre_id = $mitre_id,
                           v.kill_chain_phases = $kill_chain_phases,
                           v.external_references = $external_references,
-                          v.tlp_level = $tlp, v.first_seen = $now
-            on match set v.last_seen = $now, v.name = $name,
-                         v.description = $description,
+                          v.created = $created, v.modified = $modified,
+                          v.confidence = $confidence, v.tlp_level = $tlp,
+                          v.first_seen = $now, v.t_recorded = $now
+            on match set v.last_seen = $now, v.stix_type = $stix_type,
+                         v.name = coalesce($name, v.name),
+                         v.description = coalesce($description, v.description),
+                         v.mitre_id = coalesce($mitre_id, v.mitre_id),
+                         v.kill_chain_phases = coalesce($kill_chain_phases, v.kill_chain_phases),
+                         v.external_references =
+                             coalesce($external_references, v.external_references),
+                         v.modified = coalesce($modified, v.modified),
+                         v.confidence = coalesce($confidence, v.confidence),
                          v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
                                             then $tlp else coalesce(v.tlp_level, 0) end
             return id(v)
@@ -144,12 +183,20 @@ MERGE_TEMPLATES: dict[str, str] = {
     "Vulnerability": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:Vulnerability {stix_id: $stix_id})
-            on create set v.name = $name, v.description = $description,
-                          v.cve_id = $cve_id,
+            on create set v.stix_type = $stix_type, v.name = $name,
+                          v.description = $description, v.cve_id = $cve_id,
                           v.external_references = $external_references,
-                          v.tlp_level = $tlp, v.first_seen = $now
-            on match set v.last_seen = $now, v.name = $name,
-                         v.description = $description,
+                          v.created = $created, v.modified = $modified,
+                          v.confidence = $confidence, v.tlp_level = $tlp,
+                          v.first_seen = $now, v.t_recorded = $now
+            on match set v.last_seen = $now, v.stix_type = $stix_type,
+                         v.name = coalesce($name, v.name),
+                         v.description = coalesce($description, v.description),
+                         v.cve_id = coalesce($cve_id, v.cve_id),
+                         v.external_references =
+                             coalesce($external_references, v.external_references),
+                         v.modified = coalesce($modified, v.modified),
+                         v.confidence = coalesce($confidence, v.confidence),
                          v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
                                             then $tlp else coalesce(v.tlp_level, 0) end
             return id(v)
@@ -158,12 +205,19 @@ MERGE_TEMPLATES: dict[str, str] = {
     "Tool": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:Tool {stix_id: $stix_id})
-            on create set v.name = $name, v.description = $description,
-                          v.tool_types = $tool_types,
+            on create set v.stix_type = $stix_type, v.name = $name,
+                          v.description = $description, v.tool_types = $tool_types,
                           v.kill_chain_phases = $kill_chain_phases,
-                          v.tlp_level = $tlp, v.first_seen = $now
-            on match set v.last_seen = $now, v.name = $name,
-                         v.description = $description,
+                          v.created = $created, v.modified = $modified,
+                          v.confidence = $confidence, v.tlp_level = $tlp,
+                          v.first_seen = $now, v.t_recorded = $now
+            on match set v.last_seen = $now, v.stix_type = $stix_type,
+                         v.name = coalesce($name, v.name),
+                         v.description = coalesce($description, v.description),
+                         v.tool_types = coalesce($tool_types, v.tool_types),
+                         v.kill_chain_phases = coalesce($kill_chain_phases, v.kill_chain_phases),
+                         v.modified = coalesce($modified, v.modified),
+                         v.confidence = coalesce($confidence, v.confidence),
                          v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
                                             then $tlp else coalesce(v.tlp_level, 0) end
             return id(v)

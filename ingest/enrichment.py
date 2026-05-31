@@ -137,6 +137,7 @@ _STIX_TYPE_TO_SDO: dict[str, str] = {
     "tool": "Tool",
 }
 _SDO_LABELS: frozenset[str] = frozenset(_STIX_TYPE_TO_SDO.values())
+_SDO_LABEL_TO_STIX_TYPE: dict[str, str] = {v: k for k, v in _STIX_TYPE_TO_SDO.items()}
 
 # Optional property keys per SDO label, mirroring the graph_writer MERGE
 # template. The normaliser always emits every key (defaulting to None) so AGE
@@ -183,6 +184,14 @@ def sdo_entity(label: str, src: dict[str, Any], tlp: int, source: str) -> dict[s
         "name": name,
         "tlp": int(tlp),
         "source": source,
+        # STIX common fields: the TAXII endpoint filters by stix_type and
+        # orders by t_recorded (set by the writer), so an SDO without stix_type
+        # is invisible to match[type] requests. created/modified/confidence are
+        # carried through so TAXII clients receive the full object.
+        "stix_type": src.get("stix_type") or src.get("type") or _SDO_LABEL_TO_STIX_TYPE[label],
+        "created": src.get("created"),
+        "modified": src.get("modified"),
+        "confidence": src.get("confidence"),
     }
     for key in _SDO_PROP_KEYS[label]:
         props[key] = src.get(key)

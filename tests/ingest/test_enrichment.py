@@ -108,6 +108,7 @@ def test_premapped_sdo_with_stix_id_is_emitted():
     assert out[0]["properties"]["aliases"] == ["GroupX"]
     assert out[0]["properties"]["tlp"] == 2
     assert out[0]["properties"]["source"] == "opencti"
+    assert out[0]["properties"]["stix_type"] == "threat-actor"  # TAXII match[type]
 
 
 def test_premapped_indicator_missing_value_is_dropped():
@@ -216,6 +217,7 @@ def test_raw_stix_malware_sdo_is_emitted():
     assert out[0]["properties"]["stix_id"] == "malware--abcd"
     assert out[0]["properties"]["malware_types"] == ["trojan"]
     assert out[0]["properties"]["source"] == "taxii"
+    assert out[0]["properties"]["stix_type"] == "malware"  # TAXII match[type]
 
 
 def test_raw_stix_vulnerability_extracts_cve_id():
@@ -267,3 +269,49 @@ def test_enrich_routes_taxii_and_api():
     # TAXII raw STIX -> threatintel handler; API OCSF -> ocsf handler.
     assert enrichment.enrich("ingest.taxii.c1", {"type": "ipv4-addr", "value": "1.1.1.1"})
     assert enrichment.enrich("ingest.api.events", {"category": "finding", "class_uid": 1})
+
+
+def test_sdo_templates_only_reference_params_the_normaliser_emits():
+    # The SDO MERGE templates are not exercised by the unit suite (they need a
+    # live AGE), so guard the runtime failure mode that matters: every $param a
+    # template references must be produced by sdo_entity (plus $now, which the
+    # writer injects), else AGE raises "parameter does not exist" at write time.
+    import re
+
+    from ingest.graph_writer import MERGE_TEMPLATES
+
+    # A maximally-populated source so sdo_entity emits its full key set.
+    full_src = {
+        "id": "x--1",
+        "type": "x",
+        "name": "n",
+        "stix_type": "x",
+        "created": "c",
+        "modified": "m",
+        "confidence": 50,
+        "description": "d",
+        "aliases": [],
+        "roles": [],
+        "goals": [],
+        "sophistication": "",
+        "resource_level": "",
+        "primary_motivation": "",
+        "malware_types": [],
+        "is_family": True,
+        "kill_chain_phases": [],
+        "objective": "",
+        "external_references": [],
+        "mitre_id": "",
+        "cve_id": "",
+        "tool_types": [],
+        "first_seen": "",
+        "last_seen": "",
+    }
+    for stix_type, label in enrichment._STIX_TYPE_TO_SDO.items():
+        ent = enrichment.sdo_entity(
+            label, dict(full_src, type=stix_type, stix_type=stix_type), 2, "t"
+        )
+        produced = set(ent["properties"]) | {"now"}
+        referenced = set(re.findall(r"\$(\w+)", MERGE_TEMPLATES[label])) - {"1"}
+        missing = referenced - produced
+        assert not missing, f"{label} template references unproduced params: {sorted(missing)}"

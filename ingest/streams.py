@@ -12,7 +12,7 @@ import json
 from typing import Any
 
 import nats
-from nats.js.api import StreamConfig
+from nats.js.api import RetentionPolicy, StreamConfig
 
 ENRICHED_STREAM = "ENRICHED"
 ENRICHED_SUBJECTS = ["enriched.entity.>", "enriched.relationship.>"]
@@ -64,7 +64,7 @@ async def ensure_enriched_stream(
         StreamConfig(
             name=name,
             subjects=ENRICHED_SUBJECTS,
-            retention="work_queue",
+            retention=RetentionPolicy.WORK_QUEUE,
             max_bytes=max_bytes,
         )
     )
@@ -80,7 +80,7 @@ async def ensure_ingest_stream(
         StreamConfig(
             name=INGEST_STREAM,
             subjects=INGEST_SUBJECTS,
-            retention="work_queue",
+            retention=RetentionPolicy.WORK_QUEUE,
             max_bytes=max_bytes,
         )
     )
@@ -96,7 +96,7 @@ async def ensure_dlq_stream(
         StreamConfig(
             name=DLQ_STREAM,
             subjects=DLQ_SUBJECTS,
-            retention="work_queue",
+            retention=RetentionPolicy.WORK_QUEUE,
             max_bytes=max_bytes,
         )
     )

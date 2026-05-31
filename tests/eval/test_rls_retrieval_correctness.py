@@ -51,8 +51,25 @@ def _stack_running() -> bool:
         return False
 
 
+def _embeddings_available() -> bool:
+    """Vector/hybrid search needs an embedding backend to embed the query."""
+    try:
+        from api.config import EMBEDDING_PROVIDER
+
+        return EMBEDDING_PROVIDER != "none"
+    except Exception:
+        return False
+
+
 if not _stack_running():
     pytest.skip("Stack not running; RLS correctness test skipped", allow_module_level=True)
+
+if not _embeddings_available():
+    pytest.skip(
+        "No embedding provider (CG_EMBEDDING_PROVIDER=none); retrieval-correctness "
+        "needs vector search. RLS itself is covered by tests/rls/.",
+        allow_module_level=True,
+    )
 
 
 @pytest.fixture(scope="module")

@@ -88,7 +88,7 @@ enrichment-worker: ## Run the enrichment worker (ingest.* -> enriched.*)
 	python -m ingest.enrichment_worker
 
 integration-test: ## Run integration tests only
-	pytest -m integration -v
+	CG_OIDC_ENABLED=false CG_DEV_MODE=true pytest -m integration -v
 
 verify-chain: ## Run audit log hash chain verification
 	python -m evidence.chain.verify

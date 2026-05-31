@@ -1,27 +1,23 @@
 """Integration test: IAM entity and relationship ingest via graph writer.
 
-Requires a running Docker stack (PostgreSQL, NATS).
-Marked with @pytest.mark.integration.
+Requires a running stack (PostgreSQL+AGE, NATS). Marked with
+@pytest.mark.integration.
 """
 
 from __future__ import annotations
 
-import asyncio
 import json
 
 import pytest
 
-pytest_plugins = ["tests.integration.conftest"]
+from tests.integration._helpers import poll_cypher
+
+pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 
-@pytest.mark.integration
-@pytest.mark.asyncio
-async def test_principal_and_role_merge(pg_conn, nats_conn) -> None:
+async def test_principal_and_role_merge(nats_js, graph_writer, pg_conn) -> None:
     """Publish Principal + Role + has_role → verify vertices and edge exist."""
-    js = nats_conn.jetstream()
-
-    # Publish Principal vertex
-    principal_payload = {
+    principal = {
         "label": "Principal",
         "properties": {
             "canonical_key": "test-iam-principal-001",
@@ -35,13 +31,7 @@ async def test_principal_and_role_merge(pg_conn, nats_conn) -> None:
             "tlp": 2,
         },
     }
-    await js.publish(
-        "enriched.entity.iam.test",
-        json.dumps(principal_payload).encode(),
-    )
-
-    # Publish Role vertex
-    role_payload = {
+    role = {
         "label": "Role",
         "properties": {
             "canonical_key": "test-iam-role-001",
@@ -52,53 +42,44 @@ async def test_principal_and_role_merge(pg_conn, nats_conn) -> None:
             "tlp": 2,
         },
     }
-    await js.publish(
-        "enriched.entity.iam.test",
-        json.dumps(role_payload).encode(),
-    )
+    await nats_js.publish("enriched.entity.iam.test", json.dumps(principal).encode())
+    await nats_js.publish("enriched.entity.iam.test", json.dumps(role).encode())
 
-    # Publish has_role relationship
-    rel_payload = {
-        "type": "has_role",
-        "principal_key": "test-iam-principal-001",
-        "role_key": "test-iam-role-001",
-        "source": "test",
-    }
-    await js.publish(
-        "enriched.relationship.iam.test",
-        json.dumps(rel_payload).encode(),
-    )
-
-    # Allow time for graph_writer to process messages
-    await asyncio.sleep(2)
-
-    # Verify Principal vertex was created
-    result = await pg_conn.execute(
+    # Both endpoints must be written before the edge — the has_role MERGE
+    # MATCHes the Principal and Role by canonical_key.
+    p_rows = await poll_cypher(
+        pg_conn,
         """
         select * from ag_catalog.cypher('core_graph', $$
             match (p:Principal {canonical_key: 'test-iam-principal-001'})
             return p.username, p.tlp_level
         $$) as (username agtype, tlp agtype)
-        """
+        """,
     )
-    rows = await result.fetchall()
-    assert len(rows) >= 1, "Principal vertex not found in graph"
-    assert str(rows[0]["username"]).strip('"') == "integration_test_user"
+    assert p_rows, "Principal vertex not found in graph"
+    assert str(p_rows[0]["username"]).strip('"') == "integration_test_user"
 
-    # Verify Role vertex was created
-    result = await pg_conn.execute(
+    r_rows = await poll_cypher(
+        pg_conn,
         """
         select * from ag_catalog.cypher('core_graph', $$
             match (r:Role {canonical_key: 'test-iam-role-001'})
             return r.role_name
         $$) as (role_name agtype)
-        """
+        """,
     )
-    rows = await result.fetchall()
-    assert len(rows) >= 1, "Role vertex not found in graph"
+    assert r_rows, "Role vertex not found in graph"
 
-    # Verify has_role edge was created
-    result = await pg_conn.execute(
+    rel = {
+        "type": "has_role",
+        "principal_key": "test-iam-principal-001",
+        "role_key": "test-iam-role-001",
+        "source": "test",
+    }
+    await nats_js.publish("enriched.relationship.iam.test", json.dumps(rel).encode())
+
+    edge_rows = await poll_cypher(
+        pg_conn,
         """
         select * from ag_catalog.cypher('core_graph', $$
             match (p:Principal {canonical_key: 'test-iam-principal-001'})
@@ -106,30 +87,54 @@ async def test_principal_and_role_merge(pg_conn, nats_conn) -> None:
                   (r:Role {canonical_key: 'test-iam-role-001'})
             return id(e)
         $$) as (edge_id agtype)
-        """
+        """,
     )
-    rows = await result.fetchall()
-    assert len(rows) >= 1, "has_role edge not found between Principal and Role"
+    assert edge_rows, "has_role edge not found between Principal and Role"
 
 
-@pytest.mark.integration
-@pytest.mark.asyncio
-async def test_iam_tlp_floor_enforced(pg_conn) -> None:
-    """IAM vertices must not be visible when app.max_tlp < 2."""
-    # Set session to TLP:GREEN (1) — below IAM floor (2)
-    await pg_conn.execute("select set_config('app.max_tlp', '1', true)")
-
-    result = await pg_conn.execute(
+async def test_iam_tlp_floor_enforced(nats_js, graph_writer, pg_conn) -> None:
+    """IAM vertices must be invisible to a non-superuser session with max_tlp < 2."""
+    principal = {
+        "label": "Principal",
+        "properties": {
+            "canonical_key": "test-iam-floor-001",
+            "principal_id": "kc-floor-001",
+            "username": "floor_user",
+            "email": "floor@example.com",
+            "enabled": True,
+            "created_at": "2024-01-01T00:00:00Z",
+            "last_login": "",
+            "source": "test",
+            "tlp": 2,
+        },
+    }
+    await nats_js.publish("enriched.entity.iam.test", json.dumps(principal).encode())
+    await poll_cypher(
+        pg_conn,
         """
         select * from ag_catalog.cypher('core_graph', $$
-            match (p:Principal)
-            return count(p)
-        $$) as (cnt agtype)
-        """
+            match (p:Principal {canonical_key: 'test-iam-floor-001'})
+            return p.username
+        $$) as (username agtype)
+        """,
     )
-    rows = await result.fetchall()
-    count = int(str(rows[0]["cnt"])) if rows else 0
-    assert count == 0, f"IAM vertices visible at TLP:GREEN (app.max_tlp=1): found {count}"
 
-    # Restore to TLP:RED for other tests
-    await pg_conn.execute("select set_config('app.max_tlp', '4', true)")
+    # A superuser bypasses RLS, so the floor is checked under a non-superuser
+    # role. cg_soc_analyst holds table-level SELECT on the IAM tables but the
+    # migrations grant no schema USAGE (the app's read/write path is the
+    # cg_admin superuser); grant it here as test setup so the role can reach the
+    # table and the RESTRICTIVE TLP:AMBER floor (migration 010) — not a missing
+    # privilege — is what hides IAM rows when app.max_tlp < 2.
+    await pg_conn.execute("grant usage on schema core_graph, ag_catalog to cg_soc_analyst")
+    await pg_conn.execute("set role cg_soc_analyst")
+    await pg_conn.execute("select set_config('app.max_tlp', '1', false)")
+    try:
+        cur = await pg_conn.execute(
+            'select count(*) as n from core_graph."Principal" '
+            "where (properties::text)::jsonb->>'canonical_key' = 'test-iam-floor-001'"
+        )
+        row = await cur.fetchone()
+    finally:
+        await pg_conn.execute("reset role")
+        await pg_conn.execute("select set_config('app.max_tlp', '4', false)")
+    assert row["n"] == 0, "IAM Principal visible at TLP:GREEN — AMBER floor violated"

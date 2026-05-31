@@ -114,7 +114,11 @@ nats:
   storageClass: ""
   jetstream:
     maxMem: 256MB
-    maxFile: 1GB
+    # Must cover the sum of every stream's max_bytes. The three canonical
+    # work-queue streams (ENRICHED, INGEST, DLQ in ingest.streams) reserve
+    # 1 GiB each, so the account file store needs >3 GiB of headroom (kept
+    # below the PVC `storage` below).
+    maxFile: 4GB
     syncInterval: "always"
     storage: 5Gi
   resources:

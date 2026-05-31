@@ -192,6 +192,9 @@ above; migration replay: `bash tests/schema/test_migrations.sh`.
   - `ingest/connectors/{keycloak,misp,netbox,opencti,osint,prometheus,wazuh}/`
   - `ingest/dlq/` — Dead-letter queue processor
   - `ingest/ner/`, `ingest/resolver/` — NER and entity resolution
+  - `ingest/enrichment.py` + `ingest/enrichment_worker.py` — normalise the
+    feed-style connectors' raw `ingest.*` messages into graph-writable
+    `enriched.entity.*` envelopes (the NER/resolution stage)
   - `ingest/graph_writer.py` — NATS JetStream → PostgreSQL writer
 - `api/` — Service code
   - `api/config.py` — Canonical env-var binding site (see "Configuration"

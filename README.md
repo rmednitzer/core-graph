@@ -251,6 +251,7 @@ core-graph/
 │   ├── ner/             Named entity recognition (tier 1: regex + STIX patterns)
 │   ├── resolver/        Entity resolution and deduplication
 │   ├── dlq/             Dead-letter queue processor
+│   ├── enrichment.py    ingest.* → enriched.* normalisation (+ enrichment_worker.py)
 │   └── graph_writer.py  Batch graph writer with bitemporal versioning
 ├── schema/
 │   ├── migrations/      Numbered SQL files (001_ through 026_), idempotent

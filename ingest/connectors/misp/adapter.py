@@ -21,9 +21,9 @@ from typing import Any
 import nats
 import zmq
 import zmq.asyncio
-from nats.js.api import StreamConfig
 
 from ingest.connectors.misp.config import MispConfig
+from ingest.streams import ensure_ingest_stream
 
 logger = logging.getLogger(__name__)
 
@@ -132,18 +132,6 @@ def _event_to_entities(event: dict[str, Any]) -> list[dict[str, Any]]:
     return entities
 
 
-async def _ensure_stream(js: nats.js.JetStreamContext) -> None:
-    """Ensure the MISP ingest stream exists."""
-    await js.add_stream(
-        StreamConfig(
-            name="INGEST_MISP",
-            subjects=["ingest.threatintel.misp"],
-            retention="limits",
-            max_bytes=1_073_741_824,
-        )
-    )
-
-
 async def run(
     zmq_url: str = MISP_ZMQ_URL,
     nats_url: str = NATS_URL,
@@ -151,7 +139,7 @@ async def run(
     """Main loop: consume from MISP ZMQ and publish entities to NATS."""
     nc = await nats.connect(nats_url)
     js = nc.jetstream()
-    await _ensure_stream(js)
+    await ensure_ingest_stream(js)
 
     ctx = zmq.asyncio.Context()
     sock = ctx.socket(zmq.SUB)

@@ -13,6 +13,14 @@ from nats.js.api import StreamConfig
 ENRICHED_STREAM = "ENRICHED"
 ENRICHED_SUBJECTS = ["enriched.entity.>", "enriched.relationship.>"]
 
+# Raw, source-shaped messages from the feed-style connectors (opencti, misp,
+# osint, wazuh). A single work-queue stream consumed by the enrichment worker,
+# which normalises them onto the ENRICHED stream. Connectors share this rather
+# than each provisioning a bespoke stream, which would otherwise collide on the
+# overlapping ingest.* subject space.
+INGEST_STREAM = "INGEST"
+INGEST_SUBJECTS = ["ingest.>"]
+
 DLQ_STREAM = "DLQ"
 DLQ_SUBJECTS = ["dlq.>"]
 
@@ -34,6 +42,22 @@ async def ensure_enriched_stream(
         StreamConfig(
             name=name,
             subjects=ENRICHED_SUBJECTS,
+            retention="work_queue",
+            max_bytes=max_bytes,
+        )
+    )
+
+
+async def ensure_ingest_stream(
+    js: nats.js.JetStreamContext,
+    *,
+    max_bytes: int = DEFAULT_MAX_BYTES,
+) -> None:
+    """Ensure the raw-ingest work-queue stream exists (subjects ``ingest.>``)."""
+    await js.add_stream(
+        StreamConfig(
+            name=INGEST_STREAM,
+            subjects=INGEST_SUBJECTS,
             retention="work_queue",
             max_bytes=max_bytes,
         )

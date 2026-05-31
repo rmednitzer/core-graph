@@ -60,6 +60,20 @@ graphWriter:
       memory: 512Mi
 
 # ---------------------------------------------------------------------------
+# Enrichment Worker — NATS ingest.* → enriched.* normalisation
+# (opencti / misp / osint / wazuh feeds → graph-writable entities)
+# ---------------------------------------------------------------------------
+enrichmentWorker:
+  replicaCount: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+
+# ---------------------------------------------------------------------------
 # PostgreSQL 18 — graph store (AGE), vector store (pgvector), audit log
 # Set enabled=false and configure external.* to use an external instance.
 # ---------------------------------------------------------------------------

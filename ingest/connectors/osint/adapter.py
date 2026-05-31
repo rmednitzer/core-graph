@@ -17,11 +17,11 @@ import httpx
 import nats
 import psycopg
 import redis.asyncio as redis
-from nats.js.api import StreamConfig
 
 from api.config import NATS_URL, PG_DSN, VALKEY_URL
 from ingest.connectors.osint.config import FeedSource, load_feeds_config
 from ingest.ner.tier1_regex import extract_iocs
+from ingest.streams import ensure_ingest_stream
 
 logger = logging.getLogger(__name__)
 
@@ -176,15 +176,9 @@ async def run(
     nc = await nats.connect(nats_addr)
     js = nc.jetstream()
 
-    # Ensure OSINT stream exists
-    await js.add_stream(
-        StreamConfig(
-            name="INGEST_OSINT",
-            subjects=["ingest.osint.>"],
-            retention="limits",
-            max_bytes=1_073_741_824,
-        )
-    )
+    # Ensure the shared raw-ingest stream exists (consumed by the enrichment
+    # worker, which normalises onto enriched.entity.>).
+    await ensure_ingest_stream(js)
 
     cache = redis.from_url(valkey_addr)
 

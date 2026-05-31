@@ -43,9 +43,11 @@ async def pg_conn():
     conn = await psycopg.AsyncConnection.connect(PG_DSN, row_factory=dict_row)
     await conn.execute("set search_path = ag_catalog, '$user', public")
     await conn.execute("select set_config('app.max_tlp', '4', true)")
-    # Isolate the writer dedup ledger between tests so a reused JetStream
-    # sequence number cannot suppress a fresh test message. The ledger is
-    # writer-internal metadata, so clearing it is safe.
+    # Isolate the writer dedup ledger between tests. Dedup keys are derived from
+    # message content (ingest.streams.content_msg_id), so two tests publishing
+    # the same fixture payload would otherwise collide — the second would be
+    # acked as a duplicate and write nothing. The ledger is writer-internal
+    # metadata, so clearing it between tests is safe.
     try:
         await conn.execute("truncate table public.processed_messages")
         await conn.commit()

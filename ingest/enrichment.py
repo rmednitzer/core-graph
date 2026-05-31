@@ -168,6 +168,25 @@ def _external_id(src: dict[str, Any], source_name: str) -> str | None:
     return None
 
 
+def _nullify_empty(value: Any) -> Any:
+    """Map empty collections/strings to ``None`` so a sparse re-report does not
+    overwrite previously-enriched values on merge.
+
+    The graph writer's SDO ``ON MATCH`` clauses use ``coalesce($field, v.field)``
+    to preserve existing intelligence when an update omits a field. Connectors,
+    however, default absent optional fields to ``[]``/``""`` rather than null
+    (e.g. OpenCTI's ``stix_object.get("malware_types", [])``), and ``coalesce``
+    treats those non-null empties as real values — clobbering a populated vertex
+    on the next partial merge. Collapsing empties to null here restores the
+    intended preserve-on-absent behaviour. Booleans and numbers (e.g.
+    ``is_family``, ``confidence``) are returned unchanged, since ``False``/``0``
+    are legitimate values, not "absent".
+    """
+    if isinstance(value, (str, list, tuple, dict, set)) and len(value) == 0:
+        return None
+    return value
+
+
 def sdo_entity(label: str, src: dict[str, Any], tlp: int, source: str) -> dict[str, Any] | None:
     """Normalise a STIX SDO (raw object or pre-mapped props) to an envelope.
 
@@ -187,19 +206,26 @@ def sdo_entity(label: str, src: dict[str, Any], tlp: int, source: str) -> dict[s
         # STIX common fields: the TAXII endpoint filters by stix_type and
         # orders by t_recorded (set by the writer), so an SDO without stix_type
         # is invisible to match[type] requests. created/modified/confidence are
-        # carried through so TAXII clients receive the full object.
+        # carried through so TAXII clients receive the full object. Empty
+        # created/modified collapse to null so the writer's coalesce() and its
+        # `modified`-based version check behave correctly on partial updates.
         "stix_type": src.get("stix_type") or src.get("type") or _SDO_LABEL_TO_STIX_TYPE[label],
-        "created": src.get("created"),
-        "modified": src.get("modified"),
+        "created": _nullify_empty(src.get("created")),
+        "modified": _nullify_empty(src.get("modified")),
         "confidence": src.get("confidence"),
     }
+    # Empty optionals -> null so the writer's ON MATCH coalesce() preserves
+    # previously-enriched values instead of overwriting them with a sparse
+    # re-report's []/"" defaults (see _nullify_empty).
     for key in _SDO_PROP_KEYS[label]:
-        props[key] = src.get(key)
+        props[key] = _nullify_empty(src.get(key))
     if label == "Campaign":
         # Keep the campaign's STIX activity window distinct from the graph-wide
         # first_seen/last_seen ingest bookkeeping the writer maintains.
-        props["stix_first_seen"] = src.get("stix_first_seen") or src.get("first_seen")
-        props["stix_last_seen"] = src.get("stix_last_seen") or src.get("last_seen")
+        props["stix_first_seen"] = _nullify_empty(
+            src.get("stix_first_seen") or src.get("first_seen")
+        )
+        props["stix_last_seen"] = _nullify_empty(src.get("stix_last_seen") or src.get("last_seen"))
     if label == "Vulnerability" and not props.get("cve_id"):
         cve = _external_id(src, "cve")
         if not cve and str(name).upper().startswith("CVE-"):

@@ -111,6 +111,35 @@ def test_premapped_sdo_with_stix_id_is_emitted():
     assert out[0]["properties"]["stix_type"] == "threat-actor"  # TAXII match[type]
 
 
+def test_premapped_sdo_empty_optionals_become_null_to_preserve_on_merge():
+    # Connectors default absent optional SDO fields to []/"" (e.g. OpenCTI's
+    # malware_types). The normaliser collapses those empties to None so the graph
+    # writer's ON MATCH coalesce() preserves previously-enriched values instead
+    # of overwriting a populated vertex with an empty partial update. Legitimate
+    # scalars such as is_family=False are preserved as-is.
+    payload = {
+        "label": "Malware",
+        "properties": {
+            "stix_id": "malware--empty",
+            "name": "EmptyPartial",
+            "malware_types": [],
+            "kill_chain_phases": [],
+            "is_family": False,
+            "description": "",
+            "tlp": 2,
+        },
+        "source": "opencti",
+    }
+    out = enrichment.entities_from_premapped(payload, default_tlp=1)
+    assert len(out) == 1
+    props = out[0]["properties"]
+    assert props["malware_types"] is None
+    assert props["kill_chain_phases"] is None
+    assert props["description"] is None
+    # False is a real value, not "absent": it must survive to the writer.
+    assert props["is_family"] is False
+
+
 def test_premapped_indicator_missing_value_is_dropped():
     payload = {"label": "Indicator", "properties": {"indicator_type": "url", "tlp": 1}}
     assert enrichment.entities_from_premapped(payload, default_tlp=1) == []

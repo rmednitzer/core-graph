@@ -25,13 +25,9 @@ from nats.js.api import ConsumerConfig
 from psycopg.rows import dict_row
 
 from api.config import NATS_URL, PG_DSN
-from ingest.streams import ensure_dlq_stream, ensure_enriched_stream, jetstream_delivery_key
+from ingest.streams import content_msg_id, ensure_dlq_stream, ensure_enriched_stream
 
 logger = logging.getLogger(__name__)
-
-# Re-exported under the private name used by _process_message and
-# tests/test_graph_writer_idempotency.py.
-_delivery_key = jetstream_delivery_key
 
 # Readiness marker. The graph writer is a headless NATS consumer with no HTTP
 # port, so the Kubernetes readinessProbe checks for this file. It is created
@@ -81,6 +77,15 @@ MERGE_TEMPLATES: dict[str, str] = {
     # Property mapping per docs/ontology/stix-mapping.md. first_seen/last_seen
     # are ingest bookkeeping; a campaign's own STIX activity window is carried
     # separately as stix_first_seen/stix_last_seen to avoid clobbering it.
+    # ON MATCH advances t_recorded (the TAXII date_added cursor) only when the
+    # STIX `modified` timestamp moves forward — a genuinely new object version —
+    # so TAXII keyset clients that already paged past the original still receive
+    # the update, while no-op redeliveries (same modified) don't churn the
+    # cursor. The t_recorded assignment precedes `v.modified = ...` so its
+    # comparison reads the prior modified value. coalesce() on the other fields
+    # preserves existing intelligence when an update omits a field (the
+    # enrichment normaliser nulls empty optionals so the preserve actually
+    # triggers).
     "ThreatActor": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:ThreatActor {stix_id: $stix_id})
@@ -93,7 +98,11 @@ MERGE_TEMPLATES: dict[str, str] = {
                           v.created = $created, v.modified = $modified,
                           v.confidence = $confidence, v.tlp_level = $tlp,
                           v.first_seen = $now, v.t_recorded = $now
-            on match set v.last_seen = $now, v.stix_type = $stix_type,
+            on match set v.t_recorded = case
+                             when $modified is not null
+                                  and $modified > coalesce(v.modified, '')
+                             then $now else v.t_recorded end,
+                         v.last_seen = $now, v.stix_type = $stix_type,
                          v.name = coalesce($name, v.name),
                          v.description = coalesce($description, v.description),
                          v.aliases = coalesce($aliases, v.aliases),
@@ -118,7 +127,11 @@ MERGE_TEMPLATES: dict[str, str] = {
                           v.created = $created, v.modified = $modified,
                           v.confidence = $confidence, v.tlp_level = $tlp,
                           v.first_seen = $now, v.t_recorded = $now
-            on match set v.last_seen = $now, v.stix_type = $stix_type,
+            on match set v.t_recorded = case
+                             when $modified is not null
+                                  and $modified > coalesce(v.modified, '')
+                             then $now else v.t_recorded end,
+                         v.last_seen = $now, v.stix_type = $stix_type,
                          v.name = coalesce($name, v.name),
                          v.description = coalesce($description, v.description),
                          v.malware_types = coalesce($malware_types, v.malware_types),
@@ -142,7 +155,11 @@ MERGE_TEMPLATES: dict[str, str] = {
                           v.created = $created, v.modified = $modified,
                           v.confidence = $confidence, v.tlp_level = $tlp,
                           v.first_seen = $now, v.t_recorded = $now
-            on match set v.last_seen = $now, v.stix_type = $stix_type,
+            on match set v.t_recorded = case
+                             when $modified is not null
+                                  and $modified > coalesce(v.modified, '')
+                             then $now else v.t_recorded end,
+                         v.last_seen = $now, v.stix_type = $stix_type,
                          v.name = coalesce($name, v.name),
                          v.description = coalesce($description, v.description),
                          v.aliases = coalesce($aliases, v.aliases),
@@ -166,7 +183,11 @@ MERGE_TEMPLATES: dict[str, str] = {
                           v.created = $created, v.modified = $modified,
                           v.confidence = $confidence, v.tlp_level = $tlp,
                           v.first_seen = $now, v.t_recorded = $now
-            on match set v.last_seen = $now, v.stix_type = $stix_type,
+            on match set v.t_recorded = case
+                             when $modified is not null
+                                  and $modified > coalesce(v.modified, '')
+                             then $now else v.t_recorded end,
+                         v.last_seen = $now, v.stix_type = $stix_type,
                          v.name = coalesce($name, v.name),
                          v.description = coalesce($description, v.description),
                          v.mitre_id = coalesce($mitre_id, v.mitre_id),
@@ -189,7 +210,11 @@ MERGE_TEMPLATES: dict[str, str] = {
                           v.created = $created, v.modified = $modified,
                           v.confidence = $confidence, v.tlp_level = $tlp,
                           v.first_seen = $now, v.t_recorded = $now
-            on match set v.last_seen = $now, v.stix_type = $stix_type,
+            on match set v.t_recorded = case
+                             when $modified is not null
+                                  and $modified > coalesce(v.modified, '')
+                             then $now else v.t_recorded end,
+                         v.last_seen = $now, v.stix_type = $stix_type,
                          v.name = coalesce($name, v.name),
                          v.description = coalesce($description, v.description),
                          v.cve_id = coalesce($cve_id, v.cve_id),
@@ -211,7 +236,11 @@ MERGE_TEMPLATES: dict[str, str] = {
                           v.created = $created, v.modified = $modified,
                           v.confidence = $confidence, v.tlp_level = $tlp,
                           v.first_seen = $now, v.t_recorded = $now
-            on match set v.last_seen = $now, v.stix_type = $stix_type,
+            on match set v.t_recorded = case
+                             when $modified is not null
+                                  and $modified > coalesce(v.modified, '')
+                             then $now else v.t_recorded end,
+                         v.last_seen = $now, v.stix_type = $stix_type,
                          v.name = coalesce($name, v.name),
                          v.description = coalesce($description, v.description),
                          v.tool_types = coalesce($tool_types, v.tool_types),
@@ -520,21 +549,25 @@ async def _process_message(
     # already-committed message is skipped instead of re-audited. The claim
     # shares the transaction with the writes below, so it only becomes durable
     # if the whole unit commits (a failed/rolled-back message is retried).
-    # Prefer the source ingest delivery id carried through enrichment (_idem)
-    # over the ENRICHED stream sequence, so a re-enriched feed message (the
-    # enrichment worker republishing after a crash) still dedups correctly.
-    delivery_key = payload.get("_idem") or _delivery_key(msg)
-    if delivery_key is not None:
-        claim = await conn.execute(
-            "insert into public.processed_messages (delivery_key) values (%s) "
-            "on conflict (delivery_key) do nothing",
-            (delivery_key,),
-        )
-        if claim.rowcount == 0:
-            await conn.rollback()
-            await msg.ack()
-            logger.info("Duplicate delivery %s, skipping", delivery_key)
-            return
+    # The key is the source delivery id carried through enrichment (_idem) when
+    # present, else a content hash of this message. Both are derived from message
+    # *content* (see ingest.streams.content_msg_id), never a JetStream
+    # (stream, seq) pair, so they survive stream recreation: after a stream is
+    # rebuilt its sequences restart at 1 and would otherwise collide with
+    # surviving claims in the 90-day ledger, silently suppressing fresh
+    # intelligence. A new STIX version hashes differently, so updates are
+    # reprocessed rather than deduped.
+    delivery_key = payload.get("_idem") or content_msg_id(payload)
+    claim = await conn.execute(
+        "insert into public.processed_messages (delivery_key) values (%s) "
+        "on conflict (delivery_key) do nothing",
+        (delivery_key,),
+    )
+    if claim.rowcount == 0:
+        await conn.rollback()
+        await msg.ack()
+        logger.info("Duplicate delivery %s, skipping", delivery_key)
+        return
 
     # Set RLS session variables
     await conn.execute("select set_config('app.max_tlp', '4', true)")

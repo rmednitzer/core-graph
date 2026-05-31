@@ -7,6 +7,8 @@ truth. Stream creation is idempotent (NATS no-ops on identical config).
 
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any
 
 import nats
@@ -29,18 +31,22 @@ DLQ_SUBJECTS = ["dlq.>"]
 DEFAULT_MAX_BYTES = 1_073_741_824  # 1 GiB
 
 
-def jetstream_delivery_key(msg: Any) -> str | None:
-    """Stable idempotency key for a JetStream delivery: ``stream:stream_seq``.
+def content_msg_id(payload: Any) -> str:
+    """Deterministic, incarnation-independent dedup id for a message.
 
-    The (stream, stream-sequence) pair is constant across redeliveries of the
-    same stored message. Returns None when JetStream metadata is unavailable
-    (e.g. a non-JetStream message), so callers skip dedup rather than fail.
+    SHA-256 over the canonical JSON of the message payload, prefixed
+    ``sha256:``. Unlike a JetStream ``(stream, stream_seq)`` pair, this is stable
+    across stream recreation: when a stream is deleted and rebuilt (DR/reset) its
+    sequences restart at 1 and would otherwise collide with surviving claims in
+    the 90-day ``processed_messages`` ledger, causing fresh deliveries to be
+    acked as duplicates without ever being written. Hashing the content also
+    makes the key version-aware for STIX — a new ``modified`` changes the payload
+    and thus the id, so an updated object is reprocessed (and its TAXII
+    ``t_recorded`` cursor refreshed) rather than suppressed — while exact
+    byte-duplicate redeliveries collapse to the same id and dedup as intended.
     """
-    try:
-        meta = msg.metadata
-        return f"{meta.stream}:{meta.sequence.stream}"
-    except Exception:
-        return None
+    canonical = json.dumps(payload, sort_keys=True, default=str, separators=(",", ":"))
+    return f"sha256:{hashlib.sha256(canonical.encode()).hexdigest()}"
 
 
 async def ensure_enriched_stream(

@@ -10,9 +10,11 @@ graph writer consumes:
     {"label": "<WritableLabel>", "properties": {...}}   ->  enriched.entity.*
 
 Only labels that the graph writer actually has a MERGE template for are
-emitted; STIX SDOs such as ThreatActor / Malware / Campaign have no template
-yet (tracked in the audit roadmap) and are reported as deferred rather than
-emitted as un-writable vertices that would be silently dropped downstream.
+emitted. STIX SDOs (ThreatActor / Malware / Campaign / AttackPattern /
+Vulnerability / Tool) are normalised to their canonical envelope keyed on the
+STIX id; SDO types without a template (e.g. intrusion-set, identity, location,
+report) are still reported as deferred rather than emitted as un-writable
+vertices that would be silently dropped downstream.
 
 The functions here are deliberately pure (dict in, list-of-dict out) so the
 mapping — the part most prone to silent data-loss bugs — is unit-tested
@@ -31,7 +33,19 @@ from ingest.ner.tier1_regex import extract_from_stix_pattern
 # graph_writer.MERGE_TEMPLATES (enforced by tests/ingest/test_enrichment.py)
 # so we never publish an envelope the writer would drop for lack of a template.
 WRITABLE_ENTITY_LABELS: frozenset[str] = frozenset(
-    {"CanonicalIP", "CanonicalDomain", "Indicator", "SecurityEvent"}
+    {
+        "CanonicalIP",
+        "CanonicalDomain",
+        "Indicator",
+        "SecurityEvent",
+        # STIX 2.1 SDOs (Layer 1) — the graph writer keys these on stix_id.
+        "ThreatActor",
+        "Malware",
+        "Campaign",
+        "AttackPattern",
+        "Vulnerability",
+        "Tool",
+    }
 )
 
 # Required property keys per emitted label, mirroring the MERGE templates'
@@ -42,6 +56,14 @@ _REQUIRED_PROPS: dict[str, frozenset[str]] = {
     "CanonicalDomain": frozenset({"value"}),
     "Indicator": frozenset({"value", "indicator_type"}),
     "SecurityEvent": frozenset({"event_id"}),
+    # STIX SDOs identify on the globally-unique stix_id; name is required so we
+    # never merge an anonymous actor/malware vertex.
+    "ThreatActor": frozenset({"stix_id", "name"}),
+    "Malware": frozenset({"stix_id", "name"}),
+    "Campaign": frozenset({"stix_id", "name"}),
+    "AttackPattern": frozenset({"stix_id", "name"}),
+    "Vulnerability": frozenset({"stix_id", "name"}),
+    "Tool": frozenset({"stix_id", "name"}),
 }
 
 # IOC type (tier1 NER + STIX-pattern + Wazuh observable forms) -> (label,
@@ -104,6 +126,116 @@ def _stix_tlp(obj: dict[str, Any], default: int) -> int:
     return max(levels) if levels else default
 
 
+# STIX SDO type -> graph vertex label (only types the writer has a template for;
+# intrusion-set/identity/location/report remain deferred).
+_STIX_TYPE_TO_SDO: dict[str, str] = {
+    "threat-actor": "ThreatActor",
+    "malware": "Malware",
+    "campaign": "Campaign",
+    "attack-pattern": "AttackPattern",
+    "vulnerability": "Vulnerability",
+    "tool": "Tool",
+}
+_SDO_LABELS: frozenset[str] = frozenset(_STIX_TYPE_TO_SDO.values())
+_SDO_LABEL_TO_STIX_TYPE: dict[str, str] = {v: k for k, v in _STIX_TYPE_TO_SDO.items()}
+
+# Optional property keys per SDO label, mirroring the graph_writer MERGE
+# template. The normaliser always emits every key (defaulting to None) so AGE
+# never sees a referenced $param that is absent from the agtype map.
+_SDO_PROP_KEYS: dict[str, tuple[str, ...]] = {
+    "ThreatActor": (
+        "description",
+        "aliases",
+        "roles",
+        "goals",
+        "sophistication",
+        "resource_level",
+        "primary_motivation",
+    ),
+    "Malware": ("description", "malware_types", "is_family", "kill_chain_phases"),
+    "Campaign": ("description", "aliases", "objective"),
+    "AttackPattern": ("description", "mitre_id", "kill_chain_phases", "external_references"),
+    "Vulnerability": ("description", "cve_id", "external_references"),
+    "Tool": ("description", "tool_types", "kill_chain_phases"),
+}
+
+
+def _external_id(src: dict[str, Any], source_name: str) -> str | None:
+    """Pull external_references[].external_id for a given source_name."""
+    for ref in src.get("external_references") or []:
+        if str(ref.get("source_name", "")).lower() == source_name:
+            return ref.get("external_id")
+    return None
+
+
+def _nullify_empty(value: Any) -> Any:
+    """Map empty collections/strings to ``None`` so a sparse re-report does not
+    overwrite previously-enriched values on merge.
+
+    The graph writer's SDO ``ON MATCH`` clauses use ``coalesce($field, v.field)``
+    to preserve existing intelligence when an update omits a field. Connectors,
+    however, default absent optional fields to ``[]``/``""`` rather than null
+    (e.g. OpenCTI's ``stix_object.get("malware_types", [])``), and ``coalesce``
+    treats those non-null empties as real values — clobbering a populated vertex
+    on the next partial merge. Collapsing empties to null here restores the
+    intended preserve-on-absent behaviour. Booleans and numbers (e.g.
+    ``is_family``, ``confidence``) are returned unchanged, since ``False``/``0``
+    are legitimate values, not "absent".
+    """
+    if isinstance(value, (str, list, tuple, dict, set)) and len(value) == 0:
+        return None
+    return value
+
+
+def sdo_entity(label: str, src: dict[str, Any], tlp: int, source: str) -> dict[str, Any] | None:
+    """Normalise a STIX SDO (raw object or pre-mapped props) to an envelope.
+
+    Always emits the full key set the writer's template references, so a partial
+    connector payload can never trigger a missing-``$param`` AGE error. Returns
+    None when the identity keys (stix_id, name) are absent.
+    """
+    stix_id = src.get("stix_id") or src.get("id")
+    name = src.get("name")
+    if not stix_id or not name:
+        return None
+    props: dict[str, Any] = {
+        "stix_id": stix_id,
+        "name": name,
+        "tlp": int(tlp),
+        "source": source,
+        # STIX common fields: the TAXII endpoint filters by stix_type and
+        # orders by t_recorded (set by the writer), so an SDO without stix_type
+        # is invisible to match[type] requests. created/modified/confidence are
+        # carried through so TAXII clients receive the full object. Empty
+        # created/modified collapse to null so the writer's coalesce() and its
+        # `modified`-based version check behave correctly on partial updates.
+        "stix_type": src.get("stix_type") or src.get("type") or _SDO_LABEL_TO_STIX_TYPE[label],
+        "created": _nullify_empty(src.get("created")),
+        "modified": _nullify_empty(src.get("modified")),
+        "confidence": src.get("confidence"),
+    }
+    # Empty optionals -> null so the writer's ON MATCH coalesce() preserves
+    # previously-enriched values instead of overwriting them with a sparse
+    # re-report's []/"" defaults (see _nullify_empty).
+    for key in _SDO_PROP_KEYS[label]:
+        props[key] = _nullify_empty(src.get(key))
+    if label == "Campaign":
+        # Keep the campaign's STIX activity window distinct from the graph-wide
+        # first_seen/last_seen ingest bookkeeping the writer maintains.
+        props["stix_first_seen"] = _nullify_empty(
+            src.get("stix_first_seen") or src.get("first_seen")
+        )
+        props["stix_last_seen"] = _nullify_empty(src.get("stix_last_seen") or src.get("last_seen"))
+    if label == "Vulnerability" and not props.get("cve_id"):
+        cve = _external_id(src, "cve")
+        if not cve and str(name).upper().startswith("CVE-"):
+            cve = name
+        props["cve_id"] = cve
+    if label == "AttackPattern" and not props.get("mitre_id"):
+        props["mitre_id"] = _external_id(src, "mitre-attack")
+    return {"label": label, "properties": props}
+
+
 def ioc_entity(
     ioc_type: str | None,
     value: Any,
@@ -158,6 +290,10 @@ def entities_from_premapped(payload: dict[str, Any], default_tlp: int) -> list[d
     if label == "Indicator" and props.get("pattern") and not props.get("value"):
         return entities_from_stix_pattern(props["pattern"], tlp, source)
 
+    if label in _SDO_LABELS:
+        ent = sdo_entity(label, props, tlp, source)
+        return [ent] if ent else []
+
     props.setdefault("tlp", tlp)
     props.setdefault("source", source)
     envelope = {"label": label, "properties": props}
@@ -177,14 +313,18 @@ def entities_from_stix_pattern(pattern: str, tlp: int, source: str) -> list[dict
 def entities_from_stix_object(obj: dict[str, Any], default_tlp: int) -> list[dict[str, Any]]:
     """Raw STIX 2.1 object (from TAXII) -> canonical entity envelopes.
 
-    Handles indicator patterns and cyber-observable objects (addresses,
-    domains, URLs, files). STIX SDOs (threat-actor, malware, ...) have no
-    MERGE template yet and are deferred.
+    Handles SDOs (threat-actor, malware, campaign, attack-pattern,
+    vulnerability, tool), indicator patterns, and cyber-observable objects
+    (addresses, domains, URLs, files). SDO types without a writer template
+    (intrusion-set, identity, location, report, ...) are deferred.
     """
     stix_type = obj.get("type", "")
     tlp = _stix_tlp(obj, default_tlp)
     if stix_type == "indicator" and obj.get("pattern"):
         return entities_from_stix_pattern(obj["pattern"], tlp, "taxii")
+    if stix_type in _STIX_TYPE_TO_SDO:
+        ent = sdo_entity(_STIX_TYPE_TO_SDO[stix_type], obj, tlp, "taxii")
+        return [ent] if ent else []
     if stix_type in _STIX_SCO_TO_IOC:
         ent = ioc_entity(_STIX_SCO_TO_IOC[stix_type], obj.get("value"), tlp, "taxii")
         return [ent] if ent else []

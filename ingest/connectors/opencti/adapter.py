@@ -88,10 +88,13 @@ def _map_stix_object(stix_object: dict[str, Any]) -> dict[str, Any] | None:
         "description": stix_object.get("description", ""),
         "created": stix_object.get("created", ""),
         "modified": stix_object.get("modified", ""),
+        "confidence": stix_object.get("confidence"),
         "tlp": tlp_level,
     }
 
-    # Type-specific properties
+    # Type-specific properties. SDO branches carry the fields the graph_writer
+    # SDO templates store; external_references is passed through so the
+    # enrichment stage can extract mitre_id / cve_id.
     if stix_type == "indicator":
         properties["pattern"] = stix_object.get("pattern", "")
         properties["pattern_type"] = stix_object.get("pattern_type", "")
@@ -100,11 +103,27 @@ def _map_stix_object(stix_object: dict[str, Any]) -> dict[str, Any] | None:
     elif stix_type == "threat-actor":
         properties["aliases"] = stix_object.get("aliases", [])
         properties["roles"] = stix_object.get("roles", [])
+        properties["goals"] = stix_object.get("goals", [])
         properties["sophistication"] = stix_object.get("sophistication", "")
+        properties["resource_level"] = stix_object.get("resource_level", "")
+        properties["primary_motivation"] = stix_object.get("primary_motivation", "")
     elif stix_type == "malware":
         properties["malware_types"] = stix_object.get("malware_types", [])
         properties["is_family"] = stix_object.get("is_family", False)
+        properties["kill_chain_phases"] = stix_object.get("kill_chain_phases", [])
+    elif stix_type == "campaign":
+        properties["aliases"] = stix_object.get("aliases", [])
+        properties["objective"] = stix_object.get("objective", "")
+        properties["first_seen"] = stix_object.get("first_seen", "")
+        properties["last_seen"] = stix_object.get("last_seen", "")
+    elif stix_type == "attack-pattern":
+        properties["external_references"] = stix_object.get("external_references", [])
+        properties["kill_chain_phases"] = stix_object.get("kill_chain_phases", [])
+    elif stix_type == "tool":
+        properties["tool_types"] = stix_object.get("tool_types", [])
+        properties["kill_chain_phases"] = stix_object.get("kill_chain_phases", [])
     elif stix_type == "vulnerability":
+        properties["external_references"] = stix_object.get("external_references", [])
         # Extract CVE from external_references
         for ref in stix_object.get("external_references", []):
             if ref.get("source_name") == "cve":

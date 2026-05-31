@@ -152,8 +152,14 @@ their own change. Ordered by value.
 6. **Third-party action SHA-pinning.** `trufflehog@main` and
    `trivy-action@master` should be pinned to release SHAs. Dependabot already
    surfaces their tagged releases; SHA resolution needs network access.
-7. **NATS connection pooling** for ingest_event/TAXII (currently one
-   connection per request) and **multi-arch image builds**.
+7. **Multi-arch image builds** — done for the app image (release.yml builds
+   linux/amd64 + linux/arm64; the postgres image stays amd64 until an arm64
+   Apache AGE base exists). **NATS connection pooling** for ingest_event/TAXII
+   remains a perf optimization (still one connection per request); the
+   connect/publish timeouts that were the correctness concern are already in
+   place. Action SHA-pinning is mechanised through the existing
+   `dependabot.yml` (github-actions ecosystem); a `uv.lock` still needs a
+   networked CI step to generate.
 
 ## Validation performed
 
@@ -166,3 +172,32 @@ their own change. Ordered by value.
   graph_writer-dependent assertions run in CI where the deps are installed.
 - The engine upgrade and any new SQL are validated by CI's migration-replay
   and integration jobs against PG18/AGE1.7.
+
+## Follow-up — roadmap items addressed (2026-05, PR #47)
+
+Deferred items 1–4 were taken up in a follow-up change set:
+
+1. **STIX SDO MERGE templates** — added for ThreatActor / Malware / Campaign /
+   AttackPattern / Vulnerability / Tool (schema 002 already had the vlabels),
+   keyed on `stix_id`, carrying the STIX common fields (`stix_type`,
+   `created`, `modified`, `confidence`) and `t_recorded` that the TAXII
+   endpoint filters/orders on, with on-match `coalesce` refresh and TLP raised
+   to the stricter value. Per-label `stix_id`/`stix_type` AGE indexes added
+   (030). The OpenCTI adapter now carries the SDO fields (incl.
+   `external_references` for `mitre_id`/`cve_id` extraction).
+2. **PG18 native temporal constraints — evaluated, not adopted.** `WITHOUT
+   OVERLAPS` is a non-partial PRIMARY KEY / UNIQUE constraint, but
+   `temporal_facts` needs *partial* non-overlap (active facts only) so
+   supersession can create overlapping history (the partial `EXCLUDE` fixed in
+   026). A native constraint cannot carry that `WHERE`, so it would regress
+   correctness; the partial `EXCLUDE` is retained as the correct mechanism. The
+   fitting PG18 adoption for this area is `uuidv7()` for time-ordered audit
+   correlation ids (031).
+3. **RLS write-path policies** — `INSERT/UPDATE/DELETE` TLP policies on every
+   core_graph table (028), plus a RESTRICTIVE AMBER write floor on IAM vertex
+   labels. 028 also enables RLS + the read policy on the 009/023 labels that
+   never had it (a pre-existing read-side gap). Covered by
+   `tests/rls/test_write_path.sql`.
+4. **graph_writer replay idempotency** — a `processed_messages` dedup ledger
+   (029) claimed transactionally on the source ingest delivery key (carried
+   through enrichment as `_idem`, else the JetStream sequence).

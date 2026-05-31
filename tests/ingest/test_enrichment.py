@@ -82,10 +82,62 @@ def test_premapped_misp_envelope_passes_through():
     ]
 
 
-def test_premapped_unwritable_sdo_is_dropped():
-    # STIX SDOs have no MERGE template yet; do not emit droppable vertices.
+def test_premapped_sdo_without_stix_id_is_dropped():
+    # SDOs identify on stix_id; an envelope lacking it must not merge an
+    # anonymous vertex.
     payload = {"label": "ThreatActor", "properties": {"name": "APT-X", "tlp": 2}}
     assert enrichment.entities_from_premapped(payload, default_tlp=1) == []
+
+
+def test_premapped_sdo_with_stix_id_is_emitted():
+    # OpenCTI/MISP envelopes carrying a stix_id now produce a writable SDO.
+    payload = {
+        "label": "ThreatActor",
+        "properties": {
+            "stix_id": "threat-actor--1234",
+            "name": "APT-X",
+            "aliases": ["GroupX"],
+            "tlp": 2,
+        },
+        "source": "opencti",
+    }
+    out = enrichment.entities_from_premapped(payload, default_tlp=1)
+    assert len(out) == 1
+    assert out[0]["label"] == "ThreatActor"
+    assert out[0]["properties"]["stix_id"] == "threat-actor--1234"
+    assert out[0]["properties"]["aliases"] == ["GroupX"]
+    assert out[0]["properties"]["tlp"] == 2
+    assert out[0]["properties"]["source"] == "opencti"
+    assert out[0]["properties"]["stix_type"] == "threat-actor"  # TAXII match[type]
+
+
+def test_premapped_sdo_empty_optionals_become_null_to_preserve_on_merge():
+    # Connectors default absent optional SDO fields to []/"" (e.g. OpenCTI's
+    # malware_types). The normaliser collapses those empties to None so the graph
+    # writer's ON MATCH coalesce() preserves previously-enriched values instead
+    # of overwriting a populated vertex with an empty partial update. Legitimate
+    # scalars such as is_family=False are preserved as-is.
+    payload = {
+        "label": "Malware",
+        "properties": {
+            "stix_id": "malware--empty",
+            "name": "EmptyPartial",
+            "malware_types": [],
+            "kill_chain_phases": [],
+            "is_family": False,
+            "description": "",
+            "tlp": 2,
+        },
+        "source": "opencti",
+    }
+    out = enrichment.entities_from_premapped(payload, default_tlp=1)
+    assert len(out) == 1
+    props = out[0]["properties"]
+    assert props["malware_types"] is None
+    assert props["kill_chain_phases"] is None
+    assert props["description"] is None
+    # False is a real value, not "absent": it must survive to the writer.
+    assert props["is_family"] is False
 
 
 def test_premapped_indicator_missing_value_is_dropped():
@@ -170,8 +222,65 @@ def test_raw_stix_file_hashes_become_indicators():
     assert types == ["md5", "sha256"]
 
 
-def test_raw_stix_sdo_is_deferred():
+def test_raw_stix_sdo_without_id_is_dropped():
     assert enrichment.entities_from_stix_object({"type": "malware", "name": "X"}, 1) == []
+
+
+def test_raw_stix_unsupported_sdo_is_deferred():
+    # intrusion-set has no writer template; defer rather than emit un-writable.
+    obj = {"type": "intrusion-set", "id": "intrusion-set--9", "name": "Y"}
+    assert enrichment.entities_from_stix_object(obj, 1) == []
+
+
+def test_raw_stix_malware_sdo_is_emitted():
+    obj = {
+        "type": "malware",
+        "id": "malware--abcd",
+        "name": "Emotet",
+        "malware_types": ["trojan"],
+        "is_family": True,
+    }
+    out = enrichment.entities_from_stix_object(obj, default_tlp=1)
+    assert len(out) == 1
+    assert out[0]["label"] == "Malware"
+    assert out[0]["properties"]["stix_id"] == "malware--abcd"
+    assert out[0]["properties"]["malware_types"] == ["trojan"]
+    assert out[0]["properties"]["source"] == "taxii"
+    assert out[0]["properties"]["stix_type"] == "malware"  # TAXII match[type]
+
+
+def test_raw_stix_vulnerability_extracts_cve_id():
+    obj = {
+        "type": "vulnerability",
+        "id": "vulnerability--v1",
+        "name": "CVE-2026-0001",
+        "external_references": [{"source_name": "cve", "external_id": "CVE-2026-0001"}],
+    }
+    out = enrichment.entities_from_stix_object(obj, default_tlp=1)
+    assert out[0]["label"] == "Vulnerability"
+    assert out[0]["properties"]["cve_id"] == "CVE-2026-0001"
+
+
+def test_raw_stix_attack_pattern_extracts_mitre_id():
+    obj = {
+        "type": "attack-pattern",
+        "id": "attack-pattern--ap1",
+        "name": "Spearphishing",
+        "external_references": [{"source_name": "mitre-attack", "external_id": "T1566"}],
+    }
+    out = enrichment.entities_from_stix_object(obj, default_tlp=1)
+    assert out[0]["properties"]["mitre_id"] == "T1566"
+
+
+def test_raw_stix_sdo_marking_is_honoured():
+    obj = {
+        "type": "threat-actor",
+        "id": "threat-actor--ta1",
+        "name": "APT-Y",
+        "object_marking_refs": ["marking-definition--826578e1-40ad-459f-bc73-ede076f81f37"],
+    }
+    out = enrichment.entities_from_stix_object(obj, default_tlp=1)
+    assert out[0]["properties"]["tlp"] == 4
 
 
 def test_stix_tlp_marking_is_honoured_not_defaulted():
@@ -189,3 +298,49 @@ def test_enrich_routes_taxii_and_api():
     # TAXII raw STIX -> threatintel handler; API OCSF -> ocsf handler.
     assert enrichment.enrich("ingest.taxii.c1", {"type": "ipv4-addr", "value": "1.1.1.1"})
     assert enrichment.enrich("ingest.api.events", {"category": "finding", "class_uid": 1})
+
+
+def test_sdo_templates_only_reference_params_the_normaliser_emits():
+    # The SDO MERGE templates are not exercised by the unit suite (they need a
+    # live AGE), so guard the runtime failure mode that matters: every $param a
+    # template references must be produced by sdo_entity (plus $now, which the
+    # writer injects), else AGE raises "parameter does not exist" at write time.
+    import re
+
+    from ingest.graph_writer import MERGE_TEMPLATES
+
+    # A maximally-populated source so sdo_entity emits its full key set.
+    full_src = {
+        "id": "x--1",
+        "type": "x",
+        "name": "n",
+        "stix_type": "x",
+        "created": "c",
+        "modified": "m",
+        "confidence": 50,
+        "description": "d",
+        "aliases": [],
+        "roles": [],
+        "goals": [],
+        "sophistication": "",
+        "resource_level": "",
+        "primary_motivation": "",
+        "malware_types": [],
+        "is_family": True,
+        "kill_chain_phases": [],
+        "objective": "",
+        "external_references": [],
+        "mitre_id": "",
+        "cve_id": "",
+        "tool_types": [],
+        "first_seen": "",
+        "last_seen": "",
+    }
+    for stix_type, label in enrichment._STIX_TYPE_TO_SDO.items():
+        ent = enrichment.sdo_entity(
+            label, dict(full_src, type=stix_type, stix_type=stix_type), 2, "t"
+        )
+        produced = set(ent["properties"]) | {"now"}
+        referenced = set(re.findall(r"\$(\w+)", MERGE_TEMPLATES[label])) - {"1"}
+        missing = referenced - produced
+        assert not missing, f"{label} template references unproduced params: {sorted(missing)}"

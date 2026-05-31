@@ -27,7 +27,12 @@ from nats.js.api import ConsumerConfig
 from api.config import NATS_URL
 from ingest.enrichment import enrich
 from ingest.metrics import adapter_entities_total
-from ingest.streams import ensure_dlq_stream, ensure_enriched_stream, ensure_ingest_stream
+from ingest.streams import (
+    content_msg_id,
+    ensure_dlq_stream,
+    ensure_enriched_stream,
+    ensure_ingest_stream,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +54,17 @@ async def _process_message(js: nats.js.JetStreamContext, msg: Any) -> None:
         logger.debug("No writable entity from %s (deferred or unmapped)", msg.subject)
         return
     target = _enriched_subject(msg.subject)
-    for envelope in envelopes:
+    # Carry a stable, content-derived idempotency key from THIS source message
+    # into each enriched envelope. If the worker crashes after publishing but
+    # before acking, the ingest message is redelivered and re-enriched; the graph
+    # writer dedups on this key, so the audit/temporal rows are not duplicated.
+    # The key hashes the source payload (see content_msg_id) rather than a
+    # JetStream sequence, so it survives stream recreation and a new STIX version
+    # (changed `modified`) is reprocessed rather than suppressed. One source
+    # message fans out to N envelopes, so the index keeps each key distinct.
+    src_key = content_msg_id(payload)
+    for i, envelope in enumerate(envelopes):
+        envelope["_idem"] = f"{src_key}:{i}"
         await js.publish(target, json.dumps(envelope, default=str).encode())
         adapter_entities_total.labels(adapter="enrichment", label=envelope["label"]).inc()
 

@@ -67,7 +67,19 @@ def test_premapped_misp_envelope_passes_through():
         "source": "misp",
     }
     out = enrichment.entities_from_premapped(payload, default_tlp=1)
-    assert out == [payload | {"properties": payload["properties"] | {"source": "misp"}}]
+    # The stage emits {label, properties} only; the top-level "source" is folded
+    # into properties.source and not echoed back at the envelope top level.
+    assert out == [
+        {
+            "label": "Indicator",
+            "properties": {
+                "value": "1.2.3.4",
+                "indicator_type": "ip-src",
+                "tlp": 2,
+                "source": "misp",
+            },
+        }
+    ]
 
 
 def test_premapped_unwritable_sdo_is_dropped():

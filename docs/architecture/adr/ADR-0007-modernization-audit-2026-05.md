@@ -20,7 +20,7 @@ Four independent read-only survey passes covered the database/schema layer,
 the API layer, the ingest pipeline, and deployment/CI/tooling. Each finding
 was then re-verified against the code directly (several agent findings were
 discarded as false positives — e.g. GitHub Action version ordering, the
-`Bearer ` header parse, and CORS credentialed-request claims were all
+`Bearer` header parse, and CORS credentialed-request claims were all
 already correct). Version currency was checked against primary upstream
 sources rather than search summaries.
 

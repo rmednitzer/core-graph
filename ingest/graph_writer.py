@@ -42,34 +42,39 @@ MERGE_TEMPLATES: dict[str, str] = {
     "CanonicalIP": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:CanonicalIP {value: $value})
-            on create set v.first_seen = $now, v.tlp_level = $tlp
-            on match set v.last_seen = $now
+            set v.first_seen = coalesce(v.first_seen, $now),
+                v.tlp_level = coalesce(v.tlp_level, $tlp),
+                v.last_seen = $now
             return id(v)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "CanonicalDomain": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:CanonicalDomain {value: $value})
-            on create set v.first_seen = $now, v.tlp_level = $tlp
-            on match set v.last_seen = $now
+            set v.first_seen = coalesce(v.first_seen, $now),
+                v.tlp_level = coalesce(v.tlp_level, $tlp),
+                v.last_seen = $now
             return id(v)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "Indicator": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:Indicator {value: $value, indicator_type: $indicator_type})
-            on create set v.first_seen = $now, v.tlp_level = $tlp
-            on match set v.last_seen = $now
+            set v.first_seen = coalesce(v.first_seen, $now),
+                v.tlp_level = coalesce(v.tlp_level, $tlp),
+                v.last_seen = $now
             return id(v)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "SecurityEvent": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:SecurityEvent {event_id: $event_id})
-            on create set v.time = $now, v.category = $category,
-                          v.severity = $severity, v.tlp_level = $tlp
+            set v.time = coalesce(v.time, $now),
+                v.category = coalesce(v.category, $category),
+                v.severity = coalesce(v.severity, $severity),
+                v.tlp_level = coalesce(v.tlp_level, $tlp)
             return id(v)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     # -- Layer 1: Threat Intelligence (STIX 2.1 SDOs) ------------------------
     # Keyed on the globally-unique STIX id so redeliveries and cross-feed
@@ -77,299 +82,311 @@ MERGE_TEMPLATES: dict[str, str] = {
     # Property mapping per docs/ontology/stix-mapping.md. first_seen/last_seen
     # are ingest bookkeeping; a campaign's own STIX activity window is carried
     # separately as stix_first_seen/stix_last_seen to avoid clobbering it.
-    # ON MATCH advances t_recorded (the TAXII date_added cursor) only when the
-    # STIX `modified` timestamp moves forward — a genuinely new object version —
-    # so TAXII keyset clients that already paged past the original still receive
-    # the update, while no-op redeliveries (same modified) don't churn the
-    # cursor. The t_recorded assignment precedes `v.modified = ...` so its
-    # comparison reads the prior modified value. coalesce() on the other fields
-    # preserves existing intelligence when an update omits a field (the
-    # enrichment normaliser nulls empty optionals so the preserve actually
-    # triggers).
+    # On a match, t_recorded (the TAXII date_added cursor) advances only when
+    # the STIX `modified` timestamp moves forward — a genuinely new object
+    # version — so TAXII keyset clients that already paged past the original
+    # still receive the update, while no-op redeliveries (same modified) don't
+    # churn the cursor. AGE has no ON CREATE/ON MATCH sub-clauses, so a single
+    # SET emulates both: every right-hand side reads the pre-SET property
+    # snapshot, so the t_recorded CASE compares against the *prior* `modified`
+    # even though `v.modified` is reassigned in the same SET. `v.t_recorded is
+    # null` distinguishes the create path (first sight → $now). coalesce() on
+    # the other fields preserves existing intelligence when an update omits a
+    # field (the enrichment normaliser nulls empty optionals so the preserve
+    # actually triggers); tlp_level only ever ratchets up (GREATEST), never
+    # exposing a higher-marked object at a lower TLP.
     "ThreatActor": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:ThreatActor {stix_id: $stix_id})
-            on create set v.stix_type = $stix_type, v.name = $name,
-                          v.description = $description, v.aliases = $aliases,
-                          v.roles = $roles, v.goals = $goals,
-                          v.sophistication = $sophistication,
-                          v.resource_level = $resource_level,
-                          v.primary_motivation = $primary_motivation,
-                          v.created = $created, v.modified = $modified,
-                          v.confidence = $confidence, v.tlp_level = $tlp,
-                          v.first_seen = $now, v.t_recorded = $now
-            on match set v.t_recorded = case
-                             when $modified is not null
-                                  and $modified > coalesce(v.modified, '')
-                             then $now else v.t_recorded end,
-                         v.last_seen = $now, v.stix_type = $stix_type,
-                         v.name = coalesce($name, v.name),
-                         v.description = coalesce($description, v.description),
-                         v.aliases = coalesce($aliases, v.aliases),
-                         v.roles = coalesce($roles, v.roles),
-                         v.goals = coalesce($goals, v.goals),
-                         v.sophistication = coalesce($sophistication, v.sophistication),
-                         v.resource_level = coalesce($resource_level, v.resource_level),
-                         v.primary_motivation = coalesce($primary_motivation, v.primary_motivation),
-                         v.modified = coalesce($modified, v.modified),
-                         v.confidence = coalesce($confidence, v.confidence),
-                         v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
-                                            then $tlp else coalesce(v.tlp_level, 0) end
+            set v.stix_type = $stix_type,
+                v.name = coalesce($name, v.name),
+                v.description = coalesce($description, v.description),
+                v.aliases = coalesce($aliases, v.aliases),
+                v.roles = coalesce($roles, v.roles),
+                v.goals = coalesce($goals, v.goals),
+                v.sophistication = coalesce($sophistication, v.sophistication),
+                v.resource_level = coalesce($resource_level, v.resource_level),
+                v.primary_motivation = coalesce($primary_motivation, v.primary_motivation),
+                v.created = coalesce(v.created, $created),
+                v.t_recorded = case
+                    when v.t_recorded is null then $now
+                    when $modified is not null
+                         and $modified > coalesce(v.modified, '')
+                    then $now else v.t_recorded end,
+                v.modified = coalesce($modified, v.modified),
+                v.confidence = coalesce($confidence, v.confidence),
+                v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
+                                   then $tlp else coalesce(v.tlp_level, 0) end,
+                v.first_seen = coalesce(v.first_seen, $now),
+                v.last_seen = $now
             return id(v)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "Malware": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:Malware {stix_id: $stix_id})
-            on create set v.stix_type = $stix_type, v.name = $name,
-                          v.description = $description, v.malware_types = $malware_types,
-                          v.is_family = $is_family, v.kill_chain_phases = $kill_chain_phases,
-                          v.created = $created, v.modified = $modified,
-                          v.confidence = $confidence, v.tlp_level = $tlp,
-                          v.first_seen = $now, v.t_recorded = $now
-            on match set v.t_recorded = case
-                             when $modified is not null
-                                  and $modified > coalesce(v.modified, '')
-                             then $now else v.t_recorded end,
-                         v.last_seen = $now, v.stix_type = $stix_type,
-                         v.name = coalesce($name, v.name),
-                         v.description = coalesce($description, v.description),
-                         v.malware_types = coalesce($malware_types, v.malware_types),
-                         v.is_family = coalesce($is_family, v.is_family),
-                         v.kill_chain_phases = coalesce($kill_chain_phases, v.kill_chain_phases),
-                         v.modified = coalesce($modified, v.modified),
-                         v.confidence = coalesce($confidence, v.confidence),
-                         v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
-                                            then $tlp else coalesce(v.tlp_level, 0) end
+            set v.stix_type = $stix_type,
+                v.name = coalesce($name, v.name),
+                v.description = coalesce($description, v.description),
+                v.malware_types = coalesce($malware_types, v.malware_types),
+                v.is_family = coalesce($is_family, v.is_family),
+                v.kill_chain_phases = coalesce($kill_chain_phases, v.kill_chain_phases),
+                v.created = coalesce(v.created, $created),
+                v.t_recorded = case
+                    when v.t_recorded is null then $now
+                    when $modified is not null
+                         and $modified > coalesce(v.modified, '')
+                    then $now else v.t_recorded end,
+                v.modified = coalesce($modified, v.modified),
+                v.confidence = coalesce($confidence, v.confidence),
+                v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
+                                   then $tlp else coalesce(v.tlp_level, 0) end,
+                v.first_seen = coalesce(v.first_seen, $now),
+                v.last_seen = $now
             return id(v)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "Campaign": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:Campaign {stix_id: $stix_id})
-            on create set v.stix_type = $stix_type, v.name = $name,
-                          v.description = $description, v.aliases = $aliases,
-                          v.objective = $objective,
-                          v.stix_first_seen = $stix_first_seen,
-                          v.stix_last_seen = $stix_last_seen,
-                          v.created = $created, v.modified = $modified,
-                          v.confidence = $confidence, v.tlp_level = $tlp,
-                          v.first_seen = $now, v.t_recorded = $now
-            on match set v.t_recorded = case
-                             when $modified is not null
-                                  and $modified > coalesce(v.modified, '')
-                             then $now else v.t_recorded end,
-                         v.last_seen = $now, v.stix_type = $stix_type,
-                         v.name = coalesce($name, v.name),
-                         v.description = coalesce($description, v.description),
-                         v.aliases = coalesce($aliases, v.aliases),
-                         v.objective = coalesce($objective, v.objective),
-                         v.stix_first_seen = coalesce($stix_first_seen, v.stix_first_seen),
-                         v.stix_last_seen = coalesce($stix_last_seen, v.stix_last_seen),
-                         v.modified = coalesce($modified, v.modified),
-                         v.confidence = coalesce($confidence, v.confidence),
-                         v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
-                                            then $tlp else coalesce(v.tlp_level, 0) end
+            set v.stix_type = $stix_type,
+                v.name = coalesce($name, v.name),
+                v.description = coalesce($description, v.description),
+                v.aliases = coalesce($aliases, v.aliases),
+                v.objective = coalesce($objective, v.objective),
+                v.stix_first_seen = coalesce($stix_first_seen, v.stix_first_seen),
+                v.stix_last_seen = coalesce($stix_last_seen, v.stix_last_seen),
+                v.created = coalesce(v.created, $created),
+                v.t_recorded = case
+                    when v.t_recorded is null then $now
+                    when $modified is not null
+                         and $modified > coalesce(v.modified, '')
+                    then $now else v.t_recorded end,
+                v.modified = coalesce($modified, v.modified),
+                v.confidence = coalesce($confidence, v.confidence),
+                v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
+                                   then $tlp else coalesce(v.tlp_level, 0) end,
+                v.first_seen = coalesce(v.first_seen, $now),
+                v.last_seen = $now
             return id(v)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "AttackPattern": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:AttackPattern {stix_id: $stix_id})
-            on create set v.stix_type = $stix_type, v.name = $name,
-                          v.description = $description, v.mitre_id = $mitre_id,
-                          v.kill_chain_phases = $kill_chain_phases,
-                          v.external_references = $external_references,
-                          v.created = $created, v.modified = $modified,
-                          v.confidence = $confidence, v.tlp_level = $tlp,
-                          v.first_seen = $now, v.t_recorded = $now
-            on match set v.t_recorded = case
-                             when $modified is not null
-                                  and $modified > coalesce(v.modified, '')
-                             then $now else v.t_recorded end,
-                         v.last_seen = $now, v.stix_type = $stix_type,
-                         v.name = coalesce($name, v.name),
-                         v.description = coalesce($description, v.description),
-                         v.mitre_id = coalesce($mitre_id, v.mitre_id),
-                         v.kill_chain_phases = coalesce($kill_chain_phases, v.kill_chain_phases),
-                         v.external_references =
-                             coalesce($external_references, v.external_references),
-                         v.modified = coalesce($modified, v.modified),
-                         v.confidence = coalesce($confidence, v.confidence),
-                         v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
-                                            then $tlp else coalesce(v.tlp_level, 0) end
+            set v.stix_type = $stix_type,
+                v.name = coalesce($name, v.name),
+                v.description = coalesce($description, v.description),
+                v.mitre_id = coalesce($mitre_id, v.mitre_id),
+                v.kill_chain_phases = coalesce($kill_chain_phases, v.kill_chain_phases),
+                v.external_references =
+                    coalesce($external_references, v.external_references),
+                v.created = coalesce(v.created, $created),
+                v.t_recorded = case
+                    when v.t_recorded is null then $now
+                    when $modified is not null
+                         and $modified > coalesce(v.modified, '')
+                    then $now else v.t_recorded end,
+                v.modified = coalesce($modified, v.modified),
+                v.confidence = coalesce($confidence, v.confidence),
+                v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
+                                   then $tlp else coalesce(v.tlp_level, 0) end,
+                v.first_seen = coalesce(v.first_seen, $now),
+                v.last_seen = $now
             return id(v)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "Vulnerability": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:Vulnerability {stix_id: $stix_id})
-            on create set v.stix_type = $stix_type, v.name = $name,
-                          v.description = $description, v.cve_id = $cve_id,
-                          v.external_references = $external_references,
-                          v.created = $created, v.modified = $modified,
-                          v.confidence = $confidence, v.tlp_level = $tlp,
-                          v.first_seen = $now, v.t_recorded = $now
-            on match set v.t_recorded = case
-                             when $modified is not null
-                                  and $modified > coalesce(v.modified, '')
-                             then $now else v.t_recorded end,
-                         v.last_seen = $now, v.stix_type = $stix_type,
-                         v.name = coalesce($name, v.name),
-                         v.description = coalesce($description, v.description),
-                         v.cve_id = coalesce($cve_id, v.cve_id),
-                         v.external_references =
-                             coalesce($external_references, v.external_references),
-                         v.modified = coalesce($modified, v.modified),
-                         v.confidence = coalesce($confidence, v.confidence),
-                         v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
-                                            then $tlp else coalesce(v.tlp_level, 0) end
+            set v.stix_type = $stix_type,
+                v.name = coalesce($name, v.name),
+                v.description = coalesce($description, v.description),
+                v.cve_id = coalesce($cve_id, v.cve_id),
+                v.external_references =
+                    coalesce($external_references, v.external_references),
+                v.created = coalesce(v.created, $created),
+                v.t_recorded = case
+                    when v.t_recorded is null then $now
+                    when $modified is not null
+                         and $modified > coalesce(v.modified, '')
+                    then $now else v.t_recorded end,
+                v.modified = coalesce($modified, v.modified),
+                v.confidence = coalesce($confidence, v.confidence),
+                v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
+                                   then $tlp else coalesce(v.tlp_level, 0) end,
+                v.first_seen = coalesce(v.first_seen, $now),
+                v.last_seen = $now
             return id(v)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "Tool": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:Tool {stix_id: $stix_id})
-            on create set v.stix_type = $stix_type, v.name = $name,
-                          v.description = $description, v.tool_types = $tool_types,
-                          v.kill_chain_phases = $kill_chain_phases,
-                          v.created = $created, v.modified = $modified,
-                          v.confidence = $confidence, v.tlp_level = $tlp,
-                          v.first_seen = $now, v.t_recorded = $now
-            on match set v.t_recorded = case
-                             when $modified is not null
-                                  and $modified > coalesce(v.modified, '')
-                             then $now else v.t_recorded end,
-                         v.last_seen = $now, v.stix_type = $stix_type,
-                         v.name = coalesce($name, v.name),
-                         v.description = coalesce($description, v.description),
-                         v.tool_types = coalesce($tool_types, v.tool_types),
-                         v.kill_chain_phases = coalesce($kill_chain_phases, v.kill_chain_phases),
-                         v.modified = coalesce($modified, v.modified),
-                         v.confidence = coalesce($confidence, v.confidence),
-                         v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
-                                            then $tlp else coalesce(v.tlp_level, 0) end
+            set v.stix_type = $stix_type,
+                v.name = coalesce($name, v.name),
+                v.description = coalesce($description, v.description),
+                v.tool_types = coalesce($tool_types, v.tool_types),
+                v.kill_chain_phases = coalesce($kill_chain_phases, v.kill_chain_phases),
+                v.created = coalesce(v.created, $created),
+                v.t_recorded = case
+                    when v.t_recorded is null then $now
+                    when $modified is not null
+                         and $modified > coalesce(v.modified, '')
+                    then $now else v.t_recorded end,
+                v.modified = coalesce($modified, v.modified),
+                v.confidence = coalesce($confidence, v.confidence),
+                v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
+                                   then $tlp else coalesce(v.tlp_level, 0) end,
+                v.first_seen = coalesce(v.first_seen, $now),
+                v.last_seen = $now
             return id(v)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     # -- Layer 7: Infrastructure & Assets ------------------------------------
     "Host": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:Host {canonical_key: $canonical_key})
-            on create set v.name = $name, v.host_type = $host_type,
-                          v.platform = $platform, v.status = $status,
-                          v.site = $site, v.tlp_level = $tlp,
-                          v.primary_ip = $primary_ip, v.netbox_id = $netbox_id,
-                          v.first_seen = $now
-            on match set v.last_seen = $now, v.status = $status,
-                         v.platform = $platform,
-                         v.primary_ip = $primary_ip, v.netbox_id = $netbox_id
+            set v.name = coalesce(v.name, $name),
+                v.host_type = coalesce(v.host_type, $host_type),
+                v.platform = $platform,
+                v.status = $status,
+                v.site = coalesce(v.site, $site),
+                v.tlp_level = coalesce(v.tlp_level, $tlp),
+                v.primary_ip = $primary_ip,
+                v.netbox_id = $netbox_id,
+                v.first_seen = coalesce(v.first_seen, $now),
+                v.last_seen = $now
             return id(v)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "Network": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:Network {prefix: $prefix})
-            on create set v.vlan_id = $vlan_id, v.site = $site,
-                          v.description = $description, v.tlp_level = $tlp,
-                          v.first_seen = $now
-            on match set v.last_seen = $now
+            set v.vlan_id = coalesce(v.vlan_id, $vlan_id),
+                v.site = coalesce(v.site, $site),
+                v.description = coalesce(v.description, $description),
+                v.tlp_level = coalesce(v.tlp_level, $tlp),
+                v.first_seen = coalesce(v.first_seen, $now),
+                v.last_seen = $now
             return id(v)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "Site": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:Site {name: $name})
-            on create set v.slug = $slug, v.region = $region,
-                          v.tlp_level = $tlp, v.first_seen = $now
-            on match set v.last_seen = $now
+            set v.slug = coalesce(v.slug, $slug),
+                v.region = coalesce(v.region, $region),
+                v.tlp_level = coalesce(v.tlp_level, $tlp),
+                v.first_seen = coalesce(v.first_seen, $now),
+                v.last_seen = $now
             return id(v)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "Interface": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:Interface {canonical_key: $canonical_key})
-            on create set v.name = $name, v.mac_address = $mac_address,
-                          v.enabled = $enabled, v.tlp_level = $tlp,
-                          v.first_seen = $now
-            on match set v.last_seen = $now, v.enabled = $enabled
+            set v.name = coalesce(v.name, $name),
+                v.mac_address = coalesce(v.mac_address, $mac_address),
+                v.enabled = $enabled,
+                v.tlp_level = coalesce(v.tlp_level, $tlp),
+                v.first_seen = coalesce(v.first_seen, $now),
+                v.last_seen = $now
             return id(v)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "Service": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:Service {canonical_key: $canonical_key})
-            on create set v.name = $name, v.protocol = $protocol,
-                          v.ports = $ports, v.tlp_level = $tlp,
-                          v.first_seen = $now
-            on match set v.last_seen = $now
+            set v.name = coalesce(v.name, $name),
+                v.protocol = coalesce(v.protocol, $protocol),
+                v.ports = coalesce(v.ports, $ports),
+                v.tlp_level = coalesce(v.tlp_level, $tlp),
+                v.first_seen = coalesce(v.first_seen, $now),
+                v.last_seen = $now
             return id(v)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "MonitoringAlert": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:MonitoringAlert {fingerprint: $fingerprint})
-            on create set v.alertname = $alertname, v.severity = $severity,
-                          v.status = $status, v.instance = $instance,
-                          v.tlp_level = $tlp, v.starts_at = $starts_at,
-                          v.ends_at = $ends_at, v.first_seen = $now
-            on match set v.status = $status, v.ends_at = $ends_at,
-                         v.last_seen = $now
+            set v.alertname = coalesce(v.alertname, $alertname),
+                v.severity = coalesce(v.severity, $severity),
+                v.status = $status,
+                v.instance = coalesce(v.instance, $instance),
+                v.tlp_level = coalesce(v.tlp_level, $tlp),
+                v.starts_at = coalesce(v.starts_at, $starts_at),
+                v.ends_at = $ends_at,
+                v.first_seen = coalesce(v.first_seen, $now),
+                v.last_seen = $now
             return id(v)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     # -- Layer 8: IAM --------------------------------------------------------
     "Principal": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:Principal {canonical_key: $canonical_key})
-            on create set v.principal_id = $principal_id, v.username = $username,
-                          v.email = $email, v.enabled = $enabled,
-                          v.created_at = $created_at, v.last_login = $last_login,
-                          v.source = $source, v.tlp_level = $tlp,
-                          v.first_seen = $now
-            on match set v.last_login = $last_login, v.enabled = $enabled,
-                         v.last_seen = $now
+            set v.principal_id = coalesce(v.principal_id, $principal_id),
+                v.username = coalesce(v.username, $username),
+                v.email = coalesce(v.email, $email),
+                v.enabled = $enabled,
+                v.created_at = coalesce(v.created_at, $created_at),
+                v.last_login = $last_login,
+                v.source = coalesce(v.source, $source),
+                v.tlp_level = coalesce(v.tlp_level, $tlp),
+                v.first_seen = coalesce(v.first_seen, $now),
+                v.last_seen = $now
             return id(v)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "Group": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:Group {canonical_key: $canonical_key})
-            on create set v.group_id = $group_id, v.name = $name,
-                          v.path = $path, v.source = $source,
-                          v.tlp_level = $tlp, v.first_seen = $now
-            on match set v.last_seen = $now
+            set v.group_id = coalesce(v.group_id, $group_id),
+                v.name = coalesce(v.name, $name),
+                v.path = coalesce(v.path, $path),
+                v.source = coalesce(v.source, $source),
+                v.tlp_level = coalesce(v.tlp_level, $tlp),
+                v.first_seen = coalesce(v.first_seen, $now),
+                v.last_seen = $now
             return id(v)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "Role": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:Role {canonical_key: $canonical_key})
-            on create set v.role_name = $role_name, v.realm = $realm,
-                          v.client_id = $client_id, v.source = $source,
-                          v.tlp_level = $tlp, v.first_seen = $now
-            on match set v.last_seen = $now
+            set v.role_name = coalesce(v.role_name, $role_name),
+                v.realm = coalesce(v.realm, $realm),
+                v.client_id = coalesce(v.client_id, $client_id),
+                v.source = coalesce(v.source, $source),
+                v.tlp_level = coalesce(v.tlp_level, $tlp),
+                v.first_seen = coalesce(v.first_seen, $now),
+                v.last_seen = $now
             return id(v)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "Permission": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:Permission {canonical_key: $canonical_key})
-            on create set v.name = $name, v.resource = $resource,
-                          v.source = $source, v.tlp_level = $tlp,
-                          v.first_seen = $now
-            on match set v.last_seen = $now
+            set v.name = coalesce(v.name, $name),
+                v.resource = coalesce(v.resource, $resource),
+                v.source = coalesce(v.source, $source),
+                v.tlp_level = coalesce(v.tlp_level, $tlp),
+                v.first_seen = coalesce(v.first_seen, $now),
+                v.last_seen = $now
             return id(v)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "AccessPolicy": """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:AccessPolicy {canonical_key: $canonical_key})
-            on create set v.name = $name, v.source = $source,
-                          v.tlp_level = $tlp, v.first_seen = $now
-            on match set v.last_seen = $now
+            set v.name = coalesce(v.name, $name),
+                v.source = coalesce(v.source, $source),
+                v.tlp_level = coalesce(v.tlp_level, $tlp),
+                v.first_seen = coalesce(v.first_seen, $now),
+                v.last_seen = $now
             return id(v)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
 }
 
@@ -385,84 +402,90 @@ RELATIONSHIP_TEMPLATES: dict[str, str] = {
             match (p:Principal {canonical_key: $principal_key})
             match (r:Role {canonical_key: $role_key})
             merge (p)-[e:has_role]->(r)
-            on create set e.source = $source, e.t_recorded = $now,
-                          e.tlp_level = case
-                              when coalesce(p.tlp_level, 0) > coalesce(r.tlp_level, 0)
-                                  then coalesce(p.tlp_level, 0)
-                              else coalesce(r.tlp_level, 0)
-                          end
+            set e.source = coalesce(e.source, $source),
+                e.t_recorded = coalesce(e.t_recorded, $now),
+                e.tlp_level = coalesce(e.tlp_level, case
+                    when coalesce(p.tlp_level, 0) > coalesce(r.tlp_level, 0)
+                        then coalesce(p.tlp_level, 0)
+                    else coalesce(r.tlp_level, 0)
+                end)
             return id(p)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "member_of": """
         select * from ag_catalog.cypher('core_graph', $$
             match (a {canonical_key: $principal_key})
             match (b {canonical_key: $group_key})
             merge (a)-[e:member_of]->(b)
-            on create set e.source = $source, e.t_recorded = $now,
-                          e.tlp_level = case
-                              when coalesce(a.tlp_level, 0) > coalesce(b.tlp_level, 0)
-                                  then coalesce(a.tlp_level, 0)
-                              else coalesce(b.tlp_level, 0)
-                          end
+            set e.source = coalesce(e.source, $source),
+                e.t_recorded = coalesce(e.t_recorded, $now),
+                e.tlp_level = coalesce(e.tlp_level, case
+                    when coalesce(a.tlp_level, 0) > coalesce(b.tlp_level, 0)
+                        then coalesce(a.tlp_level, 0)
+                    else coalesce(b.tlp_level, 0)
+                end)
             return id(a)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "grants": """
         select * from ag_catalog.cypher('core_graph', $$
             match (r:Role {canonical_key: $role_key})
             match (p:Permission {canonical_key: $permission_key})
             merge (r)-[e:grants]->(p)
-            on create set e.source = $source, e.t_recorded = $now,
-                          e.tlp_level = case
-                              when coalesce(r.tlp_level, 0) > coalesce(p.tlp_level, 0)
-                                  then coalesce(r.tlp_level, 0)
-                              else coalesce(p.tlp_level, 0)
-                          end
+            set e.source = coalesce(e.source, $source),
+                e.t_recorded = coalesce(e.t_recorded, $now),
+                e.tlp_level = coalesce(e.tlp_level, case
+                    when coalesce(r.tlp_level, 0) > coalesce(p.tlp_level, 0)
+                        then coalesce(r.tlp_level, 0)
+                    else coalesce(p.tlp_level, 0)
+                end)
             return id(r)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "actor_in": """
         select * from ag_catalog.cypher('core_graph', $$
             match (p:Principal {canonical_key: $principal_key})
             match (se:SecurityEvent {event_id: $event_id})
             merge (p)-[e:actor_in]->(se)
-            on create set e.source = $source, e.t_recorded = $now,
-                          e.tlp_level = case
-                              when coalesce(p.tlp_level, 0) > coalesce(se.tlp_level, 0)
-                                  then coalesce(p.tlp_level, 0)
-                              else coalesce(se.tlp_level, 0)
-                          end
+            set e.source = coalesce(e.source, $source),
+                e.t_recorded = coalesce(e.t_recorded, $now),
+                e.tlp_level = coalesce(e.tlp_level, case
+                    when coalesce(p.tlp_level, 0) > coalesce(se.tlp_level, 0)
+                        then coalesce(p.tlp_level, 0)
+                    else coalesce(se.tlp_level, 0)
+                end)
             return id(p)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "manages": """
         select * from ag_catalog.cypher('core_graph', $$
             match (mgr:Principal {canonical_key: $manager_key})
             match (sub:Principal {canonical_key: $subordinate_key})
             merge (mgr)-[e:manages]->(sub)
-            on create set e.source = $source, e.t_recorded = $now,
-                          e.tlp_level = case
-                              when coalesce(mgr.tlp_level, 0) > coalesce(sub.tlp_level, 0)
-                                  then coalesce(mgr.tlp_level, 0)
-                              else coalesce(sub.tlp_level, 0)
-                          end
+            set e.source = coalesce(e.source, $source),
+                e.t_recorded = coalesce(e.t_recorded, $now),
+                e.tlp_level = coalesce(e.tlp_level, case
+                    when coalesce(mgr.tlp_level, 0) > coalesce(sub.tlp_level, 0)
+                        then coalesce(mgr.tlp_level, 0)
+                    else coalesce(sub.tlp_level, 0)
+                end)
             return id(mgr)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
     "owns": """
         select * from ag_catalog.cypher('core_graph', $$
             match (p:Principal {canonical_key: $principal_key})
             match (a {canonical_key: $asset_key})
             merge (p)-[e:owns]->(a)
-            on create set e.source = $source, e.t_recorded = $now,
-                          e.tlp_level = case
-                              when coalesce(p.tlp_level, 0) > coalesce(a.tlp_level, 0)
-                                  then coalesce(p.tlp_level, 0)
-                              else coalesce(a.tlp_level, 0)
-                          end
+            set e.source = coalesce(e.source, $source),
+                e.t_recorded = coalesce(e.t_recorded, $now),
+                e.tlp_level = coalesce(e.tlp_level, case
+                    when coalesce(p.tlp_level, 0) > coalesce(a.tlp_level, 0)
+                        then coalesce(p.tlp_level, 0)
+                    else coalesce(a.tlp_level, 0)
+                end)
             return id(p)
-        $$, $1) as (id agtype)
+        $$, %s) as (id agtype)
     """,
 }
 

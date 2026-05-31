@@ -87,8 +87,9 @@ async def tool_remember(
         merge_session_sql = """
             select * from ag_catalog.cypher('core_graph', $cypher$
                 merge (s:Session {session_id: $session_id})
-                on create set s.t_valid = $now, s.t_recorded = $now,
-                              s.tlp_level = $tlp
+                set s.t_valid = coalesce(s.t_valid, $now),
+                    s.t_recorded = coalesce(s.t_recorded, $now),
+                    s.tlp_level = coalesce(s.tlp_level, $tlp)
                 return id(s)
             $cypher$, %s) as (id agtype)
         """
@@ -156,15 +157,16 @@ async def tool_remember(
                 """
                 select * from ag_catalog.cypher('core_graph', $cypher$
                     merge (c:ConceptEntity {canonical_key: $ckey})
-                    on create set c.entity_type = $entity_type,
-                                  c.value = $value,
-                                  c.t_valid = $now,
-                                  c.t_recorded = $now,
-                                  c.tlp_level = $tlp
+                    set c.entity_type = coalesce(c.entity_type, $entity_type),
+                        c.value = coalesce(c.value, $value),
+                        c.t_valid = coalesce(c.t_valid, $now),
+                        c.t_recorded = coalesce(c.t_recorded, $now),
+                        c.tlp_level = coalesce(c.tlp_level, $tlp)
                     with c
                     match (e:Episode) where id(e) = $episode_id
                     merge (e)-[m:mentions]->(c)
-                    on create set m.t_recorded = $now, m.tlp_level = $tlp
+                    set m.t_recorded = coalesce(m.t_recorded, $now),
+                        m.tlp_level = coalesce(m.tlp_level, $tlp)
                     return id(c)
                 $cypher$, %s) as (id agtype)
                 """,

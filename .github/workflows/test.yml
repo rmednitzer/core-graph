@@ -105,6 +105,12 @@ jobs:
       CG_PG_DSN: postgresql://cg_admin:cg_dev_only@localhost:5432/core_graph
       CG_NATS_URL: nats://localhost:4222
       CG_VALKEY_URL: redis://localhost:6379
+      # The REST integration tests drive the app in-process, so they need the
+      # same auth posture the compose api service uses: OIDC off with the
+      # synthetic dev identity (otherwise /api/v1/* fails closed). Read once at
+      # api.config import, so it must be set before pytest starts.
+      CG_OIDC_ENABLED: "false"
+      CG_DEV_MODE: "true"
     steps:
       - uses: actions/checkout@v6
       - name: Set up Python

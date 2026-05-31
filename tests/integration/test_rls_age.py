@@ -1,4 +1,9 @@
-"""Integration tests for RLS enforcement on AGE graph queries."""
+"""Integration tests for RLS enforcement on the AGE graph (relational) tables.
+
+A superuser bypasses RLS, so visibility is checked under a non-superuser role
+(cg_soc_analyst) with an explicit app.max_tlp ceiling — the same mechanism the
+TLP read policies key on.
+"""
 
 from __future__ import annotations
 
@@ -10,64 +15,56 @@ pytestmark = [pytest.mark.integration, pytest.mark.asyncio]
 
 
 async def _insert_vertex(pg_conn, value: str, tlp: int) -> None:
-    """Insert a CanonicalIP vertex with a specific TLP level."""
+    """Insert a CanonicalIP vertex with a specific TLP level (as superuser)."""
     params = json.dumps({"value": value, "tlp": tlp})
-    await pg_conn.execute("select set_config('app.max_tlp', '4', true)")
     await pg_conn.execute(
         """
         select * from ag_catalog.cypher('core_graph', $$
             merge (v:CanonicalIP {value: $value})
-            on create set v.tlp_level = $tlp
-            on match set v.tlp_level = $tlp
+            set v.tlp_level = $tlp
             return id(v)
         $$, %s) as (id agtype)
         """,
         (params,),
     )
-    await pg_conn.commit()
+
+
+async def _visible_ips(pg_conn, max_tlp: int, values: list[str]) -> set[str]:
+    """CanonicalIP values visible to cg_soc_analyst at the given app.max_tlp."""
+    # Table-level SELECT is granted by migration 004; schema USAGE is not (the
+    # app's read path is the cg_admin superuser), so grant it here as setup.
+    await pg_conn.execute("grant usage on schema core_graph, ag_catalog to cg_soc_analyst")
+    await pg_conn.execute("set role cg_soc_analyst")
+    await pg_conn.execute("select set_config('app.max_tlp', %s, false)", (str(max_tlp),))
+    try:
+        cur = await pg_conn.execute(
+            "select (properties::text)::jsonb->>'value' as value "
+            'from core_graph."CanonicalIP" '
+            "where (properties::text)::jsonb->>'value' = any(%s)",
+            (values,),
+        )
+        rows = await cur.fetchall()
+    finally:
+        await pg_conn.execute("reset role")
+        await pg_conn.execute("select set_config('app.max_tlp', '4', false)")
+    return {r["value"] for r in rows}
 
 
 async def test_rls_filters_by_tlp(pg_conn) -> None:
-    """Vertices above caller TLP should be filtered out."""
-    # Insert vertices at TLP 1 (GREEN) and TLP 4 (RED)
+    """At AMBER (max_tlp=2) a GREEN vertex is visible but a RED one is filtered."""
     await _insert_vertex(pg_conn, "203.0.113.10", 1)
     await _insert_vertex(pg_conn, "203.0.113.11", 4)
 
-    # Query as TLP 2 (AMBER) — should see GREEN but not RED
-    await pg_conn.execute("select set_config('app.max_tlp', '2', true)")
-    cursor = await pg_conn.execute(
-        """
-        select * from ag_catalog.cypher('core_graph', $$
-            match (v:CanonicalIP)
-            where v.value in ['203.0.113.10', '203.0.113.11']
-            return v.value, v.tlp_level
-        $$) as (value agtype, tlp agtype)
-        """
-    )
-    rows = await cursor.fetchall()
-    values = [str(r["value"]).strip('"') for r in rows]
-
-    # If RLS is properly enforced, RED vertex should be filtered
-    # Note: this depends on RLS policies being active on the graph tables
-    assert "203.0.113.10" in values, "GREEN vertex should be visible at TLP 2"
+    visible = await _visible_ips(pg_conn, 2, ["203.0.113.10", "203.0.113.11"])
+    assert "203.0.113.10" in visible, "GREEN vertex should be visible at TLP:AMBER"
+    assert "203.0.113.11" not in visible, "RED vertex must be filtered at TLP:AMBER"
 
 
 async def test_high_tlp_sees_all(pg_conn) -> None:
-    """A caller with TLP 4 should see all vertices."""
+    """At RED (max_tlp=4) all vertices are visible."""
     await _insert_vertex(pg_conn, "203.0.113.20", 1)
     await _insert_vertex(pg_conn, "203.0.113.21", 4)
 
-    await pg_conn.execute("select set_config('app.max_tlp', '4', true)")
-    cursor = await pg_conn.execute(
-        """
-        select * from ag_catalog.cypher('core_graph', $$
-            match (v:CanonicalIP)
-            where v.value in ['203.0.113.20', '203.0.113.21']
-            return v.value
-        $$) as (value agtype)
-        """
-    )
-    rows = await cursor.fetchall()
-    values = [str(r["value"]).strip('"') for r in rows]
-    assert "203.0.113.20" in values
-    assert "203.0.113.21" in values
+    visible = await _visible_ips(pg_conn, 4, ["203.0.113.20", "203.0.113.21"])
+    assert "203.0.113.20" in visible
+    assert "203.0.113.21" in visible

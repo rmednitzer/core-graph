@@ -8,9 +8,9 @@ select set_config('app.max_tlp', '4', true);
 
 select * from ag_catalog.cypher('core_graph', $$
     merge (p:Principal {canonical_key: 'test-iam-rls-principal'})
-    on create set p.username = 'rls_test_user',
-                  p.tlp_level = 2,
-                  p.source = 'test'
+    set p.username = 'rls_test_user',
+        p.tlp_level = 2,
+        p.source = 'test'
     return id(p)
 $$) as (id agtype);
 

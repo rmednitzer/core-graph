@@ -17,7 +17,6 @@ from typing import Any
 
 import nats
 import uvicorn
-from nats.js.api import StreamConfig
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -25,6 +24,7 @@ from starlette.routing import Route
 
 from api.config import NATS_URL
 from ingest.connectors.prometheus.config import PrometheusConfig
+from ingest.streams import ensure_enriched_stream
 
 logger = logging.getLogger(__name__)
 
@@ -156,14 +156,7 @@ async def run(
     nc = await nats.connect(nats_addr)
     js = nc.jetstream()
 
-    await js.add_stream(
-        StreamConfig(
-            name="ENRICHED",
-            subjects=["enriched.entity.>"],
-            retention="work_queue",
-            max_bytes=1_073_741_824,
-        )
-    )
+    await ensure_enriched_stream(js)
 
     js_holder: dict[str, Any] = {"js": js}
     app = _build_app(js_holder)

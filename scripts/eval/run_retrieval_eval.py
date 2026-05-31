@@ -271,6 +271,31 @@ async def _amain(argv: Iterable[str] | None = None) -> int:
             file=sys.stderr,
         )
 
+    # Every retrieval mode embeds the query, so the eval cannot run without an
+    # embedding provider. CI runs this against a migrations+seeds DB with no
+    # backend (CG_EMBEDDING_PROVIDER defaults to "none"); emit an explicit
+    # "skipped" report and exit 0 rather than crash — the same graceful posture
+    # the drift detector takes when there are no embeddings to sample.
+    from api import config
+
+    if config.EMBEDDING_PROVIDER == "none":
+        report = {
+            "benchmark": "retrieval_eval",
+            "golden_path": args.golden,
+            "queries": len(pairs),
+            "model_id": args.model_id,
+            "ef_search": args.ef_search,
+            "status": "skipped_no_embedding_provider",
+            "modes": [],
+        }
+        Path(args.report_md).write_text(
+            "# Retrieval eval report\n\n"
+            "Skipped: no embedding provider configured "
+            "(`CG_EMBEDDING_PROVIDER=none`). Set a provider to run the eval.\n"
+        )
+        print(json.dumps(report, indent=2))
+        return 0
+
     from api.db import close_pool, open_pool
 
     await open_pool()

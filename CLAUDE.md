@@ -122,8 +122,8 @@ Groups currently bound in `api/config.py`:
 
 ## Coding conventions
 
-- Python 3.12+, type hints required, ruff for linting (`line-length = 100`,
-  `target-version = "py312"`)
+- Python 3.13+, type hints required, ruff for linting (`line-length = 100`,
+  `target-version = "py313"`)
 - Ruff `select = ["E", "F", "I", "W", "UP", "B", "S"]`. Do not silence
   S-rules outside the per-file-ignores already declared in `pyproject.toml`
 - SQL migrations are numbered files (`001_`, `002_`, ...). No ORM. Idempotent

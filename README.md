@@ -42,7 +42,7 @@ functional, Helm chart and ArgoCD manifests ready.
 
 ## Prerequisites
 
-- Python 3.12+
+- Python 3.13+
 - Docker and Docker Compose (for the local dev stack)
 - PostgreSQL 18+ with [Apache AGE](https://age.apache.org/) and
   [pgvector](https://github.com/pgvector/pgvector) (provided by the dev stack)

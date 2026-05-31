@@ -14,7 +14,7 @@ core.
 - **Message bus**: NATS JetStream
 - **Authorisation**: Cerbos (ABAC) + SpiceDB (ReBAC)
 - **Evidence integrity**: cosign + Rekor + MinIO WORM
-- **Language**: Python 3.12+, SQL (no ORM), YAML (Cerbos policies)
+- **Language**: Python 3.13+, SQL (no ORM), YAML (Cerbos policies)
 
 ## Style rules
 

@@ -1,6 +1,6 @@
 name: Setup PostgreSQL with AGE + extensions
 description: >-
-  Builds and starts a PostgreSQL 16 container based on apache/age with
+  Builds and starts a PostgreSQL 18 container based on apache/age with
   pgvector, pgaudit, and pg_cron installed and the necessary
   shared_preload_libraries enabled.
 
@@ -33,7 +33,7 @@ runs:
           -e POSTGRES_USER \
           -e POSTGRES_PASSWORD \
           -e POSTGRES_DB \
-          apache/age:release_PG16_1.6.0
+          apache/age:release_PG18_1.7.0
         until docker exec pgsetup pg_isready -U "$POSTGRES_USER"; do sleep 1; done
         # Install pgaudit + pg_cron from Debian; fetch pgvector v0.8.0
         # source as a tarball (avoids depending on git inside the
@@ -51,8 +51,8 @@ runs:
           PGVECTOR_SHA256=867a2c328d4928a5a9d6f052cd3bc78c7d60228a9b914ad32aa3db88e9de27b0
           apt-get update -qq
           apt-get install -y --no-install-recommends \
-            build-essential curl ca-certificates postgresql-server-dev-16 \
-            postgresql-16-pgaudit postgresql-16-cron
+            build-essential curl ca-certificates postgresql-server-dev-18 \
+            postgresql-18-pgaudit postgresql-18-cron
           mkdir -p /tmp/pgvector
           curl -fsSL -o /tmp/pgvector.tar.gz \
             "https://github.com/pgvector/pgvector/archive/refs/tags/${PGVECTOR_TAG}.tar.gz"
@@ -61,7 +61,7 @@ runs:
           rm /tmp/pgvector.tar.gz
           cd /tmp/pgvector && make && make install
           cd / && rm -rf /tmp/pgvector
-          apt-get purge -y --auto-remove build-essential curl postgresql-server-dev-16
+          apt-get purge -y --auto-remove build-essential curl postgresql-server-dev-18
           apt-get clean && rm -rf /var/lib/apt/lists/*
         '
         docker stop pgsetup

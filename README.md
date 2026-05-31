@@ -44,7 +44,7 @@ functional, Helm chart and ArgoCD manifests ready.
 
 - Python 3.12+
 - Docker and Docker Compose (for the local dev stack)
-- PostgreSQL 16+ with [Apache AGE](https://age.apache.org/) and
+- PostgreSQL 18+ with [Apache AGE](https://age.apache.org/) and
   [pgvector](https://github.com/pgvector/pgvector) (provided by the dev stack)
 - NATS Server 2.10+ (provided by the dev stack)
 
@@ -154,7 +154,7 @@ zarf package deploy zarf-package-core-graph-amd64-0.1.0.tar.zst \
   Keycloak (IdP)  ──┘                                  │
                                                        ▼
                                           ┌────────────────────────┐
-                                          │    PostgreSQL 16+      │
+                                          │    PostgreSQL 18+      │
                                           │  ┌────────┐ ┌────────┐ │
                                           │  │  AGE   │ │pgvector│ │
                                           │  │(graph) │ │(embed.)│ │

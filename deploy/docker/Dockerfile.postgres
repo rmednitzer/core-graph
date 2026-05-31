@@ -1,8 +1,8 @@
-FROM apache/age:release_PG16_1.6.0
+FROM apache/age:release_PG18_1.7.0
 
 # Pull OS-level security patches into the image. The apache/age base
 # is updated infrequently and accumulates fixable CRITICAL CVEs between
-# rebuilds; `dist-upgrade` is needed (not `upgrade`) because some PG16
+# rebuilds; `dist-upgrade` is needed (not `upgrade`) because some PG18
 # security patches change package dependencies and `upgrade` holds them
 # back. Mirrors the spirit of the patch in Dockerfile.app.
 RUN apt-get update -qq \
@@ -10,9 +10,9 @@ RUN apt-get update -qq \
     && apt-get install -y --no-install-recommends \
         build-essential \
         git \
-        postgresql-server-dev-16 \
-        postgresql-16-cron \
-        postgresql-16-pgaudit \
+        postgresql-server-dev-18 \
+        postgresql-18-cron \
+        postgresql-18-pgaudit \
         ca-certificates \
     # pgvector is built from source. Bumping past v0.7.4 picks up
     # the upstream security and correctness fixes shipped in the v0.8
@@ -29,7 +29,7 @@ RUN apt-get update -qq \
     && apt-get purge -y --auto-remove \
         build-essential \
         git \
-        postgresql-server-dev-16 \
+        postgresql-server-dev-18 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

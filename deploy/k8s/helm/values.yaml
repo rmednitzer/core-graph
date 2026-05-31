@@ -57,7 +57,7 @@ graphWriter:
       memory: 256Mi
 
 # ---------------------------------------------------------------------------
-# PostgreSQL 16 — graph store (AGE), vector store (pgvector), audit log
+# PostgreSQL 18 — graph store (AGE), vector store (pgvector), audit log
 # Set enabled=false and configure external.* to use an external instance.
 # ---------------------------------------------------------------------------
 postgres:
@@ -66,7 +66,7 @@ postgres:
   # Built from deploy/docker/Dockerfile.postgres.
   image:
     repository: rmednitzer/core-graph-postgres
-    tag: "16-extensions"
+    tag: "18-extensions"
   storage: 10Gi
   storageClass: ""
   resources:

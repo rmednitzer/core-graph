@@ -50,7 +50,7 @@ authorization at every tier.
   |Prometheus |---+                          +------------+-------------+
   |(Alerting) |   |                          |                          |
   +-----------+   |    +-------------------+ |                          |
-                  |    |   Valkey Cache    |<|       PostgreSQL 16+     |
+                  |    |   Valkey Cache    |<|       PostgreSQL 18+     |
   +-----------+   |    |                   | |                          |
   | Keycloak  |---+    | - Session state   | |  +--------------------+  |
   |  (IdP)    |        | - Rate limiting   | |  | Apache AGE         |  |

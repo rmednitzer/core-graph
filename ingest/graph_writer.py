@@ -71,6 +71,88 @@ MERGE_TEMPLATES: dict[str, str] = {
             return id(v)
         $$, $1) as (id agtype)
     """,
+    # -- Layer 1: Threat Intelligence (STIX 2.1 SDOs) ------------------------
+    # Keyed on the globally-unique STIX id so redeliveries and cross-feed
+    # duplicates (OpenCTI + MISP reporting the same actor) merge to one vertex.
+    # Property mapping per docs/ontology/stix-mapping.md. first_seen/last_seen
+    # are ingest bookkeeping; a campaign's own STIX activity window is carried
+    # separately as stix_first_seen/stix_last_seen to avoid clobbering it.
+    "ThreatActor": """
+        select * from ag_catalog.cypher('core_graph', $$
+            merge (v:ThreatActor {stix_id: $stix_id})
+            on create set v.name = $name, v.description = $description,
+                          v.aliases = $aliases, v.roles = $roles, v.goals = $goals,
+                          v.sophistication = $sophistication,
+                          v.resource_level = $resource_level,
+                          v.primary_motivation = $primary_motivation,
+                          v.tlp_level = $tlp, v.first_seen = $now
+            on match set v.last_seen = $now, v.name = $name,
+                         v.description = $description
+            return id(v)
+        $$, $1) as (id agtype)
+    """,
+    "Malware": """
+        select * from ag_catalog.cypher('core_graph', $$
+            merge (v:Malware {stix_id: $stix_id})
+            on create set v.name = $name, v.description = $description,
+                          v.malware_types = $malware_types, v.is_family = $is_family,
+                          v.kill_chain_phases = $kill_chain_phases,
+                          v.tlp_level = $tlp, v.first_seen = $now
+            on match set v.last_seen = $now, v.name = $name,
+                         v.description = $description
+            return id(v)
+        $$, $1) as (id agtype)
+    """,
+    "Campaign": """
+        select * from ag_catalog.cypher('core_graph', $$
+            merge (v:Campaign {stix_id: $stix_id})
+            on create set v.name = $name, v.description = $description,
+                          v.aliases = $aliases, v.objective = $objective,
+                          v.stix_first_seen = $stix_first_seen,
+                          v.stix_last_seen = $stix_last_seen,
+                          v.tlp_level = $tlp, v.first_seen = $now
+            on match set v.last_seen = $now, v.name = $name,
+                         v.description = $description
+            return id(v)
+        $$, $1) as (id agtype)
+    """,
+    "AttackPattern": """
+        select * from ag_catalog.cypher('core_graph', $$
+            merge (v:AttackPattern {stix_id: $stix_id})
+            on create set v.name = $name, v.description = $description,
+                          v.mitre_id = $mitre_id,
+                          v.kill_chain_phases = $kill_chain_phases,
+                          v.external_references = $external_references,
+                          v.tlp_level = $tlp, v.first_seen = $now
+            on match set v.last_seen = $now, v.name = $name,
+                         v.description = $description
+            return id(v)
+        $$, $1) as (id agtype)
+    """,
+    "Vulnerability": """
+        select * from ag_catalog.cypher('core_graph', $$
+            merge (v:Vulnerability {stix_id: $stix_id})
+            on create set v.name = $name, v.description = $description,
+                          v.cve_id = $cve_id,
+                          v.external_references = $external_references,
+                          v.tlp_level = $tlp, v.first_seen = $now
+            on match set v.last_seen = $now, v.name = $name,
+                         v.description = $description
+            return id(v)
+        $$, $1) as (id agtype)
+    """,
+    "Tool": """
+        select * from ag_catalog.cypher('core_graph', $$
+            merge (v:Tool {stix_id: $stix_id})
+            on create set v.name = $name, v.description = $description,
+                          v.tool_types = $tool_types,
+                          v.kill_chain_phases = $kill_chain_phases,
+                          v.tlp_level = $tlp, v.first_seen = $now
+            on match set v.last_seen = $now, v.name = $name,
+                         v.description = $description
+            return id(v)
+        $$, $1) as (id agtype)
+    """,
     # -- Layer 7: Infrastructure & Assets ------------------------------------
     "Host": """
         select * from ag_catalog.cypher('core_graph', $$

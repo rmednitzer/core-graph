@@ -31,8 +31,8 @@ vertex attributes. All STIX properties use snake_case naming in the graph.
 | `name` | `name` | text | Required |
 | `description` | `description` | text | |
 | `aliases` | `aliases` | text[] | |
-| `first_seen` | `first_seen` | timestamptz | ISO 8601, UTC |
-| `last_seen` | `last_seen` | timestamptz | ISO 8601, UTC |
+| `first_seen` | `stix_first_seen` | timestamptz | ISO 8601, UTC (renamed to avoid the graph-wide ingest `first_seen`) |
+| `last_seen` | `stix_last_seen` | timestamptz | ISO 8601, UTC (renamed to avoid the graph-wide ingest `last_seen`) |
 | `objective` | `objective` | text | Campaign goal |
 
 ### attack-pattern to AttackPattern
@@ -43,6 +43,11 @@ vertex attributes. All STIX properties use snake_case naming in the graph.
 | `description` | `description` | text | |
 | `kill_chain_phases` | `kill_chain_phases` | jsonb | Array of {kill_chain_name, phase_name} |
 | `external_references` | `external_references` | jsonb | MITRE ATT&CK IDs, URLs |
+
+The MITRE ATT&CK technique ID (e.g. `T1566`) is extracted from
+`external_references` (source_name `mitre-attack`) into an indexed `mitre_id`
+property for direct lookup, mirroring the `cve_id` extraction for
+vulnerabilities.
 
 ### indicator to Indicator
 

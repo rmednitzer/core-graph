@@ -82,10 +82,32 @@ def test_premapped_misp_envelope_passes_through():
     ]
 
 
-def test_premapped_unwritable_sdo_is_dropped():
-    # STIX SDOs have no MERGE template yet; do not emit droppable vertices.
+def test_premapped_sdo_without_stix_id_is_dropped():
+    # SDOs identify on stix_id; an envelope lacking it must not merge an
+    # anonymous vertex.
     payload = {"label": "ThreatActor", "properties": {"name": "APT-X", "tlp": 2}}
     assert enrichment.entities_from_premapped(payload, default_tlp=1) == []
+
+
+def test_premapped_sdo_with_stix_id_is_emitted():
+    # OpenCTI/MISP envelopes carrying a stix_id now produce a writable SDO.
+    payload = {
+        "label": "ThreatActor",
+        "properties": {
+            "stix_id": "threat-actor--1234",
+            "name": "APT-X",
+            "aliases": ["GroupX"],
+            "tlp": 2,
+        },
+        "source": "opencti",
+    }
+    out = enrichment.entities_from_premapped(payload, default_tlp=1)
+    assert len(out) == 1
+    assert out[0]["label"] == "ThreatActor"
+    assert out[0]["properties"]["stix_id"] == "threat-actor--1234"
+    assert out[0]["properties"]["aliases"] == ["GroupX"]
+    assert out[0]["properties"]["tlp"] == 2
+    assert out[0]["properties"]["source"] == "opencti"
 
 
 def test_premapped_indicator_missing_value_is_dropped():
@@ -170,8 +192,64 @@ def test_raw_stix_file_hashes_become_indicators():
     assert types == ["md5", "sha256"]
 
 
-def test_raw_stix_sdo_is_deferred():
+def test_raw_stix_sdo_without_id_is_dropped():
     assert enrichment.entities_from_stix_object({"type": "malware", "name": "X"}, 1) == []
+
+
+def test_raw_stix_unsupported_sdo_is_deferred():
+    # intrusion-set has no writer template; defer rather than emit un-writable.
+    obj = {"type": "intrusion-set", "id": "intrusion-set--9", "name": "Y"}
+    assert enrichment.entities_from_stix_object(obj, 1) == []
+
+
+def test_raw_stix_malware_sdo_is_emitted():
+    obj = {
+        "type": "malware",
+        "id": "malware--abcd",
+        "name": "Emotet",
+        "malware_types": ["trojan"],
+        "is_family": True,
+    }
+    out = enrichment.entities_from_stix_object(obj, default_tlp=1)
+    assert len(out) == 1
+    assert out[0]["label"] == "Malware"
+    assert out[0]["properties"]["stix_id"] == "malware--abcd"
+    assert out[0]["properties"]["malware_types"] == ["trojan"]
+    assert out[0]["properties"]["source"] == "taxii"
+
+
+def test_raw_stix_vulnerability_extracts_cve_id():
+    obj = {
+        "type": "vulnerability",
+        "id": "vulnerability--v1",
+        "name": "CVE-2026-0001",
+        "external_references": [{"source_name": "cve", "external_id": "CVE-2026-0001"}],
+    }
+    out = enrichment.entities_from_stix_object(obj, default_tlp=1)
+    assert out[0]["label"] == "Vulnerability"
+    assert out[0]["properties"]["cve_id"] == "CVE-2026-0001"
+
+
+def test_raw_stix_attack_pattern_extracts_mitre_id():
+    obj = {
+        "type": "attack-pattern",
+        "id": "attack-pattern--ap1",
+        "name": "Spearphishing",
+        "external_references": [{"source_name": "mitre-attack", "external_id": "T1566"}],
+    }
+    out = enrichment.entities_from_stix_object(obj, default_tlp=1)
+    assert out[0]["properties"]["mitre_id"] == "T1566"
+
+
+def test_raw_stix_sdo_marking_is_honoured():
+    obj = {
+        "type": "threat-actor",
+        "id": "threat-actor--ta1",
+        "name": "APT-Y",
+        "object_marking_refs": ["marking-definition--826578e1-40ad-459f-bc73-ede076f81f37"],
+    }
+    out = enrichment.entities_from_stix_object(obj, default_tlp=1)
+    assert out[0]["properties"]["tlp"] == 4
 
 
 def test_stix_tlp_marking_is_honoured_not_defaulted():

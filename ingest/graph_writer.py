@@ -434,6 +434,19 @@ async def _merge_relationship(
     return None
 
 
+def _delivery_key(msg: Any) -> str | None:
+    """Stable idempotency key for a JetStream delivery: ``stream:stream_seq``.
+
+    Returns None when JetStream metadata is unavailable (e.g. a non-JetStream
+    message), in which case dedup is skipped rather than failing the write.
+    """
+    try:
+        meta = msg.metadata
+        return f"{meta.stream}:{meta.sequence.stream}"
+    except Exception:
+        return None
+
+
 async def _process_message(
     conn: psycopg.AsyncConnection[Any],
     msg: Any,
@@ -445,6 +458,23 @@ async def _process_message(
         logger.error("Invalid message payload, skipping")
         await msg.ack()
         return
+
+    # At-least-once dedup: claim this delivery so a redelivery of an
+    # already-committed message is skipped instead of re-audited. The claim
+    # shares the transaction with the writes below, so it only becomes durable
+    # if the whole unit commits (a failed/rolled-back message is retried).
+    delivery_key = _delivery_key(msg)
+    if delivery_key is not None:
+        claim = await conn.execute(
+            "insert into processed_messages (delivery_key) values (%s) "
+            "on conflict (delivery_key) do nothing",
+            (delivery_key,),
+        )
+        if claim.rowcount == 0:
+            await conn.rollback()
+            await msg.ack()
+            logger.info("Duplicate delivery %s, skipping", delivery_key)
+            return
 
     # Set RLS session variables
     await conn.execute("select set_config('app.max_tlp', '4', true)")

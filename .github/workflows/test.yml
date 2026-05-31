@@ -35,7 +35,9 @@ jobs:
             fi
           done
       - name: Run RLS enforcement tests
-        run: psql -f tests/rls/test_tlp_enforcement.sql
+        run: |
+          psql -v ON_ERROR_STOP=1 -f tests/rls/test_tlp_enforcement.sql
+          psql -v ON_ERROR_STOP=1 -f tests/rls/test_write_path.sql
 
   policy-test:
     runs-on: ubuntu-latest

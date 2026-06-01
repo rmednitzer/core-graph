@@ -43,6 +43,13 @@
 -- no-op UPDATE re-fires each edge's BEFORE trigger (trg_edge_tlp_sync), which
 -- recomputes tlp_level from the now-current endpoint TLPs. SECURITY DEFINER so
 -- it can touch the AGE-internal edge tables irrespective of the caller's RLS.
+--
+-- search_path is pinned (not left to the caller's) so the SECURITY DEFINER body
+-- cannot be hijacked by a shadowing object in a caller-controlled schema. It is
+-- pinned to ag_catalog + pg_catalog: ag_catalog is where the cg_* helpers live
+-- (the nested trg_edge_tlp_sync calls cg_vertex_tlp_level unqualified), and
+-- every other reference (core_graph.* tables, the graphid type) is already
+-- schema-qualified. EXECUTE is revoked from PUBLIC below.
 
 create or replace function cg_resync_vertex_edges(p_vertex_id ag_catalog.graphid)
 returns void as $$
@@ -90,7 +97,14 @@ begin
         ) using p_vertex_id;
     end loop;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = ag_catalog, pg_catalog;
+
+-- EXECUTE on a new function defaults to PUBLIC; revoke it so this SECURITY
+-- DEFINER write helper cannot be invoked by arbitrary roles. The graph writer
+-- connects as the cg_admin superuser (it must, to write the AGE tables and
+-- bypass RLS — see migration 028), so superusers retain access regardless of
+-- this grant; no non-superuser role needs to call it.
+revoke execute on function cg_resync_vertex_edges(ag_catalog.graphid) from public;
 
 -- ---------------------------------------------------------------------------
 -- 2. Re-backfill existing edges (repair Cypher-created rows stuck at tlp 0).

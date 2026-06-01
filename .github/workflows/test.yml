@@ -50,11 +50,18 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Install Cerbos CLI
+        env:
+          # Pinned, not discovered from the GitHub API at runtime. The
+          # unauthenticated releases/latest endpoint is rate-limited (60 req/h
+          # per IP, shared across GitHub-hosted runners); an exhausted limit
+          # returns an error body, leaving CERBOS_VERSION empty and breaking the
+          # install non-deterministically. Pinning also keeps policy-compilation
+          # behaviour reproducible. Bump deliberately (Dependabot does not track
+          # this shell download).
+          CERBOS_VERSION: v0.53.0
         run: |
-          CERBOS_VERSION=$(curl -s https://api.github.com/repos/cerbos/cerbos/releases/latest \
-            | grep -oP '"tag_name":\s*"\K[^"]+')
           mkdir -p "$HOME/.local/bin"
-          curl -sL "https://github.com/cerbos/cerbos/releases/download/${CERBOS_VERSION}/cerbos_${CERBOS_VERSION#v}_Linux_x86_64.tar.gz" \
+          curl -fsSL "https://github.com/cerbos/cerbos/releases/download/${CERBOS_VERSION}/cerbos_${CERBOS_VERSION#v}_Linux_x86_64.tar.gz" \
             | tar xz -C "$HOME/.local/bin" cerbos
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           cerbos --version

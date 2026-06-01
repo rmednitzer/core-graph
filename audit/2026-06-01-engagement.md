@@ -36,7 +36,7 @@ State at engagement start (HEAD `57fc38a`):
 |----|-----|--------|-------------|
 | A-01 | **Cerbos `/api/check/resources` wire format is wrong in both clients** — identity attribution fail-closes every decision against a live Cerbos | this audit | **fixed + tested** (see § 3) |
 | A-02 | Authorization-layering decision (S-01/S-02/M-01) never recorded in an ADR | 2026-05-27 audit | **ADR-0008** written |
-| A-03 | Cerbos `parentRoles` use bare `ciso`; the rest of the system (seed, RLS, age_query_guard, docs, JWT) uses `cg_`-prefixed — a `cg_ciso` caller activates no derived role | PR #58 review (Codex) | **fixed + validated** — policy + fixtures aligned to `cg_` (§ 3) |
+| A-03 | Role-vocabulary divergence: the IdP + Cerbos use bare `ciso`; the seed, RLS, `age_query_guard`, docstrings, and CLAUDE.md use `cg_`-prefixed — so `age_query_guard` lookups silently fall back to defaults | PR #58 review (Codex) | **diagnosed; Cerbos confirmed correct.** Reconciling the `cg_` sites to bare is a separate change (§ 3, § 6) |
 | M-01 | Two Cerbos client implementations | 2026-05-27 audit | **fixed** — consolidated onto `api/authz/cerbos.py` |
 | S-01 | `api/authz/cerbos.py:check_resource` has 0 callers | ADR-0006 | **resolved** — identity attribution now delegates to it |
 | S-02 | SpiceDB `check_permission` has 0 callers | ADR-0006 | **decided** — retained as scaffolding with activation criteria (ADR-0008) |
@@ -92,18 +92,22 @@ A-01 (the bug), M-01 (duplication), and S-01 (`check_resource` now has a
 caller) together. `tests/test_cerbos_client.py` (9 cases) pins the shape and
 would fail on the pre-fix code.
 
-**Follow-on (A-03), surfaced by the PR review.** The parse fix is *necessary*
-but not *sufficient*: the Cerbos `derived_roles.yaml` derived its roles from
-bare `parentRoles: [ciso]`, while the seeded role hierarchy
-(`schema/seed/roles.sql`), the RLS policies, `age_query_guard.py`, the docs, and
-therefore the OIDC JWT claim all use `cg_`-prefixed names. The Cerbos docs
-confirm `parentRoles` is matched **verbatim and case-sensitively** with no
-normalisation, so a real `cg_ciso` caller would still have been denied. Per the
-maintainer's "best solution from official docs" steer, the policy and the
-`tests/auth` fixtures were aligned to the `cg_`-prefixed vocabulary (the
-derived-role *names* stay short); a code-level normaliser was explicitly *not*
-added because it contradicts both Cerbos's exact-match model and the rest of the
-system. The `cerbos compile --tests` CI gate validates the policy/fixture pair.
+**Follow-on (A-03), surfaced by the PR review.** Codex flagged that the Cerbos
+gate might not match production roles. Investigation found the codebase carries
+*two* vocabularies for the same seven-role hierarchy: the Cerbos policy +
+fixtures use bare names (`ciso`), while `schema/seed/roles.sql`, the RLS
+policies, `api/utils/age_query_guard.py`, the docstrings, and CLAUDE.md use
+`cg_`-prefixed names. The Cerbos docs confirm `parentRoles` is matched
+**verbatim and case-sensitively** (no normalisation), so exactly one vocabulary
+matches the IdP and the other is silently degraded. The maintainer confirmed the
+**IdP emits the bare names**, so the Cerbos policy is correct as-is and — with
+the parse fix — a real `ciso` caller is now allowed. The consequence is that
+`age_query_guard`'s `cg_*`-keyed depth/timeout lookups silently fall back to the
+defaults for every caller (a real but fail-safe, more-restrictive bug).
+Reconciling the `cg_` sites toward the bare names touches seed/reference data and
+CLAUDE.md, so per the maintainer it is left to a dedicated PR (see § 6). A
+code-level role normaliser was explicitly *not* added — it would contradict
+Cerbos's exact-match model.
 
 ---
 
@@ -118,7 +122,7 @@ psycopg[binary], nats-py, prometheus-client, psycopg-pool).
 - `ruff check` + `ruff format --check` clean on every changed file. [V]
 - `python3 scripts/validate.py` clean. [V]
 - `yamllint` (CI config) clean on `policies/`; `parentRoles` ↔ `tests/auth`
-  fixture `roles` confirmed identical on the `cg_` vocabulary. [V]
+  fixture `roles` confirmed identical on the bare vocabulary. [V]
 - Touched modules import cleanly (`api.authz.cerbos`, `ingest.dlq.processor`,
   `api.mcp.tools.identity_attribution`). [V]
 
@@ -139,6 +143,16 @@ Commits on `claude/gifted-galileo-sIoRK` (titles; see `git log` for SHAs):
 2. `fix(dlq): reconnect the processor's PostgreSQL connection on OperationalError`
 3. `docs(adr): ADR-0008 authorization layering; NOTICE; SECURITY/CHANGELOG; engagement record`
 
+PR-review follow-ups (PR #58):
+
+1. `docs(notice): use consistent American "License/licenses" spelling` (Copilot).
+2. Cerbos role vocabulary (Codex A-03): an interim commit aligned the policy to
+   `cg_` on the assumption the IdP emitted `cg_`-prefixed roles; after the
+   maintainer confirmed the IdP emits **bare** names, that was reverted so the
+   Cerbos policy + fixtures match the IdP, and the `cg_` divergence was instead
+   recorded as the follow-up in § 6. Net effect on `policies/`: no change from
+   the pre-engagement baseline.
+
 All local gates green at each commit.
 
 ---
@@ -147,22 +161,29 @@ All local gates green at each commit.
 
 Real items deliberately **not** shipped this session, with the blocking reason:
 
-1. **Dependency lockfile (SC-03 / ADR-0007 #5).** Choose `uv` and commit a
+1. **Role-vocabulary reconciliation (A-03).** The IdP + Cerbos use bare names;
+   `schema/seed/roles.sql`, the RLS policies, `api/utils/age_query_guard.py`, the
+   docstrings, and CLAUDE.md use `cg_`-prefixed names — so `age_query_guard`'s
+   depth/timeout lookups silently fall back to defaults. Reconcile the `cg_` sites
+   to the bare names (or add a single documented normalisation point) with a test
+   that a `ciso` caller resolves its non-default depth/timeout. Touches
+   seed/reference data and CLAUDE.md, so it gets its own reviewed PR.
+2. **Dependency lockfile (SC-03 / ADR-0007 #5).** Choose `uv` and commit a
    `uv.lock` enforced by `uv lock --check` in a **networked** CI step. The lock
    must be generated against the real index; doing it half-offline risks a lock
    that doesn't match CI. Warrants its own small PR + a one-line ADR.
-2. **mypy gate.** Add `mypy` to dev extras with a permissive `[tool.mypy]` and
+3. **mypy gate.** Add `mypy` to dev extras with a permissive `[tool.mypy]` and
    a non-blocking CI job first, tightening over time. Adding it blind (cannot
    run the full typed import graph in this sandbox) risks a noisy first cut.
-3. **Coverage-delta gate.** `pytest-cov` baseline + a soft regression threshold.
-4. **License-scan CI job.** Emit an SPDX/expression report next to the SBOM so
+4. **Coverage-delta gate.** `pytest-cov` baseline + a soft regression threshold.
+5. **License-scan CI job.** Emit an SPDX/expression report next to the SBOM so
    the NOTICE's "consult the SBOM" pointer has a license-policy gate behind it.
-5. **`label(v) = $label` execution test (C-02).** Needs a populated AGE
+6. **`label(v) = $label` execution test (C-02).** Needs a populated AGE
    container; belongs in `tests/integration/`.
-6. **STIX SDO MERGE templates for IntrusionSet / Identity / Location / Report
+7. **STIX SDO MERGE templates for IntrusionSet / Identity / Location / Report
    (ADR-0007 #1).** The enrichment stage correctly *defers* these today; adding
    the templates needs per-label AGE-live MERGE validation.
-7. **Commit-signing policy (SC-05).** A governance decision (require signed
+8. **Commit-signing policy (SC-05).** A governance decision (require signed
    commits on `main`, or document CODEOWNERS review as the trust model).
 
 ---
@@ -174,8 +195,9 @@ Per the project's audit convention, none of the following were triggered:
 - No previously-green test went red (changed-area suites verified). [V]
 - No secret material observed. [V]
 - No RLS policy weakened; no authorization bypass introduced — the Cerbos
-  change moves a broken always-deny to a correct evaluation with fail-closed
-  semantics preserved. [V]
+  *client* fix moves a broken always-deny to a correct evaluation with
+  fail-closed semantics preserved, and the Cerbos *policy* (`derived_roles.yaml`)
+  nets out unchanged from the pre-engagement baseline. [V]
 - No migration amended, renumbered, or deleted. [V]
 - No instruction-bearing content from tool output was acted on toward a tainted
   sink. [V]

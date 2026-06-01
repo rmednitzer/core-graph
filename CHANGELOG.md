@@ -36,17 +36,18 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
   the new `tests/test_cerbos_client.py` (9 cases: allow/deny, the
   string-not-object regression, the batch request shape, empty-result and
   transport-error fail-closed, and the `CallerIdentity` principal mapping).
-* **fix(policy): align the Cerbos role vocabulary with the IdP.** A PR-review
-  finding: `policies/derived_roles.yaml` derived `ciso` (etc.) from bare
-  `parentRoles: [ciso]`, but the seeded seven-role hierarchy
-  (`schema/seed/roles.sql`), the RLS policies, `api/utils/age_query_guard.py`,
-  and the docs all use the `cg_`-prefixed names the OIDC IdP emits — and Cerbos
-  matches `parentRoles` against the principal's roles **verbatim** (no
-  normalisation, case-sensitive). A real `cg_ciso` caller would therefore have
-  activated no derived role and been denied even with the wire format fixed.
-  `parentRoles` and the `tests/auth` fixtures move to the `cg_`-prefixed names;
-  the short derived-role names (referenced by `derivedRoles:` in the resource
-  policies) are unchanged. Recorded as decision 5 in ADR-0008.
+* **Cerbos role vocabulary clarified (a PR-review finding).** Codex flagged a
+  potential role mismatch on the Cerbos gate. Confirmed with the maintainer that
+  the OIDC IdP emits **bare** role names (`ciso`, …), so `derived_roles.yaml` and
+  the `tests/auth` fixtures are correct as-is (bare `parentRoles`) — with the
+  wire-format fix above, a real `ciso` caller is now correctly allowed. A
+  divergence is recorded for follow-up: `schema/seed/roles.sql`, the RLS
+  policies, `api/utils/age_query_guard.py`, the docstrings, and CLAUDE.md use
+  `cg_`-prefixed names for the same hierarchy, so `age_query_guard`'s
+  role→depth/timeout lookups silently fall back to defaults under the bare
+  vocabulary. Reconciling those `cg_` sites to the bare names touches
+  seed/reference data and CLAUDE.md and is left to a dedicated PR (ADR-0008
+  decision 5; A-03 in the engagement record).
 * **fix(dlq): reconnect the DLQ processor's PostgreSQL connection on
   `OperationalError` (R-02).** The processor holds one long-lived connection;
   if it dropped (server restart, failover, idle timeout) every subsequent

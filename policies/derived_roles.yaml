@@ -4,30 +4,32 @@ derivedRoles:
   name: core_graph_roles
   # `parentRoles` are matched case-sensitively against the principal's `roles`
   # exactly as the OIDC IdP emits them (Cerbos performs no normalisation). The
-  # canonical role vocabulary is the `cg_`-prefixed "seven-role hierarchy" seeded
-  # in schema/seed/roles.sql and used by the RLS policies, api/utils/
-  # age_query_guard.py, and the docs. The short derived-role *names* below stay
-  # as the internal policy vocabulary referenced by `derivedRoles:` in the
-  # resource policies. Do not "simplify" parentRoles back to the bare names: a
-  # cg_ciso caller would then fail to activate the ciso derived role.
+  # IdP emits the *bare* role names below (`ciso`, `soc_analyst`, ...), so these
+  # are intentionally unprefixed -- do NOT add a `cg_` prefix here.
+  #
+  # NOTE: the rest of the codebase (schema/seed/roles.sql, the RLS policies,
+  # api/utils/age_query_guard.py, the docstrings, CLAUDE.md) currently uses
+  # `cg_`-prefixed names for the same hierarchy. That divergence is a known,
+  # tracked inconsistency to be reconciled toward these bare names in a separate
+  # change; see ADR-0008 (decision 5) and audit/2026-06-01-engagement.md (A-03).
   definitions:
     - name: ciso
-      parentRoles: [cg_ciso]
+      parentRoles: [ciso]
 
     - name: soc_analyst
-      parentRoles: [cg_soc_analyst]
+      parentRoles: [soc_analyst]
 
     - name: compliance_officer
-      parentRoles: [cg_compliance_officer]
+      parentRoles: [compliance_officer]
 
     - name: it_operations
-      parentRoles: [cg_it_operations]
+      parentRoles: [it_operations]
 
     - name: dpo
-      parentRoles: [cg_dpo]
+      parentRoles: [dpo]
 
     - name: external_auditor
-      parentRoles: [cg_external_auditor]
+      parentRoles: [external_auditor]
 
     - name: ai_agent
-      parentRoles: [cg_ai_agent]
+      parentRoles: [ai_agent]

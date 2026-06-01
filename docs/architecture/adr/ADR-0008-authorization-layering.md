@@ -85,21 +85,26 @@ correct Cerbos client used only where ABAC adds value over RLS.
    from a graph of grants rather than a single TLP/compartment label. Until that
    need is concrete, no request path calls SpiceDB.
 
-5. **One role vocabulary: the `cg_`-prefixed seven-role hierarchy.** The
-   principal `roles` that reach Cerbos must match the IdP-emitted strings
-   *exactly* — Cerbos does no normalisation, and matching is case-sensitive (per
-   the Cerbos derived-roles docs). The canonical names are the `cg_`-prefixed
-   roles seeded in `schema/seed/roles.sql` and used by the RLS policies,
-   `api/utils/age_query_guard.py`, and the documentation. The Cerbos
-   `derived_roles.yaml` `parentRoles` (and the `tests/auth` fixtures) are aligned
-   to those `cg_` names so a real `cg_ciso` caller activates the `ciso` derived
-   role; previously they used bare names, which would have denied every
-   production caller even after the wire-format fix. The derived-role *names*
-   (referenced by `derivedRoles:` in the resource policies) stay as the short
-   internal policy vocabulary — only `parentRoles` bind to the IdP strings. No
-   code-level role normaliser is added: that would contradict both Cerbos's
-   exact-match model and the rest of the system, which consumes `cg_` roles
-   directly.
+5. **The canonical role vocabulary is the IdP's bare names; Cerbos binds to them
+   directly.** The principal `roles` that reach Cerbos must match the IdP-emitted
+   strings *exactly* — Cerbos does no normalisation, and matching is
+   case-sensitive (per the Cerbos derived-roles docs). The OIDC IdP emits the
+   **bare** role names (`ciso`, `soc_analyst`, …), so `derived_roles.yaml`
+   `parentRoles` and the `tests/auth` fixtures use those bare names — and with
+   the wire-format fix above, a real `ciso` caller now activates the `ciso`
+   derived role and is allowed. No code-level role normaliser is added: that
+   would contradict Cerbos's exact-match model.
+
+   **Known divergence (tracked, not fixed here).** The rest of the codebase —
+   `schema/seed/roles.sql` (the seeded "seven-role hierarchy"), the RLS policies,
+   `api/utils/age_query_guard.py`, the docstrings, and CLAUDE.md — uses
+   `cg_`-prefixed names for the same hierarchy. Because the IdP emits bare names,
+   `age_query_guard`'s role→depth/timeout lookups (keyed on `cg_*`) silently fall
+   back to the default limits for every caller — a real but fail-safe (more
+   restrictive) bug. Reconciling those `cg_`-prefixed sites toward the bare names
+   is a larger, separate change (it touches seed/reference data and CLAUDE.md);
+   it is recorded as A-03 in `audit/2026-06-01-engagement.md` and left for a
+   dedicated PR so it gets its own review.
 
 ## Consequences
 

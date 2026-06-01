@@ -25,6 +25,7 @@ from nats.js.api import ConsumerConfig
 from psycopg.rows import dict_row
 
 from api.config import NATS_URL, PG_DSN
+from api.utils.edge_tlp import resync_vertex_edges, sync_edges_tlp
 from ingest.streams import content_msg_id, ensure_dlq_stream, ensure_enriched_stream
 
 logger = logging.getLogger(__name__)
@@ -392,10 +393,15 @@ MERGE_TEMPLATES: dict[str, str] = {
 
 # -- Relationship merge templates (parameterised, never concatenated) --------
 
-# Relationship MERGE templates set `tlp_level` explicitly to GREATEST of
-# the two endpoint TLPs (post-022 the edge trigger enforces the same
-# invariant; the writer is the documented primary path, the trigger is
-# the safety net).
+# Relationship MERGE templates set the edge `tlp_level` *property* to GREATEST
+# of the two endpoint TLPs. The denormalized `tlp_level` *column* that edge RLS
+# (022's tlp_edge_read_policy) actually filters on is maintained by the BEFORE
+# trigger trg_edge_tlp_sync — but AGE 1.7 executes Cypher through its own
+# executor and does NOT fire user triggers on the label tables, so a Cypher
+# MERGE leaves the column at its default 0 (edge RLS would then admit every
+# edge). _merge_relationship therefore issues a plain SQL UPDATE on the new
+# edge after the MERGE — a SQL write *does* fire the trigger — to populate the
+# column. Each template returns id(e) so that UPDATE can target the edge.
 RELATIONSHIP_TEMPLATES: dict[str, str] = {
     "has_role": """
         select * from ag_catalog.cypher('core_graph', $$
@@ -409,8 +415,8 @@ RELATIONSHIP_TEMPLATES: dict[str, str] = {
                         then coalesce(p.tlp_level, 0)
                     else coalesce(r.tlp_level, 0)
                 end)
-            return id(p)
-        $$, %s) as (id agtype)
+            return id(p), id(e)
+        $$, %s) as (id agtype, edge_id agtype)
     """,
     "member_of": """
         select * from ag_catalog.cypher('core_graph', $$
@@ -424,8 +430,8 @@ RELATIONSHIP_TEMPLATES: dict[str, str] = {
                         then coalesce(a.tlp_level, 0)
                     else coalesce(b.tlp_level, 0)
                 end)
-            return id(a)
-        $$, %s) as (id agtype)
+            return id(a), id(e)
+        $$, %s) as (id agtype, edge_id agtype)
     """,
     "grants": """
         select * from ag_catalog.cypher('core_graph', $$
@@ -439,8 +445,8 @@ RELATIONSHIP_TEMPLATES: dict[str, str] = {
                         then coalesce(r.tlp_level, 0)
                     else coalesce(p.tlp_level, 0)
                 end)
-            return id(r)
-        $$, %s) as (id agtype)
+            return id(r), id(e)
+        $$, %s) as (id agtype, edge_id agtype)
     """,
     "actor_in": """
         select * from ag_catalog.cypher('core_graph', $$
@@ -454,8 +460,8 @@ RELATIONSHIP_TEMPLATES: dict[str, str] = {
                         then coalesce(p.tlp_level, 0)
                     else coalesce(se.tlp_level, 0)
                 end)
-            return id(p)
-        $$, %s) as (id agtype)
+            return id(p), id(e)
+        $$, %s) as (id agtype, edge_id agtype)
     """,
     "manages": """
         select * from ag_catalog.cypher('core_graph', $$
@@ -469,8 +475,8 @@ RELATIONSHIP_TEMPLATES: dict[str, str] = {
                         then coalesce(mgr.tlp_level, 0)
                     else coalesce(sub.tlp_level, 0)
                 end)
-            return id(mgr)
-        $$, %s) as (id agtype)
+            return id(mgr), id(e)
+        $$, %s) as (id agtype, edge_id agtype)
     """,
     "owns": """
         select * from ag_catalog.cypher('core_graph', $$
@@ -484,8 +490,8 @@ RELATIONSHIP_TEMPLATES: dict[str, str] = {
                         then coalesce(p.tlp_level, 0)
                     else coalesce(a.tlp_level, 0)
                 end)
-            return id(p)
-        $$, %s) as (id agtype)
+            return id(p), id(e)
+        $$, %s) as (id agtype, edge_id agtype)
     """,
 }
 
@@ -541,7 +547,17 @@ async def _merge_relationship(
     rel_type: str,
     params: dict[str, Any],
 ) -> int | None:
-    """Execute a parameterised Cypher MERGE for an edge and return a vertex id."""
+    """Execute a parameterised Cypher MERGE for an edge and return a vertex id.
+
+    After the MERGE, populate the denormalized ``tlp_level`` column that edge
+    RLS filters on: AGE does not fire the ``trg_edge_tlp_sync`` BEFORE trigger
+    for Cypher writes, so an explicit SQL UPDATE on the new edge(s) is issued to
+    fire it (a SQL write does fire the trigger, which recomputes the column from
+    the endpoint TLPs). Without this the column stays 0 and the edge is visible
+    to every caller regardless of marking. Every returned row is drained — a
+    template whose MATCH clauses bind more than one endpoint combination merges
+    one edge per row, and each must be synced.
+    """
     template = RELATIONSHIP_TEMPLATES.get(rel_type)
     if template is None:
         logger.warning("No relationship template for type %s", rel_type)
@@ -549,11 +565,14 @@ async def _merge_relationship(
 
     params["now"] = datetime.now(UTC).isoformat()
     agtype_param = json.dumps(params)
-    row = await conn.execute(template, (agtype_param,))
-    result = await row.fetchone()
-    if result:
-        return int(str(result["id"]).strip('"'))
-    return None
+    cur = await conn.execute(template, (agtype_param,))
+    results = await cur.fetchall()
+    if not results:
+        return None
+
+    edge_ids = [int(str(r["edge_id"]).strip('"')) for r in results]
+    await sync_edges_tlp(conn, rel_type, edge_ids)
+    return int(str(results[0]["id"]).strip('"'))
 
 
 async def _process_message(
@@ -619,6 +638,14 @@ async def _process_message(
             params.setdefault("tlp", 1)
 
         vertex_id = await _merge_entity(conn, label, params)
+
+        # Re-classification cascade: if this MERGE raised the vertex's TLP, any
+        # edge already incident to it must ratchet up too. AGE does not fire the
+        # trg_vertex_tlp_cascade trigger for the Cypher SET above, so invoke the
+        # equivalent SQL helper explicitly. It short-circuits on a single
+        # indexed probe when the vertex has no edges (the common create path).
+        if vertex_id is not None:
+            await resync_vertex_edges(conn, vertex_id)
 
     # Write temporal fact if applicable
     if vertex_id and payload.get("temporal"):

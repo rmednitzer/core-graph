@@ -8,6 +8,7 @@ archives to the ``dlq_archive`` PostgreSQL table.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -184,17 +185,46 @@ async def _process_dlq_message(
     await msg.ack()
 
 
+async def _open_connection(pg_dsn: str) -> psycopg.AsyncConnection[Any]:
+    """Open a fresh DLQ database connection (dict rows, autocommit off)."""
+    conn = await psycopg.AsyncConnection.connect(pg_dsn, row_factory=dict_row)
+    await conn.set_autocommit(False)
+    return conn
+
+
+async def _safe_rollback(conn: psycopg.AsyncConnection[Any]) -> None:
+    """Roll back, swallowing errors raised by an already-broken connection."""
+    with contextlib.suppress(Exception):
+        await conn.rollback()
+
+
+async def _safe_close(conn: psycopg.AsyncConnection[Any]) -> None:
+    """Close, swallowing errors raised by an already-broken connection."""
+    with contextlib.suppress(Exception):
+        await conn.close()
+
+
 async def run(
     pg_dsn: str | None = None,
     nats_url: str | None = None,
 ) -> None:
-    """Main loop: consume from DLQ and retry or archive."""
+    """Main loop: consume from DLQ and retry or archive.
+
+    The PostgreSQL connection is long-lived. If it drops (server restart,
+    failover, idle timeout) the next statement raises
+    ``psycopg.OperationalError`` and, without recovery, every subsequent
+    delivery would keep failing against the same dead handle -- the processor
+    would silently stop draining the queue. The loop therefore reconnects on
+    ``OperationalError`` (and re-checks ``conn.closed`` before each message),
+    NAK-ing the in-flight delivery so JetStream redelivers it against the
+    fresh connection.
+    """
+    dsn = pg_dsn or PG_DSN
     nc = await nats.connect(nats_url or NATS_URL)
     js = nc.jetstream()
     await ensure_dlq_stream(js)
 
-    conn = await psycopg.AsyncConnection.connect(pg_dsn or PG_DSN, row_factory=dict_row)
-    await conn.set_autocommit(False)
+    conn = await _open_connection(dsn)
 
     sub = await js.subscribe(
         "dlq.>",
@@ -207,13 +237,24 @@ async def run(
     try:
         async for msg in sub.messages:
             try:
+                if conn.closed:
+                    logger.warning("DLQ database connection closed; reconnecting")
+                    conn = await _open_connection(dsn)
                 await _process_dlq_message(conn, js, msg)
+            except psycopg.OperationalError:
+                logger.exception("DLQ database connection lost; reconnecting and redelivering")
+                await _safe_close(conn)
+                try:
+                    conn = await _open_connection(dsn)
+                except psycopg.OperationalError:
+                    logger.exception("DLQ reconnect failed; will retry on the next delivery")
+                await msg.nak()
             except Exception:
                 logger.exception("Error processing DLQ message")
-                await conn.rollback()
+                await _safe_rollback(conn)
                 await msg.nak()
     finally:
-        await conn.close()
+        await _safe_close(conn)
         await nc.close()
 
 

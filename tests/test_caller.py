@@ -22,14 +22,14 @@ def test_uses_request_state_identity_when_present() -> None:
     identity = SimpleNamespace(
         sub="alice",
         max_tlp=3,
-        roles=["cg_ciso"],
+        roles=["ciso"],
         allowed_compartments=["incident-7"],
     )
     caller = caller_from_request(_request(identity=identity))
     assert caller == {
         "max_tlp": 3,
         "actor": "alice",
-        "roles": ["cg_ciso"],
+        "roles": ["ciso"],
         "allowed_compartments": ["incident-7"],
     }
 
@@ -42,11 +42,11 @@ def test_authenticated_roles_propagate_for_query_timeout() -> None:
     identity = SimpleNamespace(
         sub="bob",
         max_tlp=4,
-        roles=["cg_ciso"],
+        roles=["ciso"],
         allowed_compartments=[],
     )
     caller = caller_from_request(_request(identity=identity))
-    assert query_timeout_ms(caller) == ROLE_TIMEOUT_MS["cg_ciso"]
+    assert query_timeout_ms(caller) == ROLE_TIMEOUT_MS["ciso"]
 
 
 def test_falls_back_to_default_when_no_identity_or_header() -> None:

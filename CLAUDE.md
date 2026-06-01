@@ -41,7 +41,7 @@ Target: EU-sovereign, single-engineer operable, auditable, evidence-producing.
   files with companion `.json` parameter schemas.
 - IAM data (Layer 8) has a TLP:AMBER floor enforced at the RLS layer. No IAM
   vertex is ever visible below TLP:AMBER.
-- `Principal--same_as--ThreatActor` edges require explicit `cg_ciso`
+- `Principal--same_as--ThreatActor` edges require explicit `ciso`
   authorization via `tool_assert_identity_attribution`. Never created
   automatically.
 - Adapter base class is `ingest/connectors/base.py`. New adapters must extend
@@ -262,5 +262,5 @@ relevant section of `docs/`.
   config through `api/config.py` (a few legacy exceptions exist — see
   "Configuration")
 - Do not create `Principal--same_as--ThreatActor` edges from automated flows;
-  they require `cg_ciso` via `tool_assert_identity_attribution`
+  they require the `ciso` role via `tool_assert_identity_attribution`
 - Do not add a pytest marker without registering it in `pyproject.toml`

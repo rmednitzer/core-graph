@@ -1,7 +1,7 @@
 """api.mcp.tools.identity_attribution — Principal-to-ThreatActor attribution.
 
 Creates a same_as edge between a Principal and a ThreatActor vertex.
-Requires cg_ciso role via Cerbos. Never callable by cg_ai_agent.
+Requires the ciso role via Cerbos. Never callable by the ai_agent role.
 Creates TLP:RED edges with compartment scoping to investigation_id.
 
 The caller's session is widened to include the investigation_id compartment
@@ -89,7 +89,7 @@ async def assert_identity_attribution(
 ) -> dict[str, Any]:
     """Create a same_as edge between a Principal and a ThreatActor.
 
-    Requires cg_ciso role (checked via Cerbos before any DB operation).
+    Requires the ciso role (checked via Cerbos before any DB operation).
     Creates TLP:RED edge with compartment set to investigation_id. The caller's
     session is widened to include investigation_id in allowed_compartments
     before the INSERT so the writer's subsequent reads succeed under RLS.
@@ -126,7 +126,7 @@ async def assert_identity_attribution(
     authorized = await _check_cerbos_authorization(cerbos_caller, resource_id)
     if not authorized:
         raise PermissionError(
-            "Identity attribution requires cg_ciso role. Denied by Cerbos policy."
+            "Identity attribution requires the ciso role. Denied by Cerbos policy."
         )
 
     correlation_id = uuid.uuid4()

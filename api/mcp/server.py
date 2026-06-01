@@ -127,7 +127,7 @@ async def tool_assert_identity_attribution(
     """Assert that a Principal is the same entity as a ThreatActor.
 
     Creates a same_as edge with TLP:RED compartmented to the investigation.
-    Requires cg_ciso role — denied for all other roles including cg_ai_agent.
+    Requires the ciso role — denied for all other roles including ai_agent.
     Writes a mandatory audit log entry with the justification.
 
     caller_roles and caller_actor must be provided for Cerbos authorization.

@@ -49,8 +49,8 @@ artefacts alongside the application code.
 
 ### What Cerbos decides
 
-- **TLP clearance**: Each role has a maximum TLP level. A `cg_soc_analyst`
-  might be cleared to TLP:AMBER+STRICT, while `cg_external_auditor` is limited
+- **TLP clearance**: Each role has a maximum TLP level. A `soc_analyst`
+  might be cleared to TLP:AMBER+STRICT, while `external_auditor` is limited
   to TLP:GREEN.
 - **Resource-action permissions**: Which resource types (indicators, events,
   investigations, compliance records) each role can read, create, update, or
@@ -98,7 +98,7 @@ resourcePolicy:
   rules:
     - actions: ["read"]
       effect: EFFECT_ALLOW
-      roles: ["cg_soc_analyst", "cg_ciso"]
+      roles: ["soc_analyst", "ciso"]
       condition:
         match:
           expr: >
@@ -107,7 +107,7 @@ resourcePolicy:
 
     - actions: ["export"]
       effect: EFFECT_ALLOW
-      roles: ["cg_ciso"]
+      roles: ["ciso"]
       condition:
         match:
           all:
@@ -424,13 +424,13 @@ graph traversal, core-graph enforces depth limits per role:
 
 | Role | Max depth | Rationale |
 |------|-----------|-----------|
-| `cg_ciso` | unlimited | Full operational picture |
-| `cg_soc_analyst` | 5 | Investigation scope |
-| `cg_compliance_officer` | 3 | Control-evidence chains |
-| `cg_it_operations` | 3 | Infrastructure scope |
-| `cg_dpo` | 2 | Minimal graph access, privacy-focused |
-| `cg_external_auditor` | 3 | Audit trail following |
-| `cg_ai_agent` | 4 | Reasoning chain depth |
+| `ciso` | 10 | Full operational picture |
+| `soc_analyst` | 5 | Investigation scope |
+| `compliance_officer` | 3 | Control-evidence chains |
+| `it_operations` | 3 | Infrastructure scope |
+| `dpo` | 2 | Minimal graph access, privacy-focused |
+| `external_auditor` | 3 | Audit trail following |
+| `ai_agent` | 4 | Reasoning chain depth |
 
 Depth limits are enforced at the application layer by parameterising the Cypher
 query template's path length constraint. They are not enforced by RLS (RLS
@@ -452,17 +452,29 @@ keyed on the authenticated user's role. It is never derived from user input.
 
 | Role | max_tlp | PII access | Purpose |
 |------|---------|------------|---------|
-| `cg_ciso` | 4 (RED) | Yes | Full operational oversight |
-| `cg_soc_analyst` | 3 (AMBER+STRICT) | No | Threat investigation and response |
-| `cg_compliance_officer` | 2 (AMBER) | No | Audit, compliance mapping, evidence review |
-| `cg_it_operations` | 2 (AMBER) | No | Infrastructure monitoring and alerting |
-| `cg_dpo` | 0 (CLEAR) | Yes | Data protection duties, pseudonymisation oversight |
-| `cg_external_auditor` | 1 (GREEN) | No | Third-party audit with read-only, scoped access |
-| `cg_ai_agent` | 2 (AMBER) | No | Automated analysis via MCP, bounded scope |
+| `ciso` | 4 (RED) | Yes | Full operational oversight |
+| `soc_analyst` | 3 (AMBER+STRICT) | No | Threat investigation and response |
+| `compliance_officer` | 2 (AMBER) | No | Audit, compliance mapping, evidence review |
+| `it_operations` | 2 (AMBER) | No | Infrastructure monitoring and alerting |
+| `dpo` | 0 (CLEAR) | Yes | Data protection duties, pseudonymisation oversight |
+| `external_auditor` | 1 (GREEN) | No | Third-party audit with read-only, scoped access |
+| `ai_agent` | 2 (AMBER) | No | Automated analysis via MCP, bounded scope |
 
 The DPO role has TLP clearance 0 but PII access. This reflects the data
 protection officer's need to audit personal data handling without accessing
 threat intelligence classified above CLEAR.
+
+> **Two role namespaces (do not conflate).** The names above are the
+> **application** roles: the bare strings (`ciso`, `soc_analyst`, …) that the
+> OIDC IdP emits in the JWT `roles` claim and that Cerbos
+> (`policies/derived_roles.yaml`) and the application-layer depth/timeout guards
+> (`api/utils/age_query_guard.py`) match against. Separately, the schema
+> migrations create **PostgreSQL database roles** with a `cg_` prefix
+> (`cg_ciso`, …) that the RLS `GRANT`s and `to <role>` policies target. These are
+> two distinct namespaces: a `cg_`-prefixed string is a database role, never a
+> JWT/Cerbos role. The application path connects as the pool user and enforces
+> TLP via the `app.max_tlp` session GUC rather than `SET ROLE`, so the database
+> roles are a separate, coarse-grained layer. See ADR-0008.
 
 ## Break-glass procedures
 

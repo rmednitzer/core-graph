@@ -18,7 +18,10 @@ services:
       postgres:
         condition: service_healthy
       nats:
-        condition: service_healthy
+        # The official nats image is distroless (no shell/wget), so it has no
+        # in-container healthcheck; gate on the container being started. nats
+        # binds its port in <1s and the app's NATS client reconnects.
+        condition: service_started
       valkey:
         condition: service_healthy
     healthcheck:
@@ -68,11 +71,11 @@ services:
       - ../nats/nats-server.conf:/etc/nats/nats-server.conf:ro
       - natsdata:/data
     command: ["--config", "/etc/nats/nats-server.conf"]
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:8222/healthz || exit 1"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+    # No healthcheck: the official nats image is distroless (no /bin/sh, no
+    # wget/curl), so a CMD-SHELL probe fails with "exec: /bin/sh: no such file"
+    # and the container is wrongly reported unhealthy. Readiness is verified by
+    # the CI wait step (curl http://localhost:8222/healthz from the runner) and
+    # by the Kubernetes httpGet probes in the Helm chart.
     networks:
       - core-graph
 

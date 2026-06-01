@@ -22,11 +22,10 @@ from typing import Any
 import nats
 import psycopg
 from nats.js.api import ConsumerConfig
-from psycopg import sql
 from psycopg.rows import dict_row
 
 from api.config import NATS_URL, PG_DSN
-from api.utils.cypher_safety import validate_label
+from api.utils.edge_tlp import resync_vertex_edges, sync_edges_tlp
 from ingest.streams import content_msg_id, ensure_dlq_stream, ensure_enriched_stream
 
 logger = logging.getLogger(__name__)
@@ -552,10 +551,12 @@ async def _merge_relationship(
 
     After the MERGE, populate the denormalized ``tlp_level`` column that edge
     RLS filters on: AGE does not fire the ``trg_edge_tlp_sync`` BEFORE trigger
-    for Cypher writes, so a plain SQL UPDATE on the new edge is issued to fire
-    it (a SQL write does fire the trigger, which recomputes the column from the
-    endpoint TLPs). Without this the column stays 0 and the edge is visible to
-    every caller regardless of marking.
+    for Cypher writes, so an explicit SQL UPDATE on the new edge(s) is issued to
+    fire it (a SQL write does fire the trigger, which recomputes the column from
+    the endpoint TLPs). Without this the column stays 0 and the edge is visible
+    to every caller regardless of marking. Every returned row is drained — a
+    template whose MATCH clauses bind more than one endpoint combination merges
+    one edge per row, and each must be synced.
     """
     template = RELATIONSHIP_TEMPLATES.get(rel_type)
     if template is None:
@@ -564,26 +565,14 @@ async def _merge_relationship(
 
     params["now"] = datetime.now(UTC).isoformat()
     agtype_param = json.dumps(params)
-    row = await conn.execute(template, (agtype_param,))
-    result = await row.fetchone()
-    if not result:
+    cur = await conn.execute(template, (agtype_param,))
+    results = await cur.fetchall()
+    if not results:
         return None
 
-    edge_id = int(str(result["edge_id"]).strip('"'))
-    # rel_type is an allow-listed RELATIONSHIP_TEMPLATES key, but validate_label
-    # before interpolating it as a table identifier (defence in depth; the
-    # column cannot be set through Cypher, so this must be a relational UPDATE).
-    # graphid has no cast from a bound integer; build it from its input function
-    # on the controlled integer rendered as a literal so the id index is used.
-    await conn.execute(
-        sql.SQL(
-            "update core_graph.{tbl} set tlp_level = tlp_level where id = {eid}::ag_catalog.graphid"
-        ).format(
-            tbl=sql.Identifier(validate_label(rel_type)),
-            eid=sql.Literal(str(edge_id)),
-        )
-    )
-    return int(str(result["id"]).strip('"'))
+    edge_ids = [int(str(r["edge_id"]).strip('"')) for r in results]
+    await sync_edges_tlp(conn, rel_type, edge_ids)
+    return int(str(results[0]["id"]).strip('"'))
 
 
 async def _process_message(
@@ -656,11 +645,7 @@ async def _process_message(
         # equivalent SQL helper explicitly. It short-circuits on a single
         # indexed probe when the vertex has no edges (the common create path).
         if vertex_id is not None:
-            await conn.execute(
-                sql.SQL("select cg_resync_vertex_edges({}::ag_catalog.graphid)").format(
-                    sql.Literal(str(vertex_id))
-                )
-            )
+            await resync_vertex_edges(conn, vertex_id)
 
     # Write temporal fact if applicable
     if vertex_id and payload.get("temporal"):

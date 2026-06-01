@@ -26,6 +26,7 @@ from typing import Any
 
 from api.config import DEFAULT_TLP
 from api.db import get_connection
+from api.utils.edge_tlp import resync_vertex_edges
 from ingest.canonical import canonical_key
 from ingest.ner.tier1_regex import extract_iocs
 
@@ -184,6 +185,12 @@ async def tool_remember(
                 ),
             )
 
+        # AGE does not fire trg_edge_tlp_sync for the Cypher writes above, so the
+        # mentions edges' denormalized tlp_level column would stay 0. Re-derive
+        # every edge incident to the new Episode (belongs_to has no such column
+        # and is skipped by the helper; mentions edges are synced).
+        await resync_vertex_edges(conn, episode_graph_id)
+
         await conn.execute(
             """
             insert into audit_log
@@ -334,6 +341,11 @@ async def tool_record_extracted_fact(
                     ),
                 ),
             )
+
+        # AGE does not fire trg_edge_tlp_sync for the Cypher edge writes above,
+        # so the extracted_from (and any supersedes) edge tlp_level column would
+        # stay 0. Re-derive every edge incident to the new fact vertex.
+        await resync_vertex_edges(conn, fact_graph_id)
 
         await conn.commit()
 

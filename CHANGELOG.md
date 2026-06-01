@@ -52,16 +52,21 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
   production write goes through `ag_catalog.cypher()`). The denormalized edge
   `tlp_level` column that `tlp_edge_read_policy` filters on was therefore left
   at its `0` default, so edge-level RLS admitted Cypher-created edges to every
-  caller regardless of marking. `ingest/graph_writer.py` now maintains the
-  column with explicit SQL after each Cypher write — a direct edge `UPDATE` on
-  creation (a SQL write *does* fire the trigger) and `cg_resync_vertex_edges()`
-  after each vertex MERGE for the re-classification cascade. **Migration 032**
-  (`032_edge_tlp_writer_resync.sql`) adds that callable cascade helper and
-  re-backfills `tlp_level` on existing edges. No RLS policy is changed: the
-  fix only makes the column the policy reads truthful. Covered by a new
-  writer integration test and the rewritten `tests/rls/test_edge_tlp.sql`,
-  which is now wired into the `schema-and-rls-test` CI job (previously it ran
-  only under `make test` and had silently broken).
+  caller regardless of marking. Every Cypher edge-write path now maintains the
+  column with explicit SQL via the shared `api/utils/edge_tlp.py` helpers
+  (`sync_edges_tlp` for known edge ids, `resync_vertex_edges` for an endpoint):
+  `ingest/graph_writer.py` (all six relationship templates, draining every
+  returned row so a multi-edge MERGE is fully synced, plus a vertex-MERGE
+  cascade), `api/mcp/tools/identity_attribution.py` (the CISO-gated
+  `same_as` edge), and `api/mcp/tools/memory_remember.py`
+  (`mentions` / `extracted_from` / `supersedes`). **Migration 032**
+  (`032_edge_tlp_writer_resync.sql`) adds the callable `cg_resync_vertex_edges`
+  cascade helper (pinned `search_path`, `EXECUTE` revoked from `PUBLIC`) and
+  re-backfills `tlp_level` on existing edges. No RLS policy is changed: the fix
+  only makes the column the policy reads truthful. Covered by new writer and
+  memory integration tests and the rewritten `tests/rls/test_edge_tlp.sql`,
+  now wired into the `schema-and-rls-test` CI job (previously it ran only under
+  `make test` and had silently broken).
 
 ### Phase 6 — code-base validation (2026-05)
 

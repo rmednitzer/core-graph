@@ -19,6 +19,7 @@ from typing import Any
 
 from api.config import CERBOS_ENDPOINT, DEFAULT_TLP
 from api.db import get_connection
+from api.utils.edge_tlp import sync_edges_tlp
 
 logger = logging.getLogger(__name__)
 
@@ -186,8 +187,15 @@ async def assert_identity_attribution(
             $cypher$, %s) as (id agtype)
         """
         cursor = await conn.execute(sql, (agtype_params,))
-        result = await cursor.fetchone()
-        edge_id = int(str(result["id"]).strip('"')) if result else None
+        results = await cursor.fetchall()
+        edge_ids = [int(str(r["id"]).strip('"')) for r in results]
+        edge_id = edge_ids[0] if edge_ids else None
+
+        # AGE does not fire trg_edge_tlp_sync for the Cypher MERGE above, so the
+        # same_as edge's denormalized tlp_level column would stay 0 and the
+        # (TLP:RED, CISO-gated) attribution edge would be visible below its
+        # marking. Drive the trigger from SQL to populate the column.
+        await sync_edges_tlp(conn, "same_as", edge_ids)
 
         await conn.execute(
             """

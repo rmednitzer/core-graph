@@ -19,7 +19,7 @@ does not relicense them.
 
 The core path -- PostgreSQL, Apache AGE, pgvector, NATS, Cerbos, SpiceDB,
 Sigstore cosign/Rekor, and the Python runtime dependencies -- is Apache-2.0,
-MIT, BSD, or the PostgreSQL Licence. Several of these are themselves Apache-2.0
+MIT, BSD, or the PostgreSQL License. Several of these are themselves Apache-2.0
 works that ship their own NOTICE text (notably Apache AGE); those notices are
 carried by the upstream artifacts the images are built from.
 
@@ -34,7 +34,7 @@ Consult those SBOM artifacts for the authoritative, version-pinned list of
 third-party software and licenses in any given build.
 
 Satellite systems integrated over the network (Wazuh, OpenCTI, MISP,
-OpenSearch, MinIO, Netbox, Prometheus, Keycloak) carry their own licences
+OpenSearch, MinIO, Netbox, Prometheus, Keycloak) carry their own licenses
 (including GPL and AGPL) and operate as external services. core-graph
 communicates with them through the ingest adapter pattern; their code is not
 embedded in this redistributable source tree or in the core container images.

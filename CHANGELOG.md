@@ -45,6 +45,23 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
   `limits` for the NATS, Valkey, and graph-writer workloads, and a readiness
   probe for the graph-writer, which now drops a `/tmp/graph-writer.ready`
   marker once its JetStream subscription is live.
+* **Edge-level RLS made effective against the Cypher write path.** Apache AGE
+  1.7 executes Cypher through its own executor and does **not** fire the
+  per-table triggers, so the migration-022 `trg_edge_tlp_sync` /
+  `trg_vertex_tlp_cascade` triggers never ran for graph writes (every
+  production write goes through `ag_catalog.cypher()`). The denormalized edge
+  `tlp_level` column that `tlp_edge_read_policy` filters on was therefore left
+  at its `0` default, so edge-level RLS admitted Cypher-created edges to every
+  caller regardless of marking. `ingest/graph_writer.py` now maintains the
+  column with explicit SQL after each Cypher write — a direct edge `UPDATE` on
+  creation (a SQL write *does* fire the trigger) and `cg_resync_vertex_edges()`
+  after each vertex MERGE for the re-classification cascade. **Migration 032**
+  (`032_edge_tlp_writer_resync.sql`) adds that callable cascade helper and
+  re-backfills `tlp_level` on existing edges. No RLS policy is changed: the
+  fix only makes the column the policy reads truthful. Covered by a new
+  writer integration test and the rewritten `tests/rls/test_edge_tlp.sql`,
+  which is now wired into the `schema-and-rls-test` CI job (previously it ran
+  only under `make test` and had silently broken).
 
 ### Phase 6 — code-base validation (2026-05)
 

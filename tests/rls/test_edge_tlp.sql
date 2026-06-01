@@ -1,114 +1,91 @@
 -- tests/rls/test_edge_tlp.sql
--- Phase 2 — verify edge tlp_level RLS, cascade, and IAM floor.
+-- Phase 2/7 — verify edge tlp_level RLS, the writer's column maintenance, and
+-- the re-classification cascade.
 --
--- Run as a database superuser; the test temporarily switches roles to
--- exercise RLS enforcement. Requires migrations 001-022 applied to a fresh
--- core_graph database.
+-- Run as a database superuser; the test temporarily switches to a non-superuser
+-- role (cg_soc_analyst) to exercise RLS (a superuser bypasses it). Requires
+-- migrations 001-032 applied to a core_graph database.
+--
+-- This test runs against the REAL `core_graph` graph and the production 022/032
+-- machinery, because that machinery is intentionally scoped to core_graph
+-- (cg_vertex_tlp_level reads core_graph._ag_label_vertex; cg_resync_vertex_edges
+-- walks core_graph edge tables). An earlier version used an isolated AGE graph
+-- and could never exercise them.
+--
+-- It also mirrors the real write path's quirk: AGE 1.7 executes Cypher through
+-- its own executor and does NOT fire the per-table triggers, so a Cypher MERGE
+-- leaves the denormalized edge tlp_level column at 0. ingest/graph_writer.py
+-- therefore maintains the column with explicit SQL after each Cypher write —
+-- a direct edge UPDATE on creation, and cg_resync_vertex_edges() after a vertex
+-- MERGE for the cascade. This test drives exactly those two SQL paths. Both
+-- assertions would FAIL (edge visible at every ceiling) if the column were left
+-- at the Cypher-only default of 0.
 
 \set ON_ERROR_STOP on
 
 begin;
 
--- Use a dedicated AGE graph for the test so we don't pollute production.
-do $$
-begin
-    if not exists (select 1 from ag_catalog.ag_graph where name = 'rls_edge_test') then
-        perform ag_catalog.create_graph('rls_edge_test');
-    end if;
-end $$;
-
 set search_path = ag_catalog, '$user', public;
 
 -- ---------------------------------------------------------------------------
--- Seed: two TLP=3 vertices and one edge between them.
+-- Seed (in core_graph): two TLP=3 Host vertices and one TLP=3 edge.
+-- Capture the vertex/edge ids so we can drive the writer's SQL maintenance.
 -- ---------------------------------------------------------------------------
-select * from ag_catalog.cypher('rls_edge_test', $$
-    create (a:Host {canonical_key: 'edge-test-a', tlp_level: 3})
-    create (b:Host {canonical_key: 'edge-test-b', tlp_level: 3})
-    create (a)-[:related {source: 'test', tlp_level: 3}]->(b)
-$$) as (out agtype);
+select id_a, id_e
+  from ag_catalog.cypher('core_graph', $$
+      create (a:Host {canonical_key: 'edge-tlp-test-a', tlp_level: 3})
+      create (b:Host {canonical_key: 'edge-tlp-test-b', tlp_level: 3})
+      create (a)-[e:connects_to {source: 'edge-tlp-test', tlp_level: 3}]->(b)
+      return id(a), id(e)
+  $$) as (id_a agtype, id_e agtype)
+\gset
 
--- Apply edge tlp denormalization to the new graph's edge tables.
--- (Migration 022 walks all edge tables; re-running it picks up rls_edge_test
--- tables. We instead just create the column + trigger inline for the test
--- graph since dropping/re-running the whole migration in a test is overkill.)
+-- A Cypher MERGE does not fire trg_edge_tlp_sync, so the column is still 0 here.
+do $$
+declare
+    col smallint;
+begin
+    select tlp_level into col from core_graph.connects_to
+     where (properties::text)::jsonb->>'source' = 'edge-tlp-test';
+    if col <> 0 then
+        raise notice 'edge_tlp_test note: column already %, AGE fired the trigger', col;
+    end if;
+end $$;
+
+-- Writer edge-creation path: a plain SQL UPDATE on the new edge fires
+-- trg_edge_tlp_sync, which sets tlp_level = GREATEST(property, src, dst) = 3.
+update core_graph.connects_to set tlp_level = tlp_level
+ where id = (:'id_e')::ag_catalog.graphid;
 
 do $$
 declare
-    tbl record;
+    col smallint;
 begin
-    for tbl in
-        select c.relname
-          from pg_class c
-          join pg_namespace n on n.oid = c.relnamespace
-         where n.nspname = 'rls_edge_test'
-           and c.relkind = 'r'
-           and exists (
-               select 1 from pg_attribute a
-                where a.attrelid = c.oid and a.attname = 'start_id' and not a.attisdropped
-           )
-    loop
-        execute format(
-            'alter table rls_edge_test.%I add column if not exists tlp_level smallint not null default 0',
-            tbl.relname
-        );
-        execute format(
-            'update rls_edge_test.%I set tlp_level = greatest('
-            '  coalesce(nullif(((properties::text)::jsonb->>''tlp_level''), ''''), ''0'')::smallint,'
-            '  cg_vertex_tlp_level(start_id),'
-            '  cg_vertex_tlp_level(end_id)'
-            ')',
-            tbl.relname
-        );
-        execute format(
-            'drop trigger if exists trg_edge_tlp_sync on rls_edge_test.%I',
-            tbl.relname
-        );
-        execute format(
-            'create trigger trg_edge_tlp_sync '
-            'before insert or update on rls_edge_test.%I '
-            'for each row execute function cg_edge_tlp_sync()',
-            tbl.relname
-        );
-        execute format(
-            'alter table rls_edge_test.%I enable row level security',
-            tbl.relname
-        );
-        execute format(
-            'alter table rls_edge_test.%I force row level security',
-            tbl.relname
-        );
-        execute format(
-            'drop policy if exists tlp_edge_read_policy on rls_edge_test.%I',
-            tbl.relname
-        );
-        execute format(
-            'create policy tlp_edge_read_policy on rls_edge_test.%I '
-            'for select using ('
-            '  tlp_level <= coalesce(nullif(current_setting(''app.max_tlp'', true), ''''), ''1'')::smallint'
-            ')',
-            tbl.relname
-        );
-        execute format(
-            'grant select on rls_edge_test.%I to public',
-            tbl.relname
-        );
-    end loop;
+    select tlp_level into col from core_graph.connects_to
+     where (properties::text)::jsonb->>'source' = 'edge-tlp-test';
+    if col <> 3 then
+        raise exception 'edge_tlp_test FAIL: writer sync left edge tlp_level = % (expected 3)', col;
+    end if;
+    raise notice 'edge_tlp_test OK: writer SQL sync populated edge tlp_level = 3';
 end $$;
+
+-- cg_soc_analyst holds no schema USAGE by default (the app reads as the
+-- cg_admin superuser); grant it plus SELECT on the edge table as setup so RLS,
+-- not a missing privilege, is what filters rows.
+grant usage on schema core_graph, ag_catalog to cg_soc_analyst;
+grant select on core_graph.connects_to to cg_soc_analyst;
 
 -- ---------------------------------------------------------------------------
 -- Test 1: caller with max_tlp=2 cannot see the TLP=3 edge.
 -- ---------------------------------------------------------------------------
-set local app.max_tlp = '2';
-select set_config('role', 'cg_soc_analyst', true);
-
 do $$
 declare
     visible_edges int;
 begin
     set local role = cg_soc_analyst;
-    select count(*) into visible_edges
-      from rls_edge_test.related;
+    set local app.max_tlp = '2';
+    select count(*) into visible_edges from core_graph.connects_to
+     where (properties::text)::jsonb->>'source' = 'edge-tlp-test';
     if visible_edges <> 0 then
         raise exception 'edge_tlp_test FAIL: max_tlp=2 saw % TLP=3 edge(s)', visible_edges;
     end if;
@@ -125,7 +102,8 @@ declare
 begin
     set local role = cg_soc_analyst;
     set local app.max_tlp = '3';
-    select count(*) into visible_edges from rls_edge_test.related;
+    select count(*) into visible_edges from core_graph.connects_to
+     where (properties::text)::jsonb->>'source' = 'edge-tlp-test';
     if visible_edges <> 1 then
         raise exception 'edge_tlp_test FAIL: max_tlp=3 expected 1 edge, got %', visible_edges;
     end if;
@@ -134,62 +112,38 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
--- Test 3: cascade — vertex re-classification updates incident edges.
+-- Test 3: cascade — re-classifying a vertex up updates incident edges.
 -- ---------------------------------------------------------------------------
--- (Setup the cascade trigger on the test vertex tables so it actually fires.)
-do $$
-declare
-    tbl record;
-begin
-    for tbl in
-        select c.relname
-          from pg_class c
-          join pg_namespace n on n.oid = c.relnamespace
-         where n.nspname = 'rls_edge_test'
-           and c.relkind = 'r'
-           and not exists (
-               select 1 from pg_attribute a
-                where a.attrelid = c.oid and a.attname = 'start_id' and not a.attisdropped
-           )
-           and exists (
-               select 1 from pg_attribute a
-                where a.attrelid = c.oid and a.attname = 'properties' and not a.attisdropped
-           )
-    loop
-        execute format(
-            'drop trigger if exists trg_vertex_tlp_cascade on rls_edge_test.%I',
-            tbl.relname
-        );
-        execute format(
-            'create constraint trigger trg_vertex_tlp_cascade '
-            'after update of properties on rls_edge_test.%I '
-            'deferrable initially deferred '
-            'for each row execute function cg_vertex_tlp_cascade()',
-            tbl.relname
-        );
-    end loop;
-end $$;
-
-select * from ag_catalog.cypher('rls_edge_test', $$
-    match (a:Host {canonical_key: 'edge-test-a'})
+-- Re-classify vertex a 3 -> 4 via Cypher SET (the write path the app uses).
+-- AGE will not fire trg_vertex_tlp_cascade for it, so the writer calls
+-- cg_resync_vertex_edges() explicitly — do the same here.
+select * from ag_catalog.cypher('core_graph', $$
+    match (a:Host {canonical_key: 'edge-tlp-test-a'})
     set a.tlp_level = 4
 $$) as (out agtype);
 
--- Force the deferred constraint trigger to fire before commit.
-set constraints all immediate;
+select cg_resync_vertex_edges((:'id_a')::ag_catalog.graphid);
 
 do $$
 declare
+    col smallint;
     visible_edges int;
 begin
+    select tlp_level into col from core_graph.connects_to
+     where (properties::text)::jsonb->>'source' = 'edge-tlp-test';
+    if col <> 4 then
+        raise exception 'edge_tlp_test FAIL: cascade left edge tlp_level = % (expected 4)', col;
+    end if;
+
     set local role = cg_soc_analyst;
     set local app.max_tlp = '3';
-    select count(*) into visible_edges from rls_edge_test.related;
+    select count(*) into visible_edges from core_graph.connects_to
+     where (properties::text)::jsonb->>'source' = 'edge-tlp-test';
     if visible_edges <> 0 then
         raise exception 'edge_tlp_test FAIL: cascade did not propagate, edge still visible at max_tlp=3 (count=%)', visible_edges;
     end if;
     reset role;
-    raise notice 'edge_tlp_test OK: cascade hid the edge after vertex tlp 3 -> 4';
+    raise notice 'edge_tlp_test OK: cascade ratcheted edge to 4 and hid it from max_tlp=3';
 end $$;
 
 rollback;

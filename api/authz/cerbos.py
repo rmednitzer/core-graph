@@ -7,12 +7,14 @@ policies defined in ``policies/`` against the CallerIdentity from OIDC.
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
 from api import config
-from api.rest.middleware.oidc import CallerIdentity
+
+if TYPE_CHECKING:
+    from api.rest.middleware.oidc import CallerIdentity
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +32,62 @@ def _get_http_client() -> httpx.AsyncClient:
     return _http_client
 
 
+async def check_action(
+    principal: dict[str, Any],
+    resource_kind: str,
+    resource_id: str,
+    action: str,
+    resource_attrs: dict[str, Any] | None = None,
+) -> bool:
+    """Evaluate one ``(principal, resource, action)`` triple against Cerbos.
+
+    Posts to ``/api/check/resources`` using the documented batch request body
+    (``resources: [{resource, actions}]``) and reads the **string** effect from
+    ``results[0].actions[action]``. Cerbos serialises each action's decision as
+    the enum string ``"EFFECT_ALLOW"`` / ``"EFFECT_DENY"`` -- not a nested
+    object with an ``effect`` field -- so the value is compared directly.
+
+    ``principal`` is the Cerbos principal object (``id``, ``roles``, ``attr``).
+
+    Fail closed: any transport error, an empty result set, or any effect other
+    than ``EFFECT_ALLOW`` returns ``False``.
+    """
+    payload = {
+        "requestId": resource_id or "check",
+        "principal": principal,
+        "resources": [
+            {
+                "resource": {
+                    "kind": resource_kind,
+                    "id": resource_id,
+                    "attr": resource_attrs or {},
+                },
+                "actions": [action],
+            }
+        ],
+    }
+    try:
+        client = _get_http_client()
+        resp = await client.post("/api/check/resources", json=payload)
+        resp.raise_for_status()
+        results = resp.json().get("results", [])
+        if not results:
+            logger.warning(
+                "Empty Cerbos response for %s/%s, denying by default",
+                resource_kind,
+                action,
+            )
+            return False
+        return results[0].get("actions", {}).get(action) == "EFFECT_ALLOW"
+    except Exception:
+        logger.exception(
+            "Cerbos check failed for %s/%s, denying by default",
+            resource_kind,
+            action,
+        )
+        return False
+
+
 async def check_resource(
     principal: CallerIdentity,
     resource_type: str,
@@ -39,45 +97,21 @@ async def check_resource(
 ) -> bool:
     """Check if a principal is allowed to perform an action on a resource.
 
-    Returns False (deny) on any error (fail closed).
+    Builds the Cerbos principal from the OIDC-attested ``CallerIdentity`` and
+    delegates to :func:`check_action`. Returns ``False`` (deny) on any error
+    (fail closed).
     """
-    payload = {
-        "principal": {
-            "id": principal.sub,
-            "roles": principal.roles,
-            "attr": {
-                "max_tlp": principal.max_tlp,
-                "groups": principal.groups,
-                "department": principal.department,
-                "allowed_compartments": principal.allowed_compartments,
-            },
+    cerbos_principal = {
+        "id": principal.sub,
+        "roles": principal.roles,
+        "attr": {
+            "max_tlp": principal.max_tlp,
+            "groups": principal.groups,
+            "department": principal.department,
+            "allowed_compartments": principal.allowed_compartments,
         },
-        "resource": {
-            "kind": resource_type,
-            "id": resource_id,
-            "attr": resource_attrs or {},
-        },
-        "actions": [action],
     }
-
-    try:
-        client = _get_http_client()
-        resp = await client.post(
-            "/api/check/resources",
-            json={"requestId": resource_id, "includeMeta": False, **payload},
-        )
-        resp.raise_for_status()
-        result = resp.json()
-
-        # Parse Cerbos response
-        results = result.get("results", [])
-        if results:
-            actions = results[0].get("actions", {})
-            return actions.get(action, "EFFECT_DENY") == "EFFECT_ALLOW"
-        return False
-    except Exception:
-        logger.exception("Cerbos check_resource failed, denying by default")
-        return False
+    return await check_action(cerbos_principal, resource_type, resource_id, action, resource_attrs)
 
 
 async def plan_resources(

@@ -42,12 +42,14 @@ jobs:
         run: docker compose -f deploy/docker/docker-compose.yml up -d
       - name: Wait for PostgreSQL
         run: |
+          ready=false
           for _ in $(seq 1 30); do
             if docker compose -f deploy/docker/docker-compose.yml exec -T postgres pg_isready -U cg_admin -d core_graph 2>/dev/null; then
-              break
+              ready=true; break
             fi
             sleep 2
           done
+          [ "$ready" = true ] || { echo "PostgreSQL did not become ready in time" >&2; exit 1; }
       - name: Apply migrations and seeds
         run: |
           sudo apt-get update -qq && sudo apt-get install -y postgresql-client

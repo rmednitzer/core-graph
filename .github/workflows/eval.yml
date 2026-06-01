@@ -1,14 +1,19 @@
 name: Eval
 
-# Eval runs against a populated DB. To keep PR CI fast and reliable we
-# only schedule the heavy run nightly + on-demand, and on main pushes.
-# The unit-test layer (tests/test_eval_runner.py, tests/test_embedding_drift.py)
-# covers the pure helpers on every PR via the standard test workflow.
+# Eval runs against a populated DB. It runs on PRs as well as main pushes (and
+# nightly + on-demand) so an eval-workflow or full-stack regression is caught in
+# review rather than only post-merge — the same blind spot that hid the PG18
+# postgres-volume break. Without an embedding backend (CG_EMBEDDING_PROVIDER=none
+# in CI) the retrieval/drift steps skip cleanly; the unit-test layer
+# (tests/test_eval_runner.py, tests/test_embedding_drift.py) covers the pure
+# helpers via the standard test workflow.
 on:
   schedule:
     - cron: '17 3 * * *'  # 03:17 UTC nightly
   workflow_dispatch:
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
 
 permissions: {}
@@ -42,12 +47,14 @@ jobs:
         run: docker compose -f deploy/docker/docker-compose.yml up -d
       - name: Wait for PostgreSQL
         run: |
-          for i in $(seq 1 30); do
+          ready=false
+          for _ in $(seq 1 30); do
             if docker compose -f deploy/docker/docker-compose.yml exec -T postgres pg_isready -U cg_admin -d core_graph 2>/dev/null; then
-              break
+              ready=true; break
             fi
             sleep 2
           done
+          [ "$ready" = true ] || { echo "PostgreSQL did not become ready in time" >&2; exit 1; }
       - name: Apply migrations and seeds
         run: |
           sudo apt-get update -qq && sudo apt-get install -y postgresql-client
@@ -72,7 +79,14 @@ jobs:
             eval-report.json
             eval-report.md
       - name: RLS-aware retrieval correctness (hard fail)
-        run: pytest tests/eval/test_rls_retrieval_correctness.py -v
+        run: |
+          rc=0
+          pytest tests/eval/test_rls_retrieval_correctness.py -v || rc=$?
+          # pytest exit 5 = "no tests collected": this suite module-skips when
+          # there is no embedding backend (CG_EMBEDDING_PROVIDER=none in CI), so
+          # running it alone collects zero items. Treat 5 as a pass; a genuine
+          # RLS regression surfaces as exit 1.
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 5 ]; then exit "$rc"; fi
       - name: Embedding drift detection
         run: |
           set +e

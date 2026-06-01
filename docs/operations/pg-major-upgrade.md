@@ -4,6 +4,25 @@ Apache AGE uses `reg*` column types in its internal catalog tables which
 block `pg_upgrade`. A full dump/restore is required for major version
 upgrades.
 
+## Container data-directory layout (PostgreSQL 18+)
+
+PostgreSQL 18+ Docker images store the cluster under a major-version-specific
+directory (`/var/lib/postgresql/<major>/docker`, e.g. `…/18/docker`), and the
+entrypoint **refuses to start** if a volume is mounted at the legacy
+`/var/lib/postgresql/data` path. The compose stack and the Helm
+StatefulSet therefore mount the data volume at the parent `/var/lib/postgresql`
+(so `PGDATA` lives on the volume).
+
+**Upgrading an existing deployment created before this change** (PVC/volume
+data written at the root by a ≤17 image, where `PGDATA` was
+`/var/lib/postgresql/data`): a plain `helm upgrade` / `docker compose up` will
+start a *fresh, empty* PG18 cluster under `…/18/docker` — the old files are
+left **orphaned at the volume root, not deleted**. Recover the data with the
+dump/restore procedure below (this is required regardless of the mount change,
+since AGE's `reg*` catalog types block in-place `pg_upgrade` across majors).
+Take the final backup from the old cluster **before** rolling out the image
+that moves the mount.
+
 ## Pre-upgrade checklist
 
 - [ ] Verify backup integrity (`pg_dump` completes without errors)

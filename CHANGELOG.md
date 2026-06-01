@@ -8,6 +8,29 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### Authorization role-vocabulary reconciliation (A-03, 2026-06)
+
+* **fix(authz): key the application-layer role guards on the bare JWT roles.**
+  Follow-up to the Phase 8 A-03 finding. `api/utils/age_query_guard.py` keyed its
+  per-role depth (`ROLE_MAX_DEPTH`) and timeout (`ROLE_TIMEOUT_MS`) tables on the
+  `cg_`-prefixed **database-role** spelling, but `api/db.py` feeds them the
+  **application** roles from `caller_identity["roles"]` (the bare names the OIDC
+  IdP emits). Every caller therefore silently fell back to `DEFAULT_MAX_DEPTH` /
+  `DEFAULT_TIMEOUT_MS` — e.g. a `ciso` got the 30 s default instead of 120 s. The
+  tables are now keyed on the bare names; `tests/test_age_query_guard.py` is
+  rewritten to assert the bare vocabulary (the old test had locked in the
+  `cg_` spelling) and adds regression guards that the keys are never
+  `cg_`-prefixed and that a `cg_ciso` string resolves to the defaults.
+* **Two role namespaces documented.** The `cg_`-prefixed names are PostgreSQL
+  **database roles** (created in the migrations, targeted by the RLS `GRANT`s);
+  the bare names are the **application** roles (JWT claim → Cerbos +
+  `age_query_guard`). The dormant `schema/seed/roles.sql` clearances and the
+  application-role references in the docstrings, CLAUDE.md, and the architecture
+  docs are aligned to the bare names; the database roles in the migrations are
+  intentionally left `cg_`-prefixed. `docs/architecture/authorization-model.md`
+  gains a note spelling out the distinction, and ADR-0008 decision 5 is updated.
+  Also corrects the depth table's stale `ciso = unlimited` to the actual `10`.
+
 ### Phase 8 — authorization & resilience audit (2026-06)
 
 * New ADR

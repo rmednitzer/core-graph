@@ -58,7 +58,7 @@ correct Cerbos client used only where ABAC adds value over RLS.
    to see. (Unchanged; restated as the keystone.)
 
 2. **Cerbos (ABAC) is the policy-decision point for high-assurance writes that
-   RLS cannot express** — specifically the `cg_ciso`-gated
+   RLS cannot express** — specifically the `ciso`-gated
    `Principal--same_as--ThreatActor` attribution (`assert` action). It is
    invoked *before* the DB operation and fails closed. Cerbos is **not** placed
    in the read path: RLS already enforces the TLP/compartment decision at the
@@ -95,21 +95,35 @@ correct Cerbos client used only where ABAC adds value over RLS.
    derived role and is allowed. No code-level role normaliser is added: that
    would contradict Cerbos's exact-match model.
 
-   **Known divergence (tracked, not fixed here).** The rest of the codebase —
-   `schema/seed/roles.sql` (the seeded "seven-role hierarchy"), the RLS policies,
-   `api/utils/age_query_guard.py`, the docstrings, and CLAUDE.md — uses
-   `cg_`-prefixed names for the same hierarchy. Because the IdP emits bare names,
-   `age_query_guard`'s role→depth/timeout lookups (keyed on `cg_*`) silently fall
-   back to the default limits for every caller — a real but fail-safe (more
-   restrictive) bug. Reconciling those `cg_`-prefixed sites toward the bare names
-   is a larger, separate change (it touches seed/reference data and CLAUDE.md);
-   it is recorded as A-03 in `audit/2026-06-01-engagement.md` and left for a
-   dedicated PR so it gets its own review.
+   **Two namespaces (reconciled, A-03).** The `cg_*` strings in the codebase are
+   *not* all the same kind of role. There are two distinct namespaces:
+
+   - **Application roles** — the bare names (`ciso`, …) the IdP emits in the JWT
+     `roles` claim. Consumed by Cerbos (`derived_roles.yaml`) and the
+     application-layer depth/timeout guards (`api/utils/age_query_guard.py`),
+     both of which match the claim verbatim.
+   - **PostgreSQL database roles** — `cg_`-prefixed (`cg_ciso`, …), created in the
+     schema migrations and targeted by the RLS `GRANT`s and `to <role>` policies.
+     The application path connects as the pool user and enforces TLP via the
+     `app.max_tlp` session GUC (not `SET ROLE`), so these are a separate,
+     coarse-grained layer.
+
+   The original defect was that `api/utils/age_query_guard.py` keyed its
+   depth/timeout tables on the **database-role** spelling (`cg_*`) while being fed
+   the **application-role** claim, so every caller silently fell back to the
+   default limits (a real but fail-safe, more-restrictive bug — and its unit test
+   had locked in the wrong spelling). A-03 reconciles the application-role sites
+   (`age_query_guard.py`, the dormant `schema/seed/roles.sql` clearances, and the
+   application-role references in the docstrings, CLAUDE.md, and the architecture
+   docs) onto the bare names, with a regression test asserting a `ciso` caller
+   resolves its non-default depth/timeout. The `cg_`-prefixed **database roles**
+   in the migrations are intentionally left unchanged — they are a different
+   namespace, not a misspelling.
 
 ## Consequences
 
 - Identity attribution **functions** against a live Cerbos for the first time;
-  legitimate `cg_ciso` callers are allowed, all other roles denied, fail-closed
+  legitimate `ciso` callers are allowed, all other roles denied, fail-closed
   preserved on transport error / empty result / non-`EFFECT_ALLOW`.
 - The "Cerbos defined but unused" and "two client implementations" findings are
   closed by consolidation, not by deletion: the canonical client now has a

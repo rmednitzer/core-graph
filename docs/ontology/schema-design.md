@@ -461,7 +461,7 @@ assignments and group memberships are never deleted; they are invalidated via
   The `iam_tlp_floor` RLS policy enforces this at the PostgreSQL engine level,
   independent of the vertex `tlp_level` property.
 - **`same_as` edges** between Principal and ThreatActor require explicit
-  `cg_ciso` authorization via `tool_assert_identity_attribution`. These edges
+  `ciso` authorization via `tool_assert_identity_attribution`. These edges
   are never created automatically by the ingest pipeline.
 
 ---

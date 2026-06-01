@@ -54,11 +54,11 @@ attribution that can have legal, HR, and investigative consequences.
 
 ### Authorization procedure
 
-1. Only a principal with the `cg_ciso` Cerbos role can call
+1. Only a principal with the `ciso` Cerbos role can call
    `tool_assert_identity_attribution`.
 2. Cerbos is checked **before** any database operation. If Cerbos is
    unreachable, the action is denied (fail closed).
-3. The `cg_ai_agent` role is explicitly denied by the Cerbos policy
+3. The `ai_agent` role is explicitly denied by the Cerbos policy
    `policies/resource/identity_attribution.yaml`.
 4. The edge is created with `tlp_level = 4` (RED) and a `compartment`
    property set to the `investigation_id`.

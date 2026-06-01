@@ -104,7 +104,12 @@ jobs:
 
   integration-test:
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Runs on PRs as well as push-to-main. Previously main-only, which is why
+    # the PG18 postgres-volume breakage (and #48's collection error before it)
+    # stayed invisible until after merge — the full-stack path was never
+    # exercised pre-merge. The CI-time cost (building the app + AGE/pgvector
+    # images and standing up the stack) is the price of catching stack/ingest
+    # regressions in review rather than on main.
     permissions:
       contents: read
     env:

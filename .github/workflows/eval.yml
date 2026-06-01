@@ -1,14 +1,19 @@
 name: Eval
 
-# Eval runs against a populated DB. To keep PR CI fast and reliable we
-# only schedule the heavy run nightly + on-demand, and on main pushes.
-# The unit-test layer (tests/test_eval_runner.py, tests/test_embedding_drift.py)
-# covers the pure helpers on every PR via the standard test workflow.
+# Eval runs against a populated DB. It runs on PRs as well as main pushes (and
+# nightly + on-demand) so an eval-workflow or full-stack regression is caught in
+# review rather than only post-merge — the same blind spot that hid the PG18
+# postgres-volume break. Without an embedding backend (CG_EMBEDDING_PROVIDER=none
+# in CI) the retrieval/drift steps skip cleanly; the unit-test layer
+# (tests/test_eval_runner.py, tests/test_embedding_drift.py) covers the pure
+# helpers via the standard test workflow.
 on:
   schedule:
     - cron: '17 3 * * *'  # 03:17 UTC nightly
   workflow_dispatch:
   push:
+    branches: [main]
+  pull_request:
     branches: [main]
 
 permissions: {}

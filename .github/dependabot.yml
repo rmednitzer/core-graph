@@ -221,8 +221,9 @@ updates:
       # Scanner releases frequently tighten detection rules, which can
       # break CI (see Dockerfile.postgres + apache/age). They deserve
       # per-release review so the maintainer can triage any new findings
-      # intentionally. Several are currently pinned to @master/@main
-      # branches; Dependabot will still surface new tagged releases.
+      # intentionally. These are SHA-pinned to a release in security.yml
+      # (each carries a `# vX.Y.Z` comment); Dependabot bumps the SHA and the
+      # comment together, opening one reviewable PR per release.
 
       # --- Security advisories (batched) --------------------------------------
       actions-security:

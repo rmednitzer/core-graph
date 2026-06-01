@@ -24,8 +24,6 @@ import pytest
 
 GOLDEN = Path(__file__).resolve().parent / "golden" / "retrieval_v1.jsonl"
 
-pytestmark = pytest.mark.integration
-
 
 def _load_golden() -> list[dict]:
     rows = []
@@ -61,15 +59,24 @@ def _embeddings_available() -> bool:
         return False
 
 
-if not _stack_running():
-    pytest.skip("Stack not running; RLS correctness test skipped", allow_module_level=True)
-
-if not _embeddings_available():
-    pytest.skip(
-        "No embedding provider (CG_EMBEDDING_PROVIDER=none); retrieval-correctness "
+# Use skipif marks (collected-but-skipped) rather than
+# pytest.skip(allow_module_level=True): a module-level skip collects ZERO
+# items, so the eval workflow's `pytest tests/eval/test_rls_retrieval_correctness.py`
+# step exits 5 ("no tests collected") and fails. skipif keeps the items
+# collected, so a skip exits 0. (Under `pytest -m integration` the difference
+# is moot — other tests are collected — but the eval step runs this file alone.)
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.skipif(
+        not _stack_running(),
+        reason="Stack not running; RLS correctness test skipped",
+    ),
+    pytest.mark.skipif(
+        not _embeddings_available(),
+        reason="No embedding provider (CG_EMBEDDING_PROVIDER=none); retrieval-correctness "
         "needs vector search. RLS itself is covered by tests/rls/.",
-        allow_module_level=True,
-    )
+    ),
+]
 
 
 @pytest.fixture(scope="module")

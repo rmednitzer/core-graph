@@ -30,6 +30,7 @@
 - [ADR-0005 Memory-layer supersession detection](architecture/adr/ADR-0005-memory-supersession.md)
 - [ADR-0006 Code-base validation against authoritative sources (2026-05)](architecture/adr/ADR-0006-codebase-validation-2026-05.md)
 - [ADR-0007 Modernization audit against authoritative sources (2026-05)](architecture/adr/ADR-0007-modernization-audit-2026-05.md)
+- [ADR-0008 Authorization layering (RLS-primary, Cerbos write-path, SpiceDB deferred)](architecture/adr/ADR-0008-authorization-layering.md)
 
 ## Ontology
 

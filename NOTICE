@@ -1,0 +1,40 @@
+core-graph
+Copyright 2026 Roman Mednitzer and the core-graph contributors
+
+This product is licensed under the Apache License, Version 2.0 (the
+"License"); you may not use this product except in compliance with the
+License. A copy of the License is distributed in the LICENSE file and is
+available at:
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+-------------------------------------------------------------------------------
+Third-party components
+-------------------------------------------------------------------------------
+
+The source tree depends on third-party open-source software (declared in
+pyproject.toml) and the distributed container images bundle additional
+components. Each such component remains under its own license; this NOTICE
+does not relicense them.
+
+The core path -- PostgreSQL, Apache AGE, pgvector, NATS, Cerbos, SpiceDB,
+Sigstore cosign/Rekor, and the Python runtime dependencies -- is Apache-2.0,
+MIT, BSD, or the PostgreSQL Licence. Several of these are themselves Apache-2.0
+works that ship their own NOTICE text (notably Apache AGE); those notices are
+carried by the upstream artifacts the images are built from.
+
+A machine-readable inventory of every bundled component and its license is
+produced as a CycloneDX SBOM on every CI run and every release:
+
+  * source dependencies  -> sbom.cyclonedx.json        (.github/workflows/security.yml)
+  * container image       -> sbom-container.cyclonedx.json (.github/workflows/security.yml,
+                                                            release.yml)
+
+Consult those SBOM artifacts for the authoritative, version-pinned list of
+third-party software and licenses in any given build.
+
+Satellite systems integrated over the network (Wazuh, OpenCTI, MISP,
+OpenSearch, MinIO, Netbox, Prometheus, Keycloak) carry their own licences
+(including GPL and AGPL) and operate as external services. core-graph
+communicates with them through the ingest adapter pattern; their code is not
+embedded in this redistributable source tree or in the core container images.

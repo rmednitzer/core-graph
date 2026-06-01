@@ -152,3 +152,36 @@ jobs:
           check-jsonschema \
             --schemafile "https://raw.githubusercontent.com/zarf-dev/zarf/main/zarf.schema.json" \
             zarf.yaml
+
+  # Lint the workflow files themselves. This is the only job that validates
+  # release.yml (which otherwise runs solely on `release: published`), and it
+  # catches invalid action refs, expression/syntax errors, and — via shellcheck
+  # (preinstalled on ubuntu-latest) — bugs in `run:` scripts, before they reach
+  # a workflow that is hard to exercise in CI.
+  actionlint:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install actionlint
+        env:
+          # Pinned + checksum-verified (SLSA: consume only checksum-pinned
+          # inputs). Bump both together; Dependabot does not track this shell
+          # download.
+          ACTIONLINT_VERSION: v1.7.12
+          ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+        run: |
+          curl -fsSL -o /tmp/actionlint.tar.gz \
+            "https://github.com/rhysd/actionlint/releases/download/${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION#v}_linux_amd64.tar.gz"
+          echo "${ACTIONLINT_SHA256}  /tmp/actionlint.tar.gz" | sha256sum -c -
+          tar xzf /tmp/actionlint.tar.gz actionlint
+          sudo mv actionlint /usr/local/bin/
+      - name: Lint workflows
+        # SC2012 (prefer find over ls) is excluded: the only `ls` uses target
+        # schema/migrations/*.sql + schema/seed/*.sql, whose names are
+        # NNN_<slug>.sql by the migration-numbering rule, so the
+        # non-alphanumeric-filename concern does not apply.
+        env:
+          SHELLCHECK_OPTS: --exclude=SC2012
+        run: actionlint -color

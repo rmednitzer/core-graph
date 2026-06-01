@@ -42,7 +42,7 @@ jobs:
         run: docker compose -f deploy/docker/docker-compose.yml up -d
       - name: Wait for PostgreSQL
         run: |
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if docker compose -f deploy/docker/docker-compose.yml exec -T postgres pg_isready -U cg_admin -d core_graph 2>/dev/null; then
               break
             fi

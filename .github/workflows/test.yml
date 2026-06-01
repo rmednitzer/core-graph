@@ -137,21 +137,21 @@ jobs:
       - name: Wait for health checks
         run: |
           echo "Waiting for PostgreSQL..."
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if docker compose -f deploy/docker/docker-compose.yml exec -T postgres pg_isready -U cg_admin -d core_graph 2>/dev/null; then
               break
             fi
             sleep 2
           done
           echo "Waiting for NATS..."
-          for i in $(seq 1 15); do
+          for _ in $(seq 1 15); do
             if curl -sf http://localhost:8222/healthz >/dev/null 2>&1; then
               break
             fi
             sleep 2
           done
           echo "Waiting for Valkey..."
-          for i in $(seq 1 15); do
+          for _ in $(seq 1 15); do
             if docker compose -f deploy/docker/docker-compose.yml exec -T valkey valkey-cli ping 2>/dev/null | grep -q PONG; then
               break
             fi

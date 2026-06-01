@@ -17,7 +17,7 @@ import logging
 import uuid
 from typing import Any
 
-from api.config import CERBOS_ENDPOINT, DEFAULT_TLP
+from api.config import DEFAULT_TLP
 from api.db import get_connection
 from api.utils.edge_tlp import sync_edges_tlp
 
@@ -28,46 +28,25 @@ async def _check_cerbos_authorization(
     caller_identity: dict[str, Any],
     resource_id: str,
 ) -> bool:
-    """Check Cerbos authorization for identity attribution.
+    """Check Cerbos authorization for the identity-attribution ``assert`` action.
 
-    Fail closed: deny if Cerbos is unreachable.
+    Delegates to the shared :func:`api.authz.cerbos.check_action` client so the
+    Cerbos request/response wire format lives in exactly one place. Fail closed:
+    deny if Cerbos is unreachable or returns anything other than ``EFFECT_ALLOW``.
     """
-    import httpx
+    from api.authz import cerbos
 
     principal = {
         "id": caller_identity.get("actor", "unknown"),
         "roles": caller_identity.get("roles", []),
         "attr": caller_identity.get("attr", {}),
     }
-    resource = {
-        "kind": "identity_attribution",
-        "id": resource_id,
-        "attr": {},
-    }
-    try:
-        async with httpx.AsyncClient(timeout=5) as client:
-            resp = await client.post(
-                f"{CERBOS_ENDPOINT}/api/check/resources",
-                json={
-                    "principal": principal,
-                    "resources": [{"resource": resource, "actions": ["assert"]}],
-                },
-            )
-            resp.raise_for_status()
-            result = resp.json()
-
-            results = result.get("results", [])
-            if not results:
-                logger.warning("Empty Cerbos response for identity_attribution")
-                return False
-            actions = results[0].get("actions", {})
-            return actions.get("assert", {}).get("effect") == "EFFECT_ALLOW"
-    except Exception:
-        logger.error(
-            "Cerbos unreachable, denying identity_attribution (fail closed)",
-            exc_info=True,
-        )
-        return False
+    return await cerbos.check_action(
+        principal,
+        resource_kind="identity_attribution",
+        resource_id=resource_id,
+        action="assert",
+    )
 
 
 def _widen_compartments(

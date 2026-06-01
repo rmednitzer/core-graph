@@ -212,6 +212,9 @@ tests:
         actions:
           read: EFFECT_DENY
 
+# Principal roles use the bare role names the OIDC IdP emits, matched verbatim
+# by the derived-role parentRoles in policies/derived_roles.yaml. Do not add a
+# cg_ prefix here (see ADR-0008 decision 5).
 principals:
   ciso_user:
     id: ciso_user

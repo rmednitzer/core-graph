@@ -35,7 +35,8 @@ The target architecture is a three-layer model:
 3. **PostgreSQL RLS** -- row-level security filtering at the database engine
    level, unforgeable from the application layer
 
-Current enforcement (codified by ADR-0006):
+Current enforcement (RLS-primary; the layering decision is recorded in
+ADR-0008, building on ADR-0006):
 
 - **Reads** (REST `/query`, `/search`, `/entities`, `/stix`; MCP read tools;
   TAXII collection endpoints): only Layer 3 (PostgreSQL RLS) is enforced at
@@ -46,11 +47,15 @@ Current enforcement (codified by ADR-0006):
 - **Writes** to the `Principal--same_as--ThreatActor` edge (identity
   attribution): Layer 1 (Cerbos) is enforced -- the `cg_ciso` role check
   via `policies/resource/identity_attribution.yaml` runs before any DB
-  operation, and the operation fails closed if Cerbos is unreachable.
-  Layer 3 (RLS) also applies.
+  operation, and the operation fails closed if Cerbos is unreachable. The
+  check uses the single canonical Cerbos client (`api/authz/cerbos.py`,
+  `check_action`); its `/api/check/resources` request/response wire format is
+  pinned by `tests/test_cerbos_client.py`. Layer 3 (RLS) also applies.
 - **Layer 2 (SpiceDB)**: schema (`api/authz/schema.zed`) and client
-  (`api/authz/spicedb.py`) are defined but not yet invoked from any request
-  path. Status: pending integration (see ADR-0006).
+  (`api/authz/spicedb.py`) are defined but deliberately **not** in any request
+  path. They are retained as scaffolding for relationship-based access
+  (per-investigation membership, cross-team case sharing) and are wired in only
+  when that need is concrete. Decision and activation criteria: ADR-0008.
 
 Even if application code has a bug, the database engine will not return rows
 the session is not authorised to see -- RLS is the unforgeable floor across

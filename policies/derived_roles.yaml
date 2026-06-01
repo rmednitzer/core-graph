@@ -2,6 +2,16 @@
 apiVersion: api.cerbos.dev/v1
 derivedRoles:
   name: core_graph_roles
+  # `parentRoles` are matched case-sensitively against the principal's `roles`
+  # exactly as the OIDC IdP emits them (Cerbos performs no normalisation). The
+  # IdP emits the *bare* role names below (`ciso`, `soc_analyst`, ...), so these
+  # are intentionally unprefixed -- do NOT add a `cg_` prefix here.
+  #
+  # NOTE: the rest of the codebase (schema/seed/roles.sql, the RLS policies,
+  # api/utils/age_query_guard.py, the docstrings, CLAUDE.md) currently uses
+  # `cg_`-prefixed names for the same hierarchy. That divergence is a known,
+  # tracked inconsistency to be reconciled toward these bare names in a separate
+  # change; see ADR-0008 (decision 5) and audit/2026-06-01-engagement.md (A-03).
   definitions:
     - name: ciso
       parentRoles: [ciso]

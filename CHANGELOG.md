@@ -8,6 +8,65 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### Phase 8 — authorization & resilience audit (2026-06)
+
+* New ADR
+  `docs/architecture/adr/ADR-0008-authorization-layering.md` records the
+  authorization-layering decision the 2026-05-27 assurance engagement
+  recommended but had not yet been written: **RLS is the primary, unforgeable
+  boundary; Cerbos (ABAC) gates the high-assurance identity-attribution write;
+  SpiceDB (ReBAC) is retained as scaffolding with explicit activation
+  criteria.** Resolves the long-open S-01 (Cerbos unused), S-02 (SpiceDB
+  unused), and M-01 (two Cerbos client implementations) findings.
+* **fix(authz): corrected the Cerbos `/api/check/resources` wire format and
+  consolidated onto one client.** The audit found both Cerbos clients were
+  wire-incorrect against the documented Cerbos API (verified against the v0.53
+  reference), in different ways: the canonical `api/authz/cerbos.py` posted the
+  singular `resource` + top-level `actions` shape to the plural endpoint, while
+  the *only wired* call — the CISO-gated identity-attribution path — read the
+  per-action effect as `actions[action].effect`. Cerbos returns each effect as
+  a **string** (`"EFFECT_ALLOW"`/`"EFFECT_DENY"`), so `.get("effect")` raised
+  `AttributeError` and fail-closed **every** decision: identity attribution
+  denied all requests against a live Cerbos and the breakage was invisible (no
+  live-Cerbos test exercised the parse). `api/authz/cerbos.py` now exposes a
+  single correct `check_action()` (batch request, string-effect parse,
+  fail-closed); `check_resource()` delegates to it; and
+  `api/mcp/tools/identity_attribution.py` drops its bespoke inline client and
+  delegates too — giving the canonical client its first real caller. Pinned by
+  the new `tests/test_cerbos_client.py` (9 cases: allow/deny, the
+  string-not-object regression, the batch request shape, empty-result and
+  transport-error fail-closed, and the `CallerIdentity` principal mapping).
+* **Cerbos role vocabulary clarified (a PR-review finding).** Codex flagged a
+  potential role mismatch on the Cerbos gate. Confirmed with the maintainer that
+  the OIDC IdP emits **bare** role names (`ciso`, …), so `derived_roles.yaml` and
+  the `tests/auth` fixtures are correct as-is (bare `parentRoles`) — with the
+  wire-format fix above, a real `ciso` caller is now correctly allowed. A
+  divergence is recorded for follow-up: `schema/seed/roles.sql`, the RLS
+  policies, `api/utils/age_query_guard.py`, the docstrings, and CLAUDE.md use
+  `cg_`-prefixed names for the same hierarchy, so `age_query_guard`'s
+  role→depth/timeout lookups silently fall back to defaults under the bare
+  vocabulary. Reconciling those `cg_` sites to the bare names touches
+  seed/reference data and CLAUDE.md and is left to a dedicated PR (ADR-0008
+  decision 5; A-03 in the engagement record).
+* **fix(dlq): reconnect the DLQ processor's PostgreSQL connection on
+  `OperationalError` (R-02).** The processor holds one long-lived connection;
+  if it dropped (server restart, failover, idle timeout) every subsequent
+  delivery failed against the dead handle and the queue silently stopped
+  draining. `ingest/dlq/processor.py` now reconnects on
+  `psycopg.OperationalError` (and re-checks `conn.closed` before each message),
+  NAK-ing the in-flight delivery so JetStream redelivers it against the fresh
+  connection; non-connection errors still roll back and NAK without a spurious
+  reconnect. Covered by `tests/test_dlq_reconnect.py`.
+* **NOTICE file** added (Apache-2.0 attribution, P1-07): states the project
+  copyright and ties the authoritative third-party component/license inventory
+  to the CycloneDX SBOMs already produced by `security.yml` / `release.yml`,
+  and records the satellite-systems-are-external-services posture.
+* `SECURITY.md` authorization section updated to match the corrected runtime
+  (single Cerbos client; SpiceDB deferral now a recorded decision, not "pending
+  integration") and to reference ADR-0008.
+* Engagement record `audit/2026-06-01-engagement.md` documents the full gap
+  inventory, dispositions, and the carried-forward roadmap.
+
 ### Phase 7 — modernization audit (2026-05)
 
 * New ADR

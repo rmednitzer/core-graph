@@ -36,6 +36,7 @@ State at engagement start (HEAD `57fc38a`):
 |----|-----|--------|-------------|
 | A-01 | **Cerbos `/api/check/resources` wire format is wrong in both clients** — identity attribution fail-closes every decision against a live Cerbos | this audit | **fixed + tested** (see § 3) |
 | A-02 | Authorization-layering decision (S-01/S-02/M-01) never recorded in an ADR | 2026-05-27 audit | **ADR-0008** written |
+| A-03 | Cerbos `parentRoles` use bare `ciso`; the rest of the system (seed, RLS, age_query_guard, docs, JWT) uses `cg_`-prefixed — a `cg_ciso` caller activates no derived role | PR #58 review (Codex) | **fixed + validated** — policy + fixtures aligned to `cg_` (§ 3) |
 | M-01 | Two Cerbos client implementations | 2026-05-27 audit | **fixed** — consolidated onto `api/authz/cerbos.py` |
 | S-01 | `api/authz/cerbos.py:check_resource` has 0 callers | ADR-0006 | **resolved** — identity attribution now delegates to it |
 | S-02 | SpiceDB `check_permission` has 0 callers | ADR-0006 | **decided** — retained as scaffolding with activation criteria (ADR-0008) |
@@ -91,6 +92,19 @@ A-01 (the bug), M-01 (duplication), and S-01 (`check_resource` now has a
 caller) together. `tests/test_cerbos_client.py` (9 cases) pins the shape and
 would fail on the pre-fix code.
 
+**Follow-on (A-03), surfaced by the PR review.** The parse fix is *necessary*
+but not *sufficient*: the Cerbos `derived_roles.yaml` derived its roles from
+bare `parentRoles: [ciso]`, while the seeded role hierarchy
+(`schema/seed/roles.sql`), the RLS policies, `age_query_guard.py`, the docs, and
+therefore the OIDC JWT claim all use `cg_`-prefixed names. The Cerbos docs
+confirm `parentRoles` is matched **verbatim and case-sensitively** with no
+normalisation, so a real `cg_ciso` caller would still have been denied. Per the
+maintainer's "best solution from official docs" steer, the policy and the
+`tests/auth` fixtures were aligned to the `cg_`-prefixed vocabulary (the
+derived-role *names* stay short); a code-level normaliser was explicitly *not*
+added because it contradicts both Cerbos's exact-match model and the rest of the
+system. The `cerbos compile --tests` CI gate validates the policy/fixture pair.
+
 ---
 
 ## 4. Validation performed
@@ -103,13 +117,17 @@ psycopg[binary], nats-py, prometheus-client, psycopg-pool).
   17 passed (no regression). [V]
 - `ruff check` + `ruff format --check` clean on every changed file. [V]
 - `python3 scripts/validate.py` clean. [V]
+- `yamllint` (CI config) clean on `policies/`; `parentRoles` ↔ `tests/auth`
+  fixture `roles` confirmed identical on the `cg_` vocabulary. [V]
 - Touched modules import cleanly (`api.authz.cerbos`, `ingest.dlq.processor`,
   `api.mcp.tools.identity_attribution`). [V]
 
 **Not validated here (no live stack):** end-to-end identity attribution against
-a real Cerbos, and the DLQ reconnect against a real PostgreSQL restart. The
-unit tests exercise the exact wire format / reconnect control-flow with fakes;
-the full matrix runs in CI on 3.13. [I]
+a real Cerbos, the DLQ reconnect against a real PostgreSQL restart, and
+`cerbos compile --tests=tests/auth policies/` (the Cerbos binary download was
+blocked in the sandbox; the `policy-test` CI job runs it). The unit tests
+exercise the exact wire format / reconnect control-flow with fakes; the full
+matrix runs in CI on 3.13. [I]
 
 ---
 

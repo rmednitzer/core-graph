@@ -212,41 +212,44 @@ tests:
         actions:
           read: EFFECT_DENY
 
+# Principal roles use the cg_-prefixed vocabulary the OIDC IdP emits (the
+# seeded seven-role hierarchy in schema/seed/roles.sql), matched verbatim by
+# the derived-role parentRoles in policies/derived_roles.yaml.
 principals:
   ciso_user:
     id: ciso_user
-    roles: [ciso]
+    roles: [cg_ciso]
     attr: {}
 
   soc_user:
     id: soc_user
-    roles: [soc_analyst]
+    roles: [cg_soc_analyst]
     attr:
       case_id: case-001
 
   compliance_user:
     id: compliance_user
-    roles: [compliance_officer]
+    roles: [cg_compliance_officer]
     attr: {}
 
   it_ops_user:
     id: it_ops_user
-    roles: [it_operations]
+    roles: [cg_it_operations]
     attr: {}
 
   auditor_user:
     id: auditor_user
-    roles: [external_auditor]
+    roles: [cg_external_auditor]
     attr: {}
 
   ai_user:
     id: ai_user
-    roles: [ai_agent]
+    roles: [cg_ai_agent]
     attr: {}
 
   dpo_user:
     id: dpo_user
-    roles: [dpo]
+    roles: [cg_dpo]
     attr: {}
 
 resources:

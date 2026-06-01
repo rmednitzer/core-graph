@@ -85,6 +85,22 @@ correct Cerbos client used only where ABAC adds value over RLS.
    from a graph of grants rather than a single TLP/compartment label. Until that
    need is concrete, no request path calls SpiceDB.
 
+5. **One role vocabulary: the `cg_`-prefixed seven-role hierarchy.** The
+   principal `roles` that reach Cerbos must match the IdP-emitted strings
+   *exactly* — Cerbos does no normalisation, and matching is case-sensitive (per
+   the Cerbos derived-roles docs). The canonical names are the `cg_`-prefixed
+   roles seeded in `schema/seed/roles.sql` and used by the RLS policies,
+   `api/utils/age_query_guard.py`, and the documentation. The Cerbos
+   `derived_roles.yaml` `parentRoles` (and the `tests/auth` fixtures) are aligned
+   to those `cg_` names so a real `cg_ciso` caller activates the `ciso` derived
+   role; previously they used bare names, which would have denied every
+   production caller even after the wire-format fix. The derived-role *names*
+   (referenced by `derivedRoles:` in the resource policies) stay as the short
+   internal policy vocabulary — only `parentRoles` bind to the IdP strings. No
+   code-level role normaliser is added: that would contradict both Cerbos's
+   exact-match model and the rest of the system, which consumes `cg_` roles
+   directly.
+
 ## Consequences
 
 - Identity attribution **functions** against a live Cerbos for the first time;

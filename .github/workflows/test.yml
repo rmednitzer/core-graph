@@ -38,6 +38,8 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f tests/rls/test_tlp_enforcement.sql
       - name: Run edge-TLP RLS test
         run: psql -v ON_ERROR_STOP=1 -f tests/rls/test_edge_tlp.sql
+      - name: Run IAM TLP-floor RLS test
+        run: psql -v ON_ERROR_STOP=1 -f tests/rls/test_iam_tlp_floor.sql
       - name: Run write-path RLS test
         run: psql -v ON_ERROR_STOP=1 -f tests/rls/test_write_path.sql
 

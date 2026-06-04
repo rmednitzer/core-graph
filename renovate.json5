@@ -26,8 +26,9 @@
       groupName: 'python dependencies',
     },
     {
-      description: 'Group container image (Dockerfile/Compose) and Helm chart updates.',
+      description: 'Group non-major container image (Dockerfile/Compose) and Helm chart updates.',
       matchManagers: ['dockerfile', 'docker-compose', 'helmv3', 'helm-values', 'helm-requirements'],
+      matchUpdateTypes: ['minor', 'patch', 'digest'],
       groupName: 'container images and charts',
     },
   ],

@@ -110,7 +110,7 @@ nats:
   enabled: true
   image:
     repository: nats
-    tag: "2.10"
+    tag: "2.14"
   storageClass: ""
   jetstream:
     maxMem: 256MB

@@ -7,7 +7,7 @@ global:
   imagePullSecrets: []
   nodeSelector: {}
   tolerations: []
-  waitForImage: "busybox:1.37"  # Override for air-gapped registries
+  waitForImage: "busybox:1.38"  # Override for air-gapped registries
 
 # ---------------------------------------------------------------------------
 # API — FastAPI REST server (port 8000)

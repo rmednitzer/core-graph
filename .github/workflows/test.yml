@@ -56,7 +56,7 @@ jobs:
           # per IP, shared across GitHub-hosted runners); an exhausted limit
           # returns an error body, leaving CERBOS_VERSION empty and breaking the
           # install non-deterministically. Pinning also keeps policy-compilation
-          # behaviour reproducible. Bump deliberately (Dependabot does not track
+          # behaviour reproducible. Bump deliberately (Renovate does not track
           # this shell download).
           CERBOS_VERSION: v0.53.0
         run: |

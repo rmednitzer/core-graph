@@ -141,7 +141,7 @@ valkey:
   enabled: true
   image:
     repository: valkey/valkey
-    tag: "9"
+    tag: "9@sha256:4963247afc4cd33c7d3b2d2816b9f7f8eeebab148d29056c2ca4d7cbc966f2d9"
   storage: 1Gi
   storageClass: ""
   resources:

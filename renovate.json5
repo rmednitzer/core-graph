@@ -37,5 +37,11 @@
       matchPackageNames: ['rmednitzer/core-graph', 'rmednitzer/core-graph-postgres'],
       enabled: false,
     },
+    {
+      description: 'rfc3161ng is unmaintained upstream (last release 2020) but load-bearing for RFC 3161 Merkle-root timestamping, with no maintained drop-in replacement. Raise its abandonment threshold so Renovate stops flagging it.',
+      matchDatasources: ['pypi'],
+      matchPackageNames: ['rfc3161ng'],
+      abandonmentThreshold: '50 years',
+    },
   ],
 }

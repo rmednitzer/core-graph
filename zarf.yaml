@@ -41,11 +41,11 @@ components:
       # PostgreSQL 18 (with AGE, pgvector, pgaudit, pg_cron)
       - ghcr.io/rmednitzer/core-graph-postgres:18-extensions
       # NATS JetStream
-      - docker.io/library/nats:2.10
+      - docker.io/library/nats:2.14
       # Valkey (Redis-compatible cache)
-      - docker.io/valkey/valkey:8
+      - docker.io/valkey/valkey:9
       # Init container (waitFor dependency checks)
-      - docker.io/library/busybox:1.37
+      - docker.io/library/busybox:1.38
 
   # ---------------------------------------------------------------------------
   # Optional: Production overrides

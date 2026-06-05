@@ -7,7 +7,7 @@ global:
   imagePullSecrets: []
   nodeSelector: {}
   tolerations: []
-  waitForImage: "busybox:1.37"  # Override for air-gapped registries
+  waitForImage: "busybox:1.38@sha256:fd8d9aa63ba2f0982b5304e1ee8d3b90a210bc1ffb5314d980eb6962f1a9715d"  # Override for air-gapped registries
 
 # ---------------------------------------------------------------------------
 # API — FastAPI REST server (port 8000)
@@ -110,7 +110,7 @@ nats:
   enabled: true
   image:
     repository: nats
-    tag: "2.10"
+    tag: "2.14@sha256:a927133972a521a5b75cf8b85a336faeba2f13c000883122fbea1ffb45117f00"
   storageClass: ""
   jetstream:
     maxMem: 256MB
@@ -141,7 +141,7 @@ valkey:
   enabled: true
   image:
     repository: valkey/valkey
-    tag: "8"
+    tag: "9"
   storage: 1Gi
   storageClass: ""
   resources:

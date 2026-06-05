@@ -62,7 +62,7 @@ services:
       - core-graph
 
   nats:
-    image: nats:latest
+    image: nats:latest@sha256:a927133972a521a5b75cf8b85a336faeba2f13c000883122fbea1ffb45117f00
     container_name: cg-nats
     ports:
       - "4222:4222"
@@ -80,7 +80,7 @@ services:
       - core-graph
 
   valkey:
-    image: valkey/valkey:latest
+    image: valkey/valkey:latest@sha256:4963247afc4cd33c7d3b2d2816b9f7f8eeebab148d29056c2ca4d7cbc966f2d9
     container_name: cg-valkey
     ports:
       - "6379:6379"
@@ -95,7 +95,7 @@ services:
       - core-graph
 
   spicedb:
-    image: authzed/spicedb:latest
+    image: authzed/spicedb:latest@sha256:f2ba6c78b6c5bfc465d975ef5c0b8f7f4dce57049c3c02fd1f3155be819895f7
     container_name: cg-spicedb
     command: serve --grpc-preshared-key=cg_dev_only --datastore-engine=memory
     ports:
@@ -104,7 +104,7 @@ services:
       - core-graph
 
   cerbos:
-    image: ghcr.io/cerbos/cerbos:latest
+    image: ghcr.io/cerbos/cerbos:latest@sha256:c3fe64202e3793b7e9c41c5cbfcf390a51fb28ebce0a7d70754155e70db839c4
     container_name: cg-cerbos
     ports:
       - "3593:3593"
@@ -115,7 +115,7 @@ services:
       - core-graph
 
   minio:
-    image: minio/minio:latest
+    image: minio/minio:latest@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
     container_name: cg-minio
     command: server /data --console-address ":9001"
     environment:
@@ -135,7 +135,7 @@ services:
       - core-graph
 
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:latest@sha256:69f5241418838263316593f7274a304b095c40bcf22e57272865da91bd60a8ac
     container_name: cg-prometheus
     ports:
       - "9090:9090"
@@ -145,7 +145,7 @@ services:
       - core-graph
 
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:latest@sha256:5dad0df181cb644a14e13617b913b261a54f7d4fd4510721dba420929f35bea2
     container_name: cg-grafana
     ports:
       - "3000:3000"

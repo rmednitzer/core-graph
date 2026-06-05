@@ -7,7 +7,7 @@
 # The minor-version pin (3.13) gives a stable Python ABI; OS-level
 # patches come from `apt-get upgrade` in the runtime stage. Update the
 # minor version deliberately and verify psycopg and AGE on upgrade.
-FROM python:3.13.13-slim-bookworm AS build
+FROM python:3.14.5-slim-bookworm@sha256:a9bee15510a364124aa24692899d269835683b883de42f7ebec8c293cf679ccb AS build
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -24,7 +24,7 @@ COPY evidence/ evidence/
 COPY scripts/ scripts/
 
 # ---------- Stage 2: runtime ----------
-FROM python:3.13.13-slim-bookworm
+FROM python:3.14.5-slim-bookworm@sha256:a9bee15510a364124aa24692899d269835683b883de42f7ebec8c293cf679ccb
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -38,7 +38,7 @@ RUN groupadd -g 10001 cg && useradd -u 10001 -g cg -s /usr/sbin/nologin cg
 
 WORKDIR /app
 
-COPY --from=build /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+COPY --from=build /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
 COPY --from=build /usr/local/bin /usr/local/bin
 COPY --from=build /app/api api/
 COPY --from=build /app/ingest ingest/
@@ -48,11 +48,11 @@ COPY --from=build /app/scripts scripts/
 # Remove pip/setuptools/wheel AFTER copying from the build stage — they
 # are brought in by the COPY above and are not needed at runtime. Keeps
 # them out of the image so vulnerability scanners don't flag them.
-RUN rm -rf /usr/local/lib/python3.13/site-packages/pip* \
-           /usr/local/lib/python3.13/site-packages/setuptools* \
-           /usr/local/lib/python3.13/site-packages/wheel* \
-           /usr/local/lib/python3.13/site-packages/_distutils_hack* \
-           /usr/local/lib/python3.13/site-packages/pkg_resources* \
+RUN rm -rf /usr/local/lib/python3.14/site-packages/pip* \
+           /usr/local/lib/python3.14/site-packages/setuptools* \
+           /usr/local/lib/python3.14/site-packages/wheel* \
+           /usr/local/lib/python3.14/site-packages/_distutils_hack* \
+           /usr/local/lib/python3.14/site-packages/pkg_resources* \
            /usr/local/bin/pip* /usr/local/bin/wheel*
 
 USER cg

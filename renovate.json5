@@ -31,5 +31,11 @@
       matchUpdateTypes: ['minor', 'patch', 'digest'],
       groupName: 'container images and charts',
     },
+    {
+      description: 'Self-built images have no upstream registry to query; skip Renovate so it stops emitting no-result lookup warnings for deploy/k8s/helm/values.yaml.',
+      matchDatasources: ['docker'],
+      matchPackageNames: ['rmednitzer/core-graph', 'rmednitzer/core-graph-postgres'],
+      enabled: false,
+    },
   ],
 }

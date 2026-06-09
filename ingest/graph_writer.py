@@ -244,6 +244,121 @@ MERGE_TEMPLATES: dict[str, str] = {
             return id(v)
         $$, %s) as (id agtype)
     """,
+    # IntrusionSet carries its STIX activity window as stix_first_seen /
+    # stix_last_seen, mirroring Campaign, so it never clobbers the graph-wide
+    # first_seen/last_seen ingest bookkeeping.
+    "IntrusionSet": """
+        select * from ag_catalog.cypher('core_graph', $$
+            merge (v:IntrusionSet {stix_id: $stix_id})
+            set v.stix_type = $stix_type,
+                v.name = coalesce($name, v.name),
+                v.description = coalesce($description, v.description),
+                v.aliases = coalesce($aliases, v.aliases),
+                v.goals = coalesce($goals, v.goals),
+                v.resource_level = coalesce($resource_level, v.resource_level),
+                v.primary_motivation = coalesce($primary_motivation, v.primary_motivation),
+                v.secondary_motivations =
+                    coalesce($secondary_motivations, v.secondary_motivations),
+                v.stix_first_seen = coalesce($stix_first_seen, v.stix_first_seen),
+                v.stix_last_seen = coalesce($stix_last_seen, v.stix_last_seen),
+                v.created = coalesce(v.created, $created),
+                v.t_recorded = case
+                    when v.t_recorded is null then $now
+                    when $modified is not null
+                         and $modified > coalesce(v.modified, '')
+                    then $now else v.t_recorded end,
+                v.modified = coalesce($modified, v.modified),
+                v.confidence = coalesce($confidence, v.confidence),
+                v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
+                                   then $tlp else coalesce(v.tlp_level, 0) end,
+                v.first_seen = coalesce(v.first_seen, $now),
+                v.last_seen = $now
+            return id(v)
+        $$, %s) as (id agtype)
+    """,
+    # STIX identity (victim orgs, report authors, sectors). contact_information
+    # is deliberately not stored: it is the PII-bearing field (emails/phones of
+    # individuals) and the platform forbids un-pseudonymised PII in the graph.
+    "Identity": """
+        select * from ag_catalog.cypher('core_graph', $$
+            merge (v:Identity {stix_id: $stix_id})
+            set v.stix_type = $stix_type,
+                v.name = coalesce($name, v.name),
+                v.description = coalesce($description, v.description),
+                v.identity_class = coalesce($identity_class, v.identity_class),
+                v.sectors = coalesce($sectors, v.sectors),
+                v.roles = coalesce($roles, v.roles),
+                v.created = coalesce(v.created, $created),
+                v.t_recorded = case
+                    when v.t_recorded is null then $now
+                    when $modified is not null
+                         and $modified > coalesce(v.modified, '')
+                    then $now else v.t_recorded end,
+                v.modified = coalesce($modified, v.modified),
+                v.confidence = coalesce($confidence, v.confidence),
+                v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
+                                   then $tlp else coalesce(v.tlp_level, 0) end,
+                v.first_seen = coalesce(v.first_seen, $now),
+                v.last_seen = $now
+            return id(v)
+        $$, %s) as (id agtype)
+    """,
+    # street_address / postal_code are deliberately not stored (PII
+    # minimisation); region/country/city plus coordinates carry the
+    # analytic value.
+    "Location": """
+        select * from ag_catalog.cypher('core_graph', $$
+            merge (v:Location {stix_id: $stix_id})
+            set v.stix_type = $stix_type,
+                v.name = coalesce($name, v.name),
+                v.description = coalesce($description, v.description),
+                v.region = coalesce($region, v.region),
+                v.country = coalesce($country, v.country),
+                v.administrative_area =
+                    coalesce($administrative_area, v.administrative_area),
+                v.city = coalesce($city, v.city),
+                v.latitude = coalesce($latitude, v.latitude),
+                v.longitude = coalesce($longitude, v.longitude),
+                v.precision = coalesce($precision, v.precision),
+                v.created = coalesce(v.created, $created),
+                v.t_recorded = case
+                    when v.t_recorded is null then $now
+                    when $modified is not null
+                         and $modified > coalesce(v.modified, '')
+                    then $now else v.t_recorded end,
+                v.modified = coalesce($modified, v.modified),
+                v.confidence = coalesce($confidence, v.confidence),
+                v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
+                                   then $tlp else coalesce(v.tlp_level, 0) end,
+                v.first_seen = coalesce(v.first_seen, $now),
+                v.last_seen = $now
+            return id(v)
+        $$, %s) as (id agtype)
+    """,
+    "Report": """
+        select * from ag_catalog.cypher('core_graph', $$
+            merge (v:Report {stix_id: $stix_id})
+            set v.stix_type = $stix_type,
+                v.name = coalesce($name, v.name),
+                v.description = coalesce($description, v.description),
+                v.report_types = coalesce($report_types, v.report_types),
+                v.published = coalesce($published, v.published),
+                v.object_refs = coalesce($object_refs, v.object_refs),
+                v.created = coalesce(v.created, $created),
+                v.t_recorded = case
+                    when v.t_recorded is null then $now
+                    when $modified is not null
+                         and $modified > coalesce(v.modified, '')
+                    then $now else v.t_recorded end,
+                v.modified = coalesce($modified, v.modified),
+                v.confidence = coalesce($confidence, v.confidence),
+                v.tlp_level = case when $tlp > coalesce(v.tlp_level, 0)
+                                   then $tlp else coalesce(v.tlp_level, 0) end,
+                v.first_seen = coalesce(v.first_seen, $now),
+                v.last_seen = $now
+            return id(v)
+        $$, %s) as (id agtype)
+    """,
     # -- Layer 7: Infrastructure & Assets ------------------------------------
     "Host": """
         select * from ag_catalog.cypher('core_graph', $$

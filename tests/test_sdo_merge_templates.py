@@ -11,7 +11,18 @@ import pytest
 
 from ingest.graph_writer import MERGE_TEMPLATES
 
-_SDO_LABELS = ("ThreatActor", "Malware", "Campaign", "AttackPattern", "Vulnerability", "Tool")
+_SDO_LABELS = (
+    "ThreatActor",
+    "Malware",
+    "Campaign",
+    "AttackPattern",
+    "Vulnerability",
+    "Tool",
+    "IntrusionSet",
+    "Identity",
+    "Location",
+    "Report",
+)
 
 
 @pytest.mark.parametrize("label", _SDO_LABELS)

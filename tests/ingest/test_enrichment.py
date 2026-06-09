@@ -227,9 +227,87 @@ def test_raw_stix_sdo_without_id_is_dropped():
 
 
 def test_raw_stix_unsupported_sdo_is_deferred():
-    # intrusion-set has no writer template; defer rather than emit un-writable.
-    obj = {"type": "intrusion-set", "id": "intrusion-set--9", "name": "Y"}
+    # note has no writer template; defer rather than emit un-writable.
+    obj = {"type": "note", "id": "note--9", "content": "Y"}
     assert enrichment.entities_from_stix_object(obj, 1) == []
+
+
+def test_raw_stix_intrusion_set_is_emitted_with_renamed_activity_window():
+    # intrusion-set gained a writer template (ADR-0007 roadmap #1 completion);
+    # its STIX first_seen/last_seen must map to stix_first_seen/stix_last_seen
+    # so the writer's graph-wide ingest bookkeeping is never clobbered.
+    obj = {
+        "type": "intrusion-set",
+        "id": "intrusion-set--9",
+        "name": "APT-Quartz",
+        "aliases": ["Quartz Group"],
+        "resource_level": "government",
+        "first_seen": "2024-01-01T00:00:00Z",
+        "last_seen": "2026-02-02T00:00:00Z",
+    }
+    out = enrichment.entities_from_stix_object(obj, default_tlp=1)
+    assert len(out) == 1
+    props = out[0]["properties"]
+    assert out[0]["label"] == "IntrusionSet"
+    assert props["stix_id"] == "intrusion-set--9"
+    assert props["stix_first_seen"] == "2024-01-01T00:00:00Z"
+    assert props["stix_last_seen"] == "2026-02-02T00:00:00Z"
+    assert "first_seen" not in props and "last_seen" not in props
+    assert props["resource_level"] == "government"
+
+
+def test_raw_stix_identity_is_emitted_without_contact_information():
+    # contact_information is the PII-bearing identity field; the platform
+    # forbids un-pseudonymised PII in the graph, so it must never be carried.
+    obj = {
+        "type": "identity",
+        "id": "identity--i1",
+        "name": "ACME Corp",
+        "identity_class": "organization",
+        "sectors": ["energy"],
+        "contact_information": "soc@acme.example, +43 1 234567",
+    }
+    out = enrichment.entities_from_stix_object(obj, default_tlp=1)
+    assert len(out) == 1
+    props = out[0]["properties"]
+    assert out[0]["label"] == "Identity"
+    assert props["identity_class"] == "organization"
+    assert props["sectors"] == ["energy"]
+    assert "contact_information" not in props
+
+
+def test_raw_stix_location_without_name_synthesises_one():
+    # STIX makes location.name optional (country/region/lat+long suffice);
+    # the normaliser synthesises a display name so the vertex has one.
+    obj = {"type": "location", "id": "location--l1", "country": "AT"}
+    out = enrichment.entities_from_stix_object(obj, default_tlp=1)
+    assert len(out) == 1
+    assert out[0]["properties"]["name"] == "AT"
+    assert out[0]["properties"]["country"] == "AT"
+
+    coords = {"type": "location", "id": "location--l2", "latitude": 48.2, "longitude": 16.4}
+    out = enrichment.entities_from_stix_object(coords, default_tlp=1)
+    assert out[0]["properties"]["name"] == "48.2,16.4"
+
+    empty = {"type": "location", "id": "location--l3"}
+    assert enrichment.entities_from_stix_object(empty, default_tlp=1) == []
+
+
+def test_raw_stix_report_is_emitted_with_object_refs():
+    obj = {
+        "type": "report",
+        "id": "report--r1",
+        "name": "Quartz Group Q1 activity",
+        "report_types": ["campaign"],
+        "published": "2026-03-01T00:00:00Z",
+        "object_refs": ["intrusion-set--9", "malware--abcd"],
+    }
+    out = enrichment.entities_from_stix_object(obj, default_tlp=1)
+    assert len(out) == 1
+    props = out[0]["properties"]
+    assert out[0]["label"] == "Report"
+    assert props["published"] == "2026-03-01T00:00:00Z"
+    assert props["object_refs"] == ["intrusion-set--9", "malware--abcd"]
 
 
 def test_raw_stix_malware_sdo_is_emitted():

@@ -24,6 +24,10 @@ STIX_LABEL_MAP: dict[str, str] = {
     "malware": "Malware",
     "vulnerability": "Vulnerability",
     "tool": "Tool",
+    "intrusion-set": "IntrusionSet",
+    "identity": "Identity",
+    "location": "Location",
+    "report": "Report",
 }
 
 

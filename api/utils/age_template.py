@@ -36,6 +36,10 @@ _ALLOWED_VERTEX_LABELS: set[str] = {
     "AttackPattern",
     "Campaign",
     "Malware",
+    "IntrusionSet",
+    "Identity",
+    "Location",
+    "Report",
     "Infrastructure",
     "CourseOfAction",
     # Layer 2: security events / OCSF

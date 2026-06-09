@@ -217,7 +217,7 @@ class NetboxAdapter(AdapterBase):
                 ip_entity = self._pending_ip_entities.pop(0)
                 await original_publish(ip_entity)
 
-        self._publish = _publish_with_ips  # type: ignore[assignment]
+        self._publish = _publish_with_ips  # type: ignore[method-assign]
 
         try:
             await super().run(nats_url, valkey_url, pg_dsn)
@@ -240,7 +240,8 @@ class NetboxAdapter(AdapterBase):
         if self._cache and since:
             raw = await self._cache.get(cache_key)
             if raw:
-                last_modified = raw.decode()
+                # The redis client returns bytes unless decode_responses is set.
+                last_modified = raw.decode() if isinstance(raw, bytes) else raw
 
         url = f"{self.netbox_config.url.rstrip('/')}{endpoint}"
         params: dict[str, Any] = {"limit": 100, "offset": 0}

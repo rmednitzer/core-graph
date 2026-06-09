@@ -45,9 +45,11 @@ from api.mcp.tools.vector_search import vector_search
 
 logger = logging.getLogger(__name__)
 
+# `instructions` is the SDK's server-description field; FastMCP has no
+# `description` kwarg and raises TypeError at import if one is passed.
 mcp = FastMCP(
     "core-graph",
-    description="Converged graph-vector knowledge platform for threat intelligence, "
+    instructions="Converged graph-vector knowledge platform for threat intelligence, "
     "security events, OSINT, compliance, AI memory, and forensic timelines.",
 )
 

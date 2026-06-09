@@ -8,6 +8,66 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### Backlog completion — STIX SDO set, shared NATS connection, supply-chain gates (2026-06)
+
+Works the carried-forward roadmap of `audit/2026-06-01-engagement.md` § 6 and
+the remaining deferred items of ADR-0007.
+
+* **feat(schema,ingest): complete the STIX 2.1 SDO set** (ADR-0007 roadmap #1,
+  final part). Migration `033_stix_sdo_completion.sql` creates the
+  IntrusionSet / Identity / Location / Report vertex labels with the full
+  TLP read+write RLS policy set (028 pattern), SELECT grants at parity with
+  the sibling Layer-1 labels (004 pattern), and `stix_id`/`stix_type` indexes
+  (030 pattern). The graph writer gains the four MERGE templates (same
+  `t_recorded`/`modified`/TLP-ratchet semantics as the existing six); the
+  enrichment stage emits the labels instead of deferring them; the OpenCTI
+  adapter carries the type-specific fields; TAXII's threat-intel collection
+  serves the new types; `stix_lookup` and the label allowlist know them.
+  PII minimisation is enforced in the mapping: `identity.contact_information`
+  and `location.street_address`/`postal_code` are never stored. STIX's
+  optional `location.name` is synthesised from country/region/coordinates.
+  Covered by unit tests, `tests/rls/test_stix_sdo_rls.sql`, and a live
+  two-stage pipeline integration suite
+  (`tests/integration/test_stix_sdo_ingest.py`).
+* **perf(api): shared NATS connection for the request paths** (ADR-0007
+  deferred #7). `api/nats_client.py` owns one process-wide, lazily-opened,
+  loop-aware JetStream connection; `ingest_event` and TAXII add-objects no
+  longer pay a connect/close per request, and the INGEST stream is ensured
+  once per connection. Closed by the REST lifespan. Unit-pinned by
+  `tests/test_nats_client.py`.
+* **fix(mcp): the MCP server crashed at import on the current MCP SDK** —
+  `FastMCP(description=...)` raises `TypeError` (the SDK parameter is
+  `instructions`). Surfaced by the new mypy gate; no test imported
+  `api.mcp.server`.
+* **fix(authz): SpiceDB `delete_relationship` built an invalid protobuf** —
+  `optional_subject_filter` was a `SubjectReference`; the field is a
+  `SubjectFilter`, so every call raised `TypeError` (the SpiceDB twin of the
+  A-01 Cerbos wire bug, in the ADR-0008 deferred scaffolding). Also surfaced
+  by mypy.
+* **build(deps): committed `uv.lock`** (ADR-0009 / SC-03 / ADR-0007 #5) —
+  sha256-pinned universal resolution, enforced in CI by a networked
+  `uv lock --check` job; Renovate's existing `lockFileMaintenance` keeps it
+  current.
+* **ci: mypy type gate** (audit § 6.3) — permissive `[tool.mypy]` config over
+  `api`/`ingest`/`evidence`; the tree was made mypy-clean in this change (9
+  findings fixed, two of them runtime bugs above), so the job is blocking
+  from the start.
+* **ci: unit-coverage floor** (audit § 6.4) — `pytest-cov` with
+  `--cov-fail-under=48` (soft ratchet two points under the measured 50%
+  baseline) plus a coverage.xml artifact.
+* **ci: license-policy gate** (audit § 6.5) — `scripts/license_gate.py` scans
+  the runtime closure (deny GPL/AGPL/SSPL; LGPL allowed — psycopg), publishes
+  `license-report.json`, and an SPDX SBOM rendition is produced next to the
+  CycloneDX one. NOTICE corrected: the psycopg family is LGPL-3.0-only, not
+  permissive.
+* **test(integration): `label(v) = $label` execution test** (C-02, deferred
+  twice for want of a live AGE) — `tests/integration/test_cypher_templates.py`
+  executes `count_entities_by_label` and `get_entity_by_label_and_value`
+  against the populated graph, both directions (match and filter-out).
+* **fix(evidence): `verify_locked` treats a missing retention config as
+  unlocked** instead of relying on an `AttributeError` falling into the
+  broad exception handler.
+
 ### Authorization role-vocabulary reconciliation (A-03, 2026-06)
 
 * **fix(authz): key the application-layer role guards on the bare JWT roles.**

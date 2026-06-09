@@ -83,6 +83,12 @@ async def _reset_state():
 
     yield
 
+    # Close the lazily-opened shared NATS connection on the test's own loop;
+    # pytest-asyncio gives every test a fresh loop, and an asyncio connection
+    # must not outlive the loop it was created on.
+    from api.nats_client import close_nats
+
+    await close_nats()
     await close_pool()
 
 
@@ -130,6 +136,31 @@ async def graph_writer():
     with contextlib.suppress(asyncio.CancelledError, Exception):
         await task
     _graph_writer._READY_MARKER.unlink(missing_ok=True)
+
+
+@pytest_asyncio.fixture
+async def enrichment_worker():
+    """Run the real enrichment_worker.run() as a background task for the test.
+
+    Consumes ``ingest.>`` and republishes canonical envelopes onto
+    ``enriched.entity.>``, so raw-STIX tests exercise the same two-stage
+    NATS path (enrichment → writer) as the deployed pipeline.
+    """
+    from ingest import enrichment_worker as _enrichment_worker
+
+    _enrichment_worker._READY_MARKER.unlink(missing_ok=True)
+    task = asyncio.create_task(_enrichment_worker.run())
+    for _ in range(200):
+        if _enrichment_worker._READY_MARKER.exists():
+            break
+        if task.done():  # startup failed — surface the exception
+            await task
+        await asyncio.sleep(0.05)
+    yield
+    task.cancel()
+    with contextlib.suppress(asyncio.CancelledError, Exception):
+        await task
+    _enrichment_worker._READY_MARKER.unlink(missing_ok=True)
 
 
 @pytest_asyncio.fixture

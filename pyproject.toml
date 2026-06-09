@@ -30,6 +30,7 @@ dependencies = [
 test = [
   "pytest>=9.0.3",
   "pytest-asyncio>=0.23",
+  "pytest-cov>=6.0",
   "jellyfish>=1.0",
   "httpx>=0.27",
 ]
@@ -39,6 +40,7 @@ misp = [
 dev = [
   "ruff>=0.4",
   "yamllint>=1.35",
+  "mypy>=1.14",
 ]
 
 [tool.setuptools.packages.find]
@@ -55,6 +57,18 @@ ignore = ["S101", "S104", "S603", "S607", "S608"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S106"]
 "scripts/bench/**" = ["S110", "S311"]
+
+[tool.mypy]
+# Deliberately permissive first cut (audit 2026-06-01 § 6.3): catch the
+# call-shape and Optional-handling bug classes without demanding annotations
+# everywhere. Tighten incrementally (e.g. disallow_untyped_defs per package)
+# rather than all at once. Scope: service code; tests are excluded.
+python_version = "3.13"
+files = ["api", "ingest", "evidence"]
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

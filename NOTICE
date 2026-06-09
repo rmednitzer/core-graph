@@ -19,16 +19,23 @@ does not relicense them.
 
 The core path -- PostgreSQL, Apache AGE, pgvector, NATS, Cerbos, SpiceDB,
 Sigstore cosign/Rekor, and the Python runtime dependencies -- is Apache-2.0,
-MIT, BSD, or the PostgreSQL License. Several of these are themselves Apache-2.0
-works that ship their own NOTICE text (notably Apache AGE); those notices are
-carried by the upstream artifacts the images are built from.
+MIT, BSD, or the PostgreSQL License, with the exception of the psycopg family
+(psycopg, psycopg-binary, psycopg-pool), which is LGPL-3.0-only and is used as
+an unmodified library. Several of these are themselves Apache-2.0 works that
+ship their own NOTICE text (notably Apache AGE); those notices are carried by
+the upstream artifacts the images are built from.
 
 A machine-readable inventory of every bundled component and its license is
-produced as a CycloneDX SBOM on every CI run and every release:
+produced as CycloneDX and SPDX SBOMs on every CI run and every release:
 
-  * source dependencies  -> sbom.cyclonedx.json        (.github/workflows/security.yml)
+  * source dependencies  -> sbom.cyclonedx.json, sbom.spdx.json
+                            (.github/workflows/security.yml)
   * container image       -> sbom-container.cyclonedx.json (.github/workflows/security.yml,
                                                             release.yml)
+  * license expressions   -> license-report.json (the license-scan CI job;
+                            scripts/license_gate.py enforces the policy that
+                            no strong-copyleft license enters the runtime
+                            closure)
 
 Consult those SBOM artifacts for the authoritative, version-pinned list of
 third-party software and licenses in any given build.

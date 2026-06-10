@@ -262,10 +262,14 @@ async def get_objects(
 
         union_sql = " UNION ALL ".join(subqueries)
         # Keyset pagination: ORDER BY (t_recorded, stix_id) ASC for deterministic
-        # ordering even when multiple objects share the same t_recorded.
+        # ordering even when multiple objects share the same t_recorded. props is
+        # agtype, whose ->> operator takes an agtype key, so a bare text literal
+        # fails to parse ("invalid input syntax for type agtype"); route through
+        # jsonb — the same cast pattern the RLS predicates and AGE indexes use.
         query = f"""
             select props from ({union_sql}) sub
-            order by props->>'t_recorded' asc, props->>'stix_id' asc
+            order by (props::text)::jsonb->>'t_recorded' asc,
+                     (props::text)::jsonb->>'stix_id' asc
             limit %s
         """
 

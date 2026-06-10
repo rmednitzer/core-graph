@@ -46,6 +46,12 @@ dev = [
 [tool.setuptools.packages.find]
 include = ["ingest", "ingest.*", "api", "api.*", "evidence", "evidence.*", "scripts"]
 
+[tool.setuptools.package-data]
+# The MCP cypher_query tool loads its named templates from these data files at
+# import time; without this a pip-installed copy ships an empty template
+# registry (caught by tests/integration/test_cypher_templates.py).
+"api.mcp.skills.queries" = ["*.cypher", "*.json"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py313"

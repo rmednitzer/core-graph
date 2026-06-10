@@ -76,6 +76,14 @@ check_untyped_defs = true
 warn_unused_ignores = true
 warn_redundant_casts = true
 
+[tool.coverage.report]
+# Soft ratchet (audit 2026-06-01 § 6.4): two points under the unit-suite
+# baseline measured at introduction (50% — the ingest writers/connectors are
+# exercised by the integration job, which does not feed this number). Raise as
+# the baseline rises; never lower it to admit a regression. Enforced wherever
+# pytest runs with --cov, locally and in CI.
+fail_under = 48
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers"

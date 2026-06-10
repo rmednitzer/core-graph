@@ -25,6 +25,11 @@ async def _publish_stix(nats_js, obj: dict) -> None:
     await nats_js.publish(_SUBJECT, json.dumps(obj).encode())
 
 
+def _props(rows) -> dict:
+    """Decode an agtype properties() row into a dict (one cast site)."""
+    return json.loads(str(rows[0]["props"]))
+
+
 async def test_intrusion_set_merges_and_updates_without_duplicating(
     nats_js, enrichment_worker, graph_writer, pg_conn
 ) -> None:
@@ -145,7 +150,7 @@ async def test_identity_location_report_merge_into_age(
         """,
     )
     assert rows, "Identity vertex should exist"
-    props = json.loads(str(rows[0]["props"]))
+    props = _props(rows)
     assert props["identity_class"] == "organization"
     assert "contact_information" not in props, "PII field must never reach the graph"
 
@@ -159,7 +164,7 @@ async def test_identity_location_report_merge_into_age(
         """,
     )
     assert rows, "Location vertex should exist"
-    props = json.loads(str(rows[0]["props"]))
+    props = _props(rows)
     assert props["name"] == "AT", "nameless location gets a synthesised display name"
     assert props["latitude"] == 48.2
 
@@ -173,7 +178,7 @@ async def test_identity_location_report_merge_into_age(
         """,
     )
     assert rows, "Report vertex should exist"
-    props = json.loads(str(rows[0]["props"]))
+    props = _props(rows)
     assert props["published"] == "2026-03-01T00:00:00Z"
     assert props["object_refs"] == ["intrusion-set--11111111-1111-4111-8111-111111111111"]
 

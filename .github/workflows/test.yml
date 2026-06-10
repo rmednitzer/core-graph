@@ -84,17 +84,13 @@ jobs:
           cache-dependency-path: pyproject.toml
       - name: Install dependencies
         run: pip install '.[test]'
-      # Coverage floor (audit 2026-06-01 § 6.4): a soft ratchet two points
-      # under the measured unit-suite baseline (50% at introduction — the
-      # ingest writers/connectors are exercised by the integration job, which
-      # does not feed this number). Raise the floor as the baseline rises;
-      # never lower it to admit a regression.
+      # Coverage floor lives in pyproject.toml [tool.coverage.report]
+      # fail_under, so local `pytest --cov` runs enforce the same ratchet.
       - name: Run pytest (with coverage floor)
         run: >
           pytest -m "not integration"
           --cov=api --cov=ingest --cov=evidence
           --cov-report=term --cov-report=xml
-          --cov-fail-under=48
       - name: Upload coverage report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

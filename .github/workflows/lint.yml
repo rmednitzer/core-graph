@@ -39,7 +39,9 @@ jobs:
           cache: pip
           cache-dependency-path: pyproject.toml
       - name: Install project + mypy
-        run: pip install '.[test,dev]'
+        # dev extra only: mypy checks api/ingest/evidence, none of which
+        # import the test extra's packages.
+        run: pip install '.[dev]'
       - name: mypy
         run: mypy
 

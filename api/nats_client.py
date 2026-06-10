@@ -72,19 +72,39 @@ async def get_jetstream() -> JetStreamContext:
                 raise
             _nc, _js = nc, js
             logger.info("Shared NATS connection opened (%s)", NATS_URL)
+        elif not _nc.is_connected:
+            # Mid-reconnect. A JetStream publish against a reconnecting
+            # connection would silently wait out its full per-publish timeout
+            # (10 s × N objects on the TAXII bundle path); the per-request
+            # connections this module replaced failed within connect_timeout=5
+            # instead. Restore that failure mode: give the client one
+            # 5-second window to come back (flush resolves as soon as the
+            # reconnect completes), else surface broker-down to the caller's
+            # existing fail-closed handling.
+            await _nc.flush(timeout=5)
         assert _js is not None
         return _js
 
 
 async def close_nats() -> None:
-    """Close the shared connection (call on app shutdown)."""
+    """Close the shared connection (call on app shutdown).
+
+    Never raises: shutdown callers run further teardown (e.g. the DB pool)
+    after this, so a broker that vanished mid-drain must not abort the rest
+    of the shutdown sequence. State is always reset.
+    """
     global _nc, _js
     async with _get_lock():
-        if _nc is not None and not _nc.is_closed:
-            try:
-                await _nc.drain()
-            except Exception:
-                logger.warning("NATS drain failed; closing hard", exc_info=True)
-                await _nc.close()
-        _nc, _js = None, None
-        logger.info("Shared NATS connection closed")
+        try:
+            if _nc is not None and not _nc.is_closed:
+                try:
+                    await _nc.drain()
+                except Exception:
+                    logger.warning("NATS drain failed; closing hard", exc_info=True)
+                    try:
+                        await _nc.close()
+                    except Exception:
+                        logger.warning("NATS close failed; dropping connection", exc_info=True)
+        finally:
+            _nc, _js = None, None
+            logger.info("Shared NATS connection closed")

@@ -12,7 +12,8 @@ Policy (NOTICE / Apache-2.0 distribution):
   distributing the platform image. LGPL is deliberately **allowed** (psycopg
   is LGPL-3.0; Python imports of an unmodified library satisfy its terms).
 - Dual licenses joined with OR pass when at least one arm is not denied
-  (the permissive arm is elected).
+  (the permissive arm is elected). WITH-exception clauses do not neutralise
+  an arm: 'GPL-2.0-only WITH Classpath-exception-2.0' stays denied.
 - Missing/unparseable metadata is reported as UNKNOWN but does not fail the
   gate — several upstream wheels simply omit the field; failing on absence
   would make the gate cry wolf. The report artifact keeps them visible.
@@ -32,22 +33,23 @@ import sys
 from importlib import metadata
 
 DENIED_PREFIXES = ("GPL-", "AGPL-", "SSPL-")
-DENIED_BARE = {"GPL", "AGPL", "SSPL", "GPLv2", "GPLv3", "AGPLv3"}
+DENIED_BARE = {"GPL", "AGPL", "SSPL", "GPL2", "GPL3", "GPLv2", "GPLv3", "AGPL3", "AGPLv3"}
 
-# Trove classifier substrings for packages that publish no expression field.
-DENIED_CLASSIFIER_MARKERS = (
+# Free-text markers for the legacy License field and trove classifiers, which
+# carry prose ("GNU General Public License v2.0") rather than SPDX tokens.
+DENIED_TEXT_MARKERS = (
     "GNU General Public License",
     "GNU Affero General Public License",
     "Server Side Public License",
 )
-ALLOWED_CLASSIFIER_MARKERS = ("Lesser General Public License",)
+ALLOWED_TEXT_MARKERS = ("Lesser General Public License",)
 
 # package name (normalised) -> justification, for explicitly reviewed
 # exceptions. Empty at introduction; additions require a NOTICE update.
 ALLOWLIST: dict[str, str] = {}
 
 
-def _expression_tokens(expression: str) -> list[str]:
+def _tokens(expression: str) -> list[str]:
     for ch in "()":
         expression = expression.replace(ch, " ")
     return expression.split()
@@ -57,31 +59,62 @@ def _token_denied(token: str) -> bool:
     return token in DENIED_BARE or any(token.startswith(p) for p in DENIED_PREFIXES)
 
 
+def _arm_denied(arm_tokens: list[str]) -> bool:
+    """A single OR-arm is denied when any of its license ids is denied.
+
+    Tokens following WITH are SPDX *exception* names (Classpath-exception-2.0,
+    ...) — they modify the license but never neutralise it, so they are
+    excluded from the check rather than counted as clean license ids.
+    """
+    license_ids: list[str] = []
+    skip_next = False
+    for tok in arm_tokens:
+        if skip_next:
+            skip_next = False
+            continue
+        if tok.upper() == "WITH":
+            skip_next = True
+            continue
+        if tok.upper() != "AND":
+            license_ids.append(tok)
+    return any(_token_denied(t) for t in license_ids)
+
+
 def _expression_denied(expression: str) -> bool:
-    """True when every OR-arm of the expression contains a denied license."""
-    tokens = _expression_tokens(expression)
-    if not any(_token_denied(t) for t in tokens):
+    """True when every OR-arm of the expression contains a denied license.
+
+    Dual licensing elects the permissive arm: 'GPL-2.0-only OR MIT' passes.
+    'GPL-2.0-only WITH Classpath-exception-2.0' stays denied — the exception
+    narrows the copyleft but the platform policy keys on the license family.
+    """
+    tokens = _tokens(expression)
+    arms: list[list[str]] = [[]]
+    for tok in tokens:
+        if tok.upper() == "OR":
+            arms.append([])
+        else:
+            arms[-1].append(tok)
+    return all(_arm_denied(arm) for arm in arms if arm)
+
+
+def _text_denied(text: str) -> bool:
+    """Prose check for legacy License fields and classifier strings."""
+    if any(m in text for m in ALLOWED_TEXT_MARKERS):
         return False
-    # Dual-licensed: pass when an OR exists and some license token is clean.
-    if any(t.upper() == "OR" for t in tokens):
-        license_tokens = [t for t in tokens if t.upper() not in ("OR", "AND", "WITH")]
-        return all(_token_denied(t) for t in license_tokens)
-    return True
+    return any(m in text for m in DENIED_TEXT_MARKERS)
 
 
 def _classifiers_denied(classifiers: list[str]) -> bool:
+    """Denied when classifiers state a denied license and no permissive one.
+
+    A package may list several License classifiers (dual licensing); it passes
+    when at least one is not denied.
+    """
     relevant = [c for c in classifiers if "License" in c]
-    for c in relevant:
-        if any(m in c for m in ALLOWED_CLASSIFIER_MARKERS):
-            continue
-        if any(m in c for m in DENIED_CLASSIFIER_MARKERS):
-            # Another classifier may state a permissive dual license.
-            others = [o for o in relevant if o != c]
-            if not others:
-                return True
-            if all(any(m in o for m in DENIED_CLASSIFIER_MARKERS) for o in others):
-                return True
-    return False
+    if not relevant:
+        return False
+    denied = [c for c in relevant if _text_denied(c)]
+    return len(denied) == len(relevant)
 
 
 def scan() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
@@ -106,7 +139,16 @@ def scan() -> tuple[list[dict[str, str]], list[dict[str, str]]]:
 
         if name.lower().replace("_", "-") in ALLOWLIST:
             continue
-        is_denied = _expression_denied(effective) if effective else _classifiers_denied(classifiers)
+        # Precedence: a PEP 639 License-Expression is authoritative SPDX. The
+        # legacy License field may carry SPDX tokens *or* prose, so it gets
+        # both checks. Classifiers are the last resort (PEP 639 deprecates
+        # them, and a stale classifier must not override a clean expression).
+        if expression:
+            is_denied = _expression_denied(expression)
+        elif legacy:
+            is_denied = _expression_denied(legacy) or _text_denied(legacy)
+        else:
+            is_denied = _classifiers_denied(classifiers)
         if is_denied:
             denied.append(row)
     return report, denied

@@ -24,7 +24,10 @@ COLLECTIONS: dict[str, CollectionDef] = {
     "threat-intel": CollectionDef(
         id="threat-intel",
         title="Threat Intelligence",
-        description="Layer 1 STIX objects: ThreatActor, Campaign, Malware, Tool, AttackPattern",
+        description=(
+            "Layer 1 STIX objects: ThreatActor, Campaign, Malware, Tool, "
+            "AttackPattern, IntrusionSet, Identity, Location, Report"
+        ),
         stix_types=[
             "threat-actor",
             "campaign",
@@ -32,6 +35,9 @@ COLLECTIONS: dict[str, CollectionDef] = {
             "tool",
             "attack-pattern",
             "intrusion-set",
+            "identity",
+            "location",
+            "report",
             "infrastructure",
             "relationship",
         ],
@@ -42,6 +48,9 @@ COLLECTIONS: dict[str, CollectionDef] = {
             "Tool",
             "AttackPattern",
             "IntrusionSet",
+            "Identity",
+            "Location",
+            "Report",
             "Infrastructure",
         ],
     ),

@@ -60,6 +60,16 @@ Migrations are designed to be additive. If a migration must be reverted:
 | `021_embedding_models_and_hybrid.sql` | Embedding model registry, per-model partial HNSW indexes, halfvec column + trigger, tsvector + GIN for BM25 |
 | `022_edge_tlp_denormalization.sql` | Denormalised `tlp_level smallint` on all AGE edge label tables, BEFORE-trigger derivation from endpoints, deferred vertex cascade, per-edge RLS policy |
 | `023_memory_layer.sql` | Layer 5 (AI memory): AGE labels Session/Episode/ExtractedFact/ConceptEntity + edges, relational shadow tables for sequence/supersession/salience, pg_cron salience refresh job |
+| `024_audit_log_integrity_hardening.sql` | Audit tamper-evidence: TRUNCATE block, hash-chain trigger hardening |
+| `025_merkle_domain_separation.sql` | Merkle leaf/node domain separation (second-preimage fix) |
+| `026_temporal_overlap_predicate_fix.sql` | Partial no-overlap EXCLUDE on active temporal facts (supersession-safe) |
+| `027_pgvector_iterative_scan.sql` | pgvector 0.8 HNSW iterative scans (fixes RLS overfiltering) |
+| `028_rls_write_path_policies.sql` | RLS everywhere + TLP INSERT/UPDATE/DELETE policies, IAM AMBER write floor |
+| `029_processed_messages_dedup.sql` | Graph-writer replay idempotency ledger (content-derived delivery keys) |
+| `030_stix_sdo_indexes.sql` | stix_id / stix_type btree indexes for the SDO labels |
+| `031_uuidv7_audit_correlation.sql` | PG18 `uuidv7()` time-ordered audit correlation ids |
+| `032_edge_tlp_writer_resync.sql` | Edge-TLP resync helpers for the Cypher write path (trigger-less AGE writes) |
+| `033_stix_sdo_completion.sql` | Final STIX SDO labels (IntrusionSet/Identity/Location/Report): vlabels, RLS policies + grants, stix indexes |
 
 ## CI validation
 

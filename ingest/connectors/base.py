@@ -196,7 +196,10 @@ class AdapterBase(ABC):
             return None
         cache_key = f"{self.config.name}:sync:last_modified"
         value = await self._cache.get(cache_key)
-        return value.decode() if value else None
+        if not value:
+            return None
+        # The redis client returns bytes unless decode_responses is set.
+        return value.decode() if isinstance(value, bytes) else value
 
     async def _cache_timestamp(self) -> None:
         """Store the current timestamp in Valkey for delta sync."""

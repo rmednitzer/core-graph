@@ -18,6 +18,7 @@ from authzed.api.v1 import (
     Relationship,
     RelationshipFilter,
     RelationshipUpdate,
+    SubjectFilter,
     SubjectReference,
     WriteRelationshipsRequest,
 )
@@ -149,8 +150,12 @@ async def delete_relationship(
                     resource_type=resource_type,
                     optional_resource_id=resource_id,
                     optional_relation=relation,
-                    optional_subject_filter=SubjectReference(
-                        object=ObjectReference(object_type=subject_type, object_id=subject_id),
+                    # The proto field is a SubjectFilter (subject_type +
+                    # optional_subject_id), not a SubjectReference — passing
+                    # the latter fails protobuf type-checking at runtime.
+                    optional_subject_filter=SubjectFilter(
+                        subject_type=subject_type,
+                        optional_subject_id=subject_id,
                     ),
                 ),
             )

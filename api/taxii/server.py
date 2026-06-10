@@ -14,12 +14,11 @@ import logging
 import uuid
 from typing import Any
 
-import nats
 from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
-from api.config import NATS_URL
 from api.db import get_connection
+from api.nats_client import get_jetstream
 from api.taxii.collections import COLLECTIONS
 from api.taxii.models import (
     APIRootResponse,
@@ -31,7 +30,6 @@ from api.taxii.models import (
 )
 from api.utils.caller import caller_from_request as _shared_caller_from_request
 from api.utils.cypher_safety import validate_label
-from ingest.streams import ensure_ingest_stream
 
 logger = logging.getLogger(__name__)
 
@@ -264,10 +262,14 @@ async def get_objects(
 
         union_sql = " UNION ALL ".join(subqueries)
         # Keyset pagination: ORDER BY (t_recorded, stix_id) ASC for deterministic
-        # ordering even when multiple objects share the same t_recorded.
+        # ordering even when multiple objects share the same t_recorded. props is
+        # agtype, whose ->> operator takes an agtype key, so a bare text literal
+        # fails to parse ("invalid input syntax for type agtype"); route through
+        # jsonb — the same cast pattern the RLS predicates and AGE indexes use.
         query = f"""
             select props from ({union_sql}) sub
-            order by props->>'t_recorded' asc, props->>'stix_id' asc
+            order by (props::text)::jsonb->>'t_recorded' asc,
+                     (props::text)::jsonb->>'stix_id' asc
             limit %s
         """
 
@@ -426,13 +428,12 @@ async def add_objects(
         await _write_audit(conn, "TAXII_ADD_OBJECTS", caller["actor"], collection_id)
         await conn.commit()
 
-    # Publish each object to NATS for ingestion
+    # Publish each object over the shared process-wide NATS connection
+    # (api.nats_client); the INGEST stream is ensured once per connection. The
+    # enrichment worker maps these STIX objects into enriched.entity.* for the
+    # graph writer.
     try:
-        nc = await nats.connect(NATS_URL, connect_timeout=5)
-        js = nc.jetstream()
-        # Shared INGEST stream; the enrichment worker maps these STIX objects
-        # into enriched.entity.* for the graph writer.
-        await ensure_ingest_stream(js)
+        js = await get_jetstream()
 
         for obj in stix_objects:
             try:
@@ -449,8 +450,6 @@ async def add_objects(
             except Exception:
                 logger.exception("Failed to publish STIX object to NATS")
                 failure_count += 1
-
-        await nc.close()
     except Exception:
         logger.exception("Failed to connect to NATS for TAXII ingest")
         failure_count = len(stix_objects)

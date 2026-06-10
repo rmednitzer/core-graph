@@ -7,12 +7,10 @@ import logging
 import uuid
 from typing import Any
 
-import nats
 from pydantic import BaseModel
 
-from api.config import NATS_URL
 from api.db import get_connection
-from ingest.streams import ensure_ingest_stream
+from api.nats_client import get_jetstream
 
 logger = logging.getLogger(__name__)
 
@@ -79,41 +77,38 @@ async def ingest_event(
 
     correlation_id = uuid.uuid4()
 
-    # Publish to NATS. The shared INGEST stream is consumed by the enrichment
-    # worker, which maps these OCSF events into enriched.entity.* for the writer.
-    nc = await nats.connect(NATS_URL, connect_timeout=5)
-    try:
-        js = nc.jetstream()
-        await ensure_ingest_stream(js)
-        ack = await js.publish(
-            "ingest.api.events",
-            json.dumps(event, default=str).encode(),
-            timeout=10,
+    # Publish to NATS over the shared process-wide connection (api.nats_client);
+    # the INGEST stream is ensured once per connection, not per request. The
+    # stream is consumed by the enrichment worker, which maps these OCSF events
+    # into enriched.entity.* for the writer.
+    js = await get_jetstream()
+    ack = await js.publish(
+        "ingest.api.events",
+        json.dumps(event, default=str).encode(),
+        timeout=10,
+    )
+
+    logger.info("Event ingested: stream=%s seq=%d", ack.stream, ack.seq)
+
+    # Write audit log entry
+    async with get_connection() as conn:
+        await conn.execute(
+            """
+            insert into audit_log
+                (entity_label, operation, actor, correlation_id)
+            values (%s, %s, %s, %s)
+            """,
+            (
+                f"ocsf:{event.get('category', 'unknown')}",
+                "INGEST",
+                caller_identity.get("actor", "mcp") if caller_identity else "mcp",
+                correlation_id,
+            ),
         )
+        await conn.commit()
 
-        logger.info("Event ingested: stream=%s seq=%d", ack.stream, ack.seq)
-
-        # Write audit log entry
-        async with get_connection() as conn:
-            await conn.execute(
-                """
-                insert into audit_log
-                    (entity_label, operation, actor, correlation_id)
-                values (%s, %s, %s, %s)
-                """,
-                (
-                    f"ocsf:{event.get('category', 'unknown')}",
-                    "INGEST",
-                    caller_identity.get("actor", "mcp") if caller_identity else "mcp",
-                    correlation_id,
-                ),
-            )
-            await conn.commit()
-
-        return {
-            "status": "ok",
-            "sequence": ack.seq,
-            "stream": ack.stream,
-        }
-    finally:
-        await nc.close()
+    return {
+        "status": "ok",
+        "sequence": ack.seq,
+        "stream": ack.stream,
+    }

@@ -61,6 +61,8 @@ Run `make help` for the full list. Most-used targets:
 - `make integration-test` — End-to-end suites (require running Docker stack)
 - `make lint` / `make validate` — ruff check + ruff format + yamllint +
   migration numbering check
+- `make typecheck` — mypy over `api`/`ingest`/`evidence` (permissive config
+  in `pyproject.toml`; blocking in CI)
 - `make verify-chain` / `make verify-merkle` / `make stamp-merkle` — Audit
   log integrity operations
 - `make bench` / `make eval` / `make drift` — Benchmarks, retrieval eval,

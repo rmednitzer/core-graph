@@ -91,6 +91,61 @@ direct lookup.
 | `tool_types` | `tool_types` | text[] | STIX tool-type-ov |
 | `kill_chain_phases` | `kill_chain_phases` | jsonb | Array of {kill_chain_name, phase_name} |
 
+### intrusion-set to IntrusionSet
+
+| STIX property | Graph property | Type | Notes |
+|---|---|---|---|
+| `name` | `name` | text | Required |
+| `description` | `description` | text | |
+| `aliases` | `aliases` | text[] | |
+| `goals` | `goals` | text[] | |
+| `resource_level` | `resource_level` | text | STIX attack-resource-level-ov |
+| `primary_motivation` | `primary_motivation` | text | STIX attack-motivation-ov |
+| `secondary_motivations` | `secondary_motivations` | text[] | STIX attack-motivation-ov |
+| `first_seen` | `stix_first_seen` | timestamptz | ISO 8601, UTC (renamed to avoid the graph-wide ingest `first_seen`, mirroring Campaign) |
+| `last_seen` | `stix_last_seen` | timestamptz | ISO 8601, UTC (renamed to avoid the graph-wide ingest `last_seen`) |
+
+### identity to Identity
+
+| STIX property | Graph property | Type | Notes |
+|---|---|---|---|
+| `name` | `name` | text | Required |
+| `description` | `description` | text | |
+| `identity_class` | `identity_class` | text | STIX identity-class-ov |
+| `sectors` | `sectors` | text[] | STIX industry-sector-ov |
+| `roles` | `roles` | text[] | |
+| `contact_information` | — | — | **Not stored.** PII-bearing field (emails/phones of individuals); the platform forbids un-pseudonymised PII in the graph |
+
+This is the STIX threat-intelligence identity (victim organisations, report
+authors, targeted sectors) in Layer 1 — distinct from the Layer-8 IAM
+`Principal` vertices, which model authenticated platform identities and carry
+the TLP:AMBER floor.
+
+### location to Location
+
+| STIX property | Graph property | Type | Notes |
+|---|---|---|---|
+| `name` | `name` | text | Optional in STIX; the enrichment stage synthesises a display name from country/region/city/coordinates when absent |
+| `description` | `description` | text | |
+| `region` | `region` | text | STIX region-ov |
+| `country` | `country` | text | ISO 3166-1 ALPHA-2 |
+| `administrative_area` | `administrative_area` | text | |
+| `city` | `city` | text | |
+| `latitude` | `latitude` | double | |
+| `longitude` | `longitude` | double | |
+| `precision` | `precision` | double | Metres |
+| `street_address`, `postal_code` | — | — | **Not stored** (PII minimisation) |
+
+### report to Report
+
+| STIX property | Graph property | Type | Notes |
+|---|---|---|---|
+| `name` | `name` | text | Required |
+| `description` | `description` | text | |
+| `report_types` | `report_types` | text[] | STIX report-type-ov |
+| `published` | `published` | timestamptz | ISO 8601, UTC |
+| `object_refs` | `object_refs` | text[] | STIX IDs of the objects the report covers |
+
 ---
 
 ## 2. STIX Relationship Objects (SROs) to graph edges

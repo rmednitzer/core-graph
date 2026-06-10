@@ -11,10 +11,11 @@ graph writer consumes:
 
 Only labels that the graph writer actually has a MERGE template for are
 emitted. STIX SDOs (ThreatActor / Malware / Campaign / AttackPattern /
-Vulnerability / Tool) are normalised to their canonical envelope keyed on the
-STIX id; SDO types without a template (e.g. intrusion-set, identity, location,
-report) are still reported as deferred rather than emitted as un-writable
-vertices that would be silently dropped downstream.
+Vulnerability / Tool / IntrusionSet / Identity / Location / Report) are
+normalised to their canonical envelope keyed on the STIX id; SDO types without
+a template (e.g. note, opinion, observed-data, grouping) are still reported as
+deferred rather than emitted as un-writable vertices that would be silently
+dropped downstream.
 
 The functions here are deliberately pure (dict in, list-of-dict out) so the
 mapping — the part most prone to silent data-loss bugs — is unit-tested
@@ -45,6 +46,10 @@ WRITABLE_ENTITY_LABELS: frozenset[str] = frozenset(
         "AttackPattern",
         "Vulnerability",
         "Tool",
+        "IntrusionSet",
+        "Identity",
+        "Location",
+        "Report",
     }
 )
 
@@ -57,13 +62,19 @@ _REQUIRED_PROPS: dict[str, frozenset[str]] = {
     "Indicator": frozenset({"value", "indicator_type"}),
     "SecurityEvent": frozenset({"event_id"}),
     # STIX SDOs identify on the globally-unique stix_id; name is required so we
-    # never merge an anonymous actor/malware vertex.
+    # never merge an anonymous actor/malware vertex. (STIX makes location.name
+    # optional — sdo_entity synthesises one from country/region/coordinates, so
+    # the requirement still drops only truly empty locations.)
     "ThreatActor": frozenset({"stix_id", "name"}),
     "Malware": frozenset({"stix_id", "name"}),
     "Campaign": frozenset({"stix_id", "name"}),
     "AttackPattern": frozenset({"stix_id", "name"}),
     "Vulnerability": frozenset({"stix_id", "name"}),
     "Tool": frozenset({"stix_id", "name"}),
+    "IntrusionSet": frozenset({"stix_id", "name"}),
+    "Identity": frozenset({"stix_id", "name"}),
+    "Location": frozenset({"stix_id", "name"}),
+    "Report": frozenset({"stix_id", "name"}),
 }
 
 # IOC type (tier1 NER + STIX-pattern + Wazuh observable forms) -> (label,
@@ -126,8 +137,9 @@ def _stix_tlp(obj: dict[str, Any], default: int) -> int:
     return max(levels) if levels else default
 
 
-# STIX SDO type -> graph vertex label (only types the writer has a template for;
-# intrusion-set/identity/location/report remain deferred).
+# STIX SDO type -> graph vertex label (only types the writer has a template
+# for; remaining SDO types — note, opinion, observed-data, grouping,
+# infrastructure, course-of-action, malware-analysis — stay deferred).
 _STIX_TYPE_TO_SDO: dict[str, str] = {
     "threat-actor": "ThreatActor",
     "malware": "Malware",
@@ -135,6 +147,10 @@ _STIX_TYPE_TO_SDO: dict[str, str] = {
     "attack-pattern": "AttackPattern",
     "vulnerability": "Vulnerability",
     "tool": "Tool",
+    "intrusion-set": "IntrusionSet",
+    "identity": "Identity",
+    "location": "Location",
+    "report": "Report",
 }
 _SDO_LABELS: frozenset[str] = frozenset(_STIX_TYPE_TO_SDO.values())
 _SDO_LABEL_TO_STIX_TYPE: dict[str, str] = {v: k for k, v in _STIX_TYPE_TO_SDO.items()}
@@ -157,6 +173,29 @@ _SDO_PROP_KEYS: dict[str, tuple[str, ...]] = {
     "AttackPattern": ("description", "mitre_id", "kill_chain_phases", "external_references"),
     "Vulnerability": ("description", "cve_id", "external_references"),
     "Tool": ("description", "tool_types", "kill_chain_phases"),
+    "IntrusionSet": (
+        "description",
+        "aliases",
+        "goals",
+        "resource_level",
+        "primary_motivation",
+        "secondary_motivations",
+    ),
+    # contact_information is deliberately not carried (PII minimisation; see
+    # the graph_writer Identity template and docs/ontology/stix-mapping.md).
+    "Identity": ("description", "identity_class", "sectors", "roles"),
+    # street_address / postal_code deliberately not carried (PII minimisation).
+    "Location": (
+        "description",
+        "region",
+        "country",
+        "administrative_area",
+        "city",
+        "latitude",
+        "longitude",
+        "precision",
+    ),
+    "Report": ("description", "report_types", "published", "object_refs"),
 }
 
 
@@ -196,6 +235,18 @@ def sdo_entity(label: str, src: dict[str, Any], tlp: int, source: str) -> dict[s
     """
     stix_id = src.get("stix_id") or src.get("id")
     name = src.get("name")
+    if label == "Location" and not name:
+        # STIX 2.1 makes location.name optional (requires region, country, or
+        # lat+long instead). Synthesise a display name from the strongest
+        # locator so the vertex is never anonymous; only a location carrying
+        # nothing at all is dropped by the identity-key check below.
+        lat, lon = src.get("latitude"), src.get("longitude")
+        name = (
+            src.get("country")
+            or src.get("region")
+            or src.get("city")
+            or (f"{lat},{lon}" if lat is not None and lon is not None else None)
+        )
     if not stix_id or not name:
         return None
     props: dict[str, Any] = {
@@ -219,8 +270,8 @@ def sdo_entity(label: str, src: dict[str, Any], tlp: int, source: str) -> dict[s
     # re-report's []/"" defaults (see _nullify_empty).
     for key in _SDO_PROP_KEYS[label]:
         props[key] = _nullify_empty(src.get(key))
-    if label == "Campaign":
-        # Keep the campaign's STIX activity window distinct from the graph-wide
+    if label in ("Campaign", "IntrusionSet"):
+        # Keep the SDO's own STIX activity window distinct from the graph-wide
         # first_seen/last_seen ingest bookkeeping the writer maintains.
         props["stix_first_seen"] = _nullify_empty(
             src.get("stix_first_seen") or src.get("first_seen")
@@ -314,9 +365,10 @@ def entities_from_stix_object(obj: dict[str, Any], default_tlp: int) -> list[dic
     """Raw STIX 2.1 object (from TAXII) -> canonical entity envelopes.
 
     Handles SDOs (threat-actor, malware, campaign, attack-pattern,
-    vulnerability, tool), indicator patterns, and cyber-observable objects
-    (addresses, domains, URLs, files). SDO types without a writer template
-    (intrusion-set, identity, location, report, ...) are deferred.
+    vulnerability, tool, intrusion-set, identity, location, report),
+    indicator patterns, and cyber-observable objects (addresses, domains,
+    URLs, files). SDO types without a writer template (note, opinion,
+    observed-data, ...) are deferred.
     """
     stix_type = obj.get("type", "")
     tlp = _stix_tlp(obj, default_tlp)

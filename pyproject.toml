@@ -30,6 +30,7 @@ dependencies = [
 test = [
   "pytest>=9.0.3",
   "pytest-asyncio>=0.23",
+  "pytest-cov>=6.0",
   "jellyfish>=1.0",
   "httpx>=0.27",
 ]
@@ -39,10 +40,17 @@ misp = [
 dev = [
   "ruff>=0.4",
   "yamllint>=1.35",
+  "mypy>=1.14",
 ]
 
 [tool.setuptools.packages.find]
 include = ["ingest", "ingest.*", "api", "api.*", "evidence", "evidence.*", "scripts"]
+
+[tool.setuptools.package-data]
+# The MCP cypher_query tool loads its named templates from these data files at
+# import time; without this a pip-installed copy ships an empty template
+# registry (caught by tests/integration/test_cypher_templates.py).
+"api.mcp.skills.queries" = ["*.cypher", "*.json"]
 
 [tool.ruff]
 line-length = 100
@@ -55,6 +63,26 @@ ignore = ["S101", "S104", "S603", "S607", "S608"]
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S106"]
 "scripts/bench/**" = ["S110", "S311"]
+
+[tool.mypy]
+# Deliberately permissive first cut (audit 2026-06-01 § 6.3): catch the
+# call-shape and Optional-handling bug classes without demanding annotations
+# everywhere. Tighten incrementally (e.g. disallow_untyped_defs per package)
+# rather than all at once. Scope: service code; tests are excluded.
+python_version = "3.13"
+files = ["api", "ingest", "evidence"]
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+
+[tool.coverage.report]
+# Soft ratchet (audit 2026-06-01 § 6.4): two points under the unit-suite
+# baseline measured at introduction (50% — the ingest writers/connectors are
+# exercised by the integration job, which does not feed this number). Raise as
+# the baseline rises; never lower it to admit a regression. Enforced wherever
+# pytest runs with --cov, locally and in CI.
+fail_under = 48
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

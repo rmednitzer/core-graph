@@ -42,6 +42,8 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f tests/rls/test_iam_tlp_floor.sql
       - name: Run write-path RLS test
         run: psql -v ON_ERROR_STOP=1 -f tests/rls/test_write_path.sql
+      - name: Run STIX SDO RLS test
+        run: psql -v ON_ERROR_STOP=1 -f tests/rls/test_stix_sdo_rls.sql
 
   policy-test:
     runs-on: ubuntu-latest
@@ -82,8 +84,18 @@ jobs:
           cache-dependency-path: pyproject.toml
       - name: Install dependencies
         run: pip install '.[test]'
-      - name: Run pytest
-        run: pytest -m "not integration"
+      # Coverage floor lives in pyproject.toml [tool.coverage.report]
+      # fail_under, so local `pytest --cov` runs enforce the same ratchet.
+      - name: Run pytest (with coverage floor)
+        run: >
+          pytest -m "not integration"
+          --cov=api --cov=ingest --cov=evidence
+          --cov-report=term --cov-report=xml
+      - name: Upload coverage report
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage.xml
+          path: coverage.xml
 
   taxii-test:
     runs-on: ubuntu-latest

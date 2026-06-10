@@ -65,7 +65,7 @@ def _widen_compartments(
     silently widened: callers that arrive with a lower ceiling are
     rejected by ``assert_identity_attribution`` before this helper runs.
     """
-    base = (
+    base: dict[str, Any] = (
         dict(caller_identity)
         if caller_identity
         else {

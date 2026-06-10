@@ -1,4 +1,4 @@
-.PHONY: help up down migrate seed validate test lint clean reset psql serve mcp graph-writer enrichment-worker integration-test verify-chain verify-merkle stamp-merkle bench helm-lint helm-template helm-validate zarf-validate deploy-lint
+.PHONY: help up down migrate seed validate test lint typecheck clean reset psql serve mcp graph-writer enrichment-worker integration-test verify-chain verify-merkle stamp-merkle bench helm-lint helm-template helm-validate zarf-validate deploy-lint
 
 # Database connection defaults (override via environment)
 PGHOST   ?= localhost
@@ -55,9 +55,13 @@ test: ## Run all tests
 	$(PSQL) -f tests/rls/test_edge_tlp.sql
 	$(PSQL) -f tests/rls/test_iam_tlp_floor.sql
 	$(PSQL) -f tests/rls/test_write_path.sql
+	$(PSQL) -f tests/rls/test_stix_sdo_rls.sql
 	@echo "==> All tests passed"
 
 lint: validate ## Lint Python and SQL (alias for validate)
+
+typecheck: ## Run mypy over the service packages (config in pyproject.toml)
+	mypy
 
 clean: ## Remove build artifacts and caches
 	find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true

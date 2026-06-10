@@ -38,7 +38,7 @@ def upload_evidence(
     object_name: str,
     data: bytes,
     content_type: str = "application/octet-stream",
-    metadata: dict[str, str] | None = None,
+    metadata: dict[str, str | list[str] | tuple[str]] | None = None,
     retention_days: int = 2555,
 ) -> dict[str, Any]:
     """Upload a signed evidence blob to MinIO with object-lock retention.
@@ -89,7 +89,8 @@ def verify_locked(object_name: str) -> bool:
 
     try:
         retention = client.get_object_retention(bucket, object_name)
-        return retention.mode == COMPLIANCE
+        # No retention config on the object comes back as None, not an error.
+        return retention is not None and retention.mode == COMPLIANCE
     except Exception:
         logger.warning("Could not verify lock on %s", object_name)
         return False

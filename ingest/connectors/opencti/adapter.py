@@ -129,6 +129,34 @@ def _map_stix_object(stix_object: dict[str, Any]) -> dict[str, Any] | None:
             if ref.get("source_name") == "cve":
                 properties["cve_id"] = ref.get("external_id", "")
                 break
+    elif stix_type == "intrusion-set":
+        properties["aliases"] = stix_object.get("aliases", [])
+        properties["goals"] = stix_object.get("goals", [])
+        properties["resource_level"] = stix_object.get("resource_level", "")
+        properties["primary_motivation"] = stix_object.get("primary_motivation", "")
+        properties["secondary_motivations"] = stix_object.get("secondary_motivations", [])
+        properties["first_seen"] = stix_object.get("first_seen", "")
+        properties["last_seen"] = stix_object.get("last_seen", "")
+    elif stix_type == "identity":
+        # contact_information deliberately not carried: PII minimisation
+        # (see docs/ontology/stix-mapping.md).
+        properties["identity_class"] = stix_object.get("identity_class", "")
+        properties["sectors"] = stix_object.get("sectors", [])
+        properties["roles"] = stix_object.get("roles", [])
+    elif stix_type == "location":
+        # street_address / postal_code deliberately not carried (PII
+        # minimisation).
+        properties["region"] = stix_object.get("region", "")
+        properties["country"] = stix_object.get("country", "")
+        properties["administrative_area"] = stix_object.get("administrative_area", "")
+        properties["city"] = stix_object.get("city", "")
+        properties["latitude"] = stix_object.get("latitude")
+        properties["longitude"] = stix_object.get("longitude")
+        properties["precision"] = stix_object.get("precision")
+    elif stix_type == "report":
+        properties["report_types"] = stix_object.get("report_types", [])
+        properties["published"] = stix_object.get("published", "")
+        properties["object_refs"] = stix_object.get("object_refs", [])
     elif stix_type in ("ipv4-addr", "ipv6-addr"):
         properties["value"] = stix_object.get("value", "")
     elif stix_type == "domain-name":

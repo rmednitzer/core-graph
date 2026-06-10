@@ -29,6 +29,7 @@ from api.config import (
     VALKEY_URL,
 )
 from api.db import close_pool, open_pool
+from api.nats_client import close_nats
 from api.rest.middleware.logging import RequestLoggingMiddleware
 from api.rest.middleware.metrics import MetricsMiddleware, metrics_endpoint
 from api.rest.middleware.oidc import OIDCMiddleware
@@ -44,9 +45,15 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Open connection pool on startup, close on shutdown."""
+    """Open connection pool on startup; close pool + shared NATS on shutdown.
+
+    The shared NATS connection (api.nats_client) is opened lazily by the first
+    publishing request rather than eagerly here, so the API can come up and
+    serve read traffic while the broker is still starting.
+    """
     await open_pool()
     yield
+    await close_nats()
     await close_pool()
 
 
@@ -107,8 +114,10 @@ async def healthz() -> dict:
     return {"status": "ok"}
 
 
-@app.get("/readyz")
-async def readyz() -> dict:
+# response_model=None: the union return type (dict on ready, JSONResponse 503
+# when degraded) is not a valid response-model annotation for FastAPI.
+@app.get("/readyz", response_model=None)
+async def readyz() -> dict | JSONResponse:
     """Readiness probe — checks PostgreSQL, NATS, Valkey, and MinIO connectivity."""
     pg_ok = False
     nats_ok = False

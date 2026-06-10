@@ -360,13 +360,10 @@ class TestAddObjects:
                 }
             ],
         }
-        with patch("api.taxii.server.nats") as mock_nats:
-            mock_nc = AsyncMock()
+        with patch("api.taxii.server.get_jetstream") as mock_get_js:
             mock_js = AsyncMock()
-            mock_nats.connect = AsyncMock(return_value=mock_nc)
-            mock_nc.jetstream = MagicMock(return_value=mock_js)
+            mock_get_js.return_value = mock_js
             mock_js.publish = AsyncMock()
-            mock_nc.close = AsyncMock()
 
             resp = client.post(
                 "/taxii2/default/collections/indicators/objects/",
@@ -377,6 +374,7 @@ class TestAddObjects:
         assert "id" in data
         assert data["status"] == "complete"
         assert data["total_count"] == 1
+        mock_js.publish.assert_awaited_once()
 
     def test_add_invalid_bundle_type(self, client: TestClient) -> None:
         resp = client.post(
@@ -394,13 +392,10 @@ class TestAddObjects:
         assert resp.status_code == 422
 
     def test_add_missing_objects_field(self, client: TestClient) -> None:
-        with patch("api.taxii.server.nats") as mock_nats:
-            mock_nc = AsyncMock()
+        with patch("api.taxii.server.get_jetstream") as mock_get_js:
             mock_js = AsyncMock()
-            mock_nats.connect = AsyncMock(return_value=mock_nc)
-            mock_nc.jetstream = MagicMock(return_value=mock_js)
+            mock_get_js.return_value = mock_js
             mock_js.publish = AsyncMock()
-            mock_nc.close = AsyncMock()
 
             resp = client.post(
                 "/taxii2/default/collections/indicators/objects/",

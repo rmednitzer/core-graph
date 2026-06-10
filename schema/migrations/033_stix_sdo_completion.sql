@@ -36,7 +36,8 @@ begin
                 select graphid from ag_catalog.ag_graph where name = 'core_graph'
             )
         ) then
-            perform ag_catalog.create_vlabel('core_graph', lbl);
+            -- text vars do not implicitly coerce to cstring (023 pattern).
+            perform ag_catalog.create_vlabel('core_graph'::cstring, lbl::cstring);
         end if;
     end loop;
 end $$;

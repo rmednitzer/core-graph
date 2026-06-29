@@ -7,7 +7,7 @@
 # The minor-version pin (3.13) gives a stable Python ABI; OS-level
 # patches come from `apt-get upgrade` in the runtime stage. Update the
 # minor version deliberately and verify psycopg and AGE on upgrade.
-FROM python:3.14.6-slim-bookworm@sha256:a70519002c49552ea0a853de47599cf40479b001bd7a624f1112eaf44dcaccc7 AS build
+FROM python:3.14.6-slim-bookworm@sha256:4ff4b92a68355dbdb52584ab3391dff8d371a61d4e063468bfd0130e3189c6d9 AS build
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
@@ -24,7 +24,7 @@ COPY evidence/ evidence/
 COPY scripts/ scripts/
 
 # ---------- Stage 2: runtime ----------
-FROM python:3.14.6-slim-bookworm@sha256:a70519002c49552ea0a853de47599cf40479b001bd7a624f1112eaf44dcaccc7
+FROM python:3.14.6-slim-bookworm@sha256:4ff4b92a68355dbdb52584ab3391dff8d371a61d4e063468bfd0130e3189c6d9
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1

@@ -80,7 +80,7 @@ services:
       - core-graph
 
   valkey:
-    image: valkey/valkey:latest@sha256:8e8d64b405ce18f41b8e5ee20aa4687a8ed0022d1298f2ce31cdcf3a76e09411
+    image: valkey/valkey:latest@sha256:3acc0687f2a2e1091fae6450d7842dd658c941338cf0a873ddd9e14b9e4ea4dd
     container_name: cg-valkey
     ports:
       - "6379:6379"
@@ -95,7 +95,7 @@ services:
       - core-graph
 
   spicedb:
-    image: authzed/spicedb:latest@sha256:830527f85ac4cb40aaf3d3e8e3fe0b84cdace5ee81ceb43f905b3822ee580b82
+    image: authzed/spicedb:latest@sha256:c8a558a6cc1f9379fcdcab0171b623d65e7e5f95c998ebb7f937ca00a7c1598c
     container_name: cg-spicedb
     command: serve --grpc-preshared-key=cg_dev_only --datastore-engine=memory
     ports:
@@ -104,7 +104,7 @@ services:
       - core-graph
 
   cerbos:
-    image: ghcr.io/cerbos/cerbos:latest@sha256:c3fe64202e3793b7e9c41c5cbfcf390a51fb28ebce0a7d70754155e70db839c4
+    image: ghcr.io/cerbos/cerbos:latest@sha256:211c261f6031675522a35c6055b13fd719c4aff13747307e4bcb6907326537ef
     container_name: cg-cerbos
     ports:
       - "3593:3593"
@@ -145,7 +145,7 @@ services:
       - core-graph
 
   grafana:
-    image: grafana/grafana:latest@sha256:121a7a9ece6dc10b969f1f96eed64b4f07dfac0d0b8abc070f7cb83bbde86f63
+    image: grafana/grafana:latest@sha256:1c1bd67c54c5fcf6e759897852b5a584191bd6796e8d328a5ace457799801261
     container_name: cg-grafana
     ports:
       - "3000:3000"

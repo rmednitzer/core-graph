@@ -392,7 +392,7 @@ requires-dist = [
     { name = "mcp", specifier = ">=1.0" },
     { name = "minio", specifier = ">=7.2" },
     { name = "misp-stix", marker = "extra == 'misp'", specifier = ">=2.4" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.14" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.14,<3" },
     { name = "nats-py", specifier = ">=2.14.0" },
     { name = "prometheus-client", specifier = ">=0.25.0" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.1" },
@@ -406,7 +406,7 @@ requires-dist = [
     { name = "pyzmq", specifier = ">=25.0" },
     { name = "redis", specifier = ">=7.4.0" },
     { name = "rfc3161ng", specifier = ">=2.1" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.4,<0.17" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.27" },
     { name = "yamllint", marker = "extra == 'dev'", specifier = ">=1.35" },
 ]

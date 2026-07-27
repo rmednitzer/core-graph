@@ -38,9 +38,9 @@ misp = [
   "misp-stix>=2.4",
 ]
 dev = [
-  "ruff>=0.4",
+  "ruff>=0.4,<0.17",
   "yamllint>=1.35",
-  "mypy>=1.14",
+  "mypy>=1.14,<3",
 ]
 
 [tool.setuptools.packages.find]

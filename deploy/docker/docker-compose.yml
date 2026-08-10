@@ -62,7 +62,7 @@ services:
       - core-graph
 
   nats:
-    image: nats:latest@sha256:67ac7866d010e8d83302dd30332eeae1a2b7a8ee051155e2eb5a5485b720cd4b
+    image: nats:latest@sha256:ecf677bae6a0ae7900bd3217be041c6614d5dcd2cae780000f9cd69462b36541
     container_name: cg-nats
     ports:
       - "4222:4222"
@@ -135,7 +135,7 @@ services:
       - core-graph
 
   prometheus:
-    image: prom/prometheus:latest@sha256:3c42b892cf723fa54d2f262c37a0e1f80aa8c8ddb1da7b9b0df9455a35a7f893
+    image: prom/prometheus:latest@sha256:508729e0e2d18e11fd742a5a5ca70e557b940a93948c3c95fd0123a6fd538b69
     container_name: cg-prometheus
     ports:
       - "9090:9090"
@@ -145,7 +145,7 @@ services:
       - core-graph
 
   grafana:
-    image: grafana/grafana:latest@sha256:1c1bd67c54c5fcf6e759897852b5a584191bd6796e8d328a5ace457799801261
+    image: grafana/grafana:latest@sha256:ab5cb380e3ff3172d6c8bd2e7cfd31cce977d2881b260e1f5bc089bf0b759b43
     container_name: cg-grafana
     ports:
       - "3000:3000"

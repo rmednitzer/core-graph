@@ -1,48 +1,24 @@
 {
-  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
-  extends: [
-    "github>rmednitzer/infra:renovate-preset",
-    'config:best-practices',
-    ':semanticCommits',
-    ':timezone(Europe/Vienna)',
-    'schedule:weekly',
-  ],
-  labels: ['dependencies'],
-  prConcurrentLimit: 10,
-  prHourlyLimit: 2,
-  lockFileMaintenance: { enabled: true, schedule: ['before 5am on monday'] },
-  vulnerabilityAlerts: { labels: ['security'] },
-  osvVulnerabilityAlerts: true,
-  packageRules: [
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["github>rmednitzer/infra:renovate-preset"],
+  "packageRules": [
     {
-      description: 'Group non-major GitHub Actions updates into one PR; majors stay separate for review.',
-      matchManagers: ['github-actions'],
-      matchUpdateTypes: ['minor', 'patch', 'digest'],
-      groupName: 'github-actions',
+      "description": "Group non-major container image (Dockerfile/Compose) and Helm chart updates.",
+      "matchManagers": ["dockerfile", "docker-compose", "helmv3", "helm-values", "helm-requirements"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "container images and charts"
     },
     {
-      description: 'Group non-major Python dependency updates into one PR.',
-      matchManagers: ['pep621', 'pip_requirements', 'pip-compile', 'poetry', 'setup-cfg'],
-      matchUpdateTypes: ['minor', 'patch'],
-      groupName: 'python dependencies',
+      "description": "Self-built images have no upstream registry to query; skip Renovate so it stops emitting no-result lookup warnings for deploy/k8s/helm/values.yaml.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["rmednitzer/core-graph", "rmednitzer/core-graph-postgres"],
+      "enabled": false
     },
     {
-      description: 'Group non-major container image (Dockerfile/Compose) and Helm chart updates.',
-      matchManagers: ['dockerfile', 'docker-compose', 'helmv3', 'helm-values', 'helm-requirements'],
-      matchUpdateTypes: ['minor', 'patch', 'digest'],
-      groupName: 'container images and charts',
-    },
-    {
-      description: 'Self-built images have no upstream registry to query; skip Renovate so it stops emitting no-result lookup warnings for deploy/k8s/helm/values.yaml.',
-      matchDatasources: ['docker'],
-      matchPackageNames: ['rmednitzer/core-graph', 'rmednitzer/core-graph-postgres'],
-      enabled: false,
-    },
-    {
-      description: 'rfc3161ng is unmaintained upstream (last release 2020) but load-bearing for RFC 3161 Merkle-root timestamping, with no maintained drop-in replacement. Raise its abandonment threshold so Renovate stops flagging it.',
-      matchDatasources: ['pypi'],
-      matchPackageNames: ['rfc3161ng'],
-      abandonmentThreshold: '50 years',
-    },
-  ],
+      "description": "rfc3161ng is unmaintained upstream (last release 2020) but load-bearing for RFC 3161 Merkle-root timestamping, with no maintained drop-in replacement. Raise its abandonment threshold so Renovate stops flagging it.",
+      "matchDatasources": ["pypi"],
+      "matchPackageNames": ["rfc3161ng"],
+      "abandonmentThreshold": "50 years"
+    }
+  ]
 }

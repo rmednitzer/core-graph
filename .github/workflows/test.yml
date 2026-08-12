@@ -60,6 +60,12 @@ jobs:
       # not outlive its transaction onto the next borrower of the connection.
       - name: Run clearance-role assumption RLS test
         run: psql -v ON_ERROR_STOP=1 -f tests/rls/test_clearance_roles.sql
+      # A missing GRANT is not a predicate, so it cannot be wrong the way 028's
+      # write policies can. This asserts both halves: the table grants, and the
+      # default privileges that would otherwise re-widen these roles the next
+      # time a migration adds a table.
+      - name: Run read-only clearance RLS test
+        run: psql -v ON_ERROR_STOP=1 -f tests/rls/test_readonly_clearances.sql
 
   policy-test:
     runs-on: ubuntu-latest

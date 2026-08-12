@@ -85,6 +85,19 @@ exists" on the idempotency pass rather than the first one.
 `tests/rls/test_tlp_enforcement.sql` documents the same trap for its own
 stand-in table. The guard in 036 is deliberately unqualified for this reason.
 
+It then caught 037's test from the opposite direction, which is worth recording
+because the two failures look nothing alike. 036 over-qualified
+(`to_regclass('public.…')` on a table that is not in public);
+`tests/rls/test_vector_tlp.sql` under-qualified, by opening with
+`set search_path = public` copied from `test_tlp_enforcement.sql` — correct
+there, because that suite creates its own stand-in and wants it in public, and
+wrong for any suite touching the real tables, which vanish. A third form exists
+and is worse than both: a non-superuser role without `USAGE` on the holding
+schema gets "relation does not exist" rather than zero rows, so a suite that
+does not assert on visible-row counts would pass vacuously. Anything new that
+touches these tables should resolve the schema from `pg_class` rather than
+assume one.
+
 ## Correction (2026-08-12, same day)
 
 This ADR as first written claimed the eval gate "runs in CI against real data"

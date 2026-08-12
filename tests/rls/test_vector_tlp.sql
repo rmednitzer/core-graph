@@ -12,7 +12,18 @@
 
 \set ON_ERROR_STOP on
 
-set search_path = public;
+-- Deliberately does NOT pin `search_path = public`.
+--
+-- test_tlp_enforcement.sql does pin it, because it creates its own stand-in
+-- table and needs that table in public. This suite uses the *real* vector
+-- tables, and they are not in public: migration 001 sets the database
+-- search_path to ag_catalog,"$user",public, so the unqualified CREATE TABLE in
+-- 003 and 036 landed them in ag_catalog. Pinning public here hides them and
+-- the suite dies on "relation embeddings does not exist".
+--
+-- Inheriting the database default resolves them correctly. The schema is
+-- resolved from the catalogue below rather than assumed, so this keeps working
+-- if the placement ever changes.
 
 -- ============================================================
 -- Setup
@@ -26,6 +37,27 @@ begin
     if not exists (select 1 from pg_roles where rolname = 'vtlp_high') then
         create role vtlp_high nologin;
     end if;
+end $$;
+
+-- The non-superuser test roles need USAGE on whichever schema holds the tables,
+-- or SELECT resolves to "relation does not exist" for them and every assertion
+-- below passes vacuously. test_tlp_enforcement.sql records the same hazard.
+do $$
+declare
+    sch text;
+begin
+    select n.nspname into sch
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+     where c.relname = 'embeddings'
+       and c.relkind = 'r'
+     limit 1;
+
+    if sch is null then
+        raise exception 'cannot locate the embeddings table in any schema';
+    end if;
+
+    execute format('grant usage on schema %I to vtlp_low, vtlp_high', sch);
 end $$;
 
 grant select on embeddings to vtlp_low, vtlp_high;

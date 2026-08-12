@@ -8,6 +8,73 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### TLP policy on the vector tier, and a larger finding (2026-08)
+
+Adds the policy ADR-0011 recorded as missing: RLS covered only `core_graph.*`,
+so `embeddings` and `retrieval_embeddings` carried none.
+
+> **This does not by itself make retrieval TLP-safe.** While writing it, a
+> larger and independent gap surfaced: **no RLS policy in this repository is
+> evaluated for the application's connection.** The `cg_*` roles created by
+> 004, 005 and 010 are all `NOLOGIN` — grant targets, not connection
+> identities. Nothing outside tests issues `SET ROLE`; `get_connection()` sets
+> `app.max_tlp` as a GUC and leaves the session role untouched. The application
+> connects as `cg_admin`, which is `POSTGRES_USER` in the official postgres
+> image and therefore a **superuser**, and superusers bypass RLS
+> unconditionally — with or without `FORCE`.
+>
+> That applies to the policies on `core_graph.*` from 004, 010, 022 and 028
+> exactly as much as to the ones added here. The `tests/rls/*.sql` suites pass
+> because they create their own non-superuser roles and `SET ROLE` to them,
+> which verifies the policies are *correct* without verifying the application
+> ever *reaches* them.
+>
+> Closing it requires the application to connect as a non-superuser, or to
+> `SET ROLE` per request from the caller identity. Both are connection-model
+> changes, not schema changes. Raised separately; this migration is a
+> precondition for either, and its absence was a second independent defect.
+
+* **schema: `tlp_level` and RLS on both vector tables** (migration 037), with
+  read and write policies mirroring 004 and 028, and the `cg_*` grants 004
+  applies to the graph tables.
+
+  This is the design the repository already assumed. Migration 027's rationale
+  reads "candidates governed by `hnsw.ef_search`; **if RLS then filters most of
+  them**", and it enabled HNSW iterative scans specifically so a filtered
+  vector search would not under-return — groundwork laid for a policy that was
+  never created.
+
+* **Fail-closed default.** `tlp_level` defaults to 4, the most restrictive
+  level. Nothing in this repository writes `embeddings`, so where it is fed
+  only by this repo the table is empty and the default costs nothing; where an
+  out-of-tree producer has populated it, those rows become ciso-only until the
+  producer sets a level. A visible, safe failure rather than a silent leak —
+  the opposite default would have codified the exposure.
+
+* **Denormalised onto the serving tier**, diverging from axiom (whose serving
+  table has no `tlp_level`, because axiom does not enforce TLP there at all).
+  The ANN runs in a CTE against `retrieval_embeddings` before joining
+  `embeddings`, so a policy on `embeddings` alone would filter only after top-k
+  was chosen from unfiltered vectors — correct, but silently returning fewer
+  than k. Precedent for denormalising a TLP level onto a hot path: 022 and 032,
+  and 037 resyncs the same way 032 did.
+
+* **RLS enabled but not forced**, diverging from 004/028. FORCE applies
+  policies to the table owner, which is the identity that runs migrations —
+  and 036's backfill re-runs on every replay. Under FORCE that read would be
+  subject to the policy with `app.max_tlp` unset, coalescing to 1, so every
+  subject above TLP:1 would stop being copied. Reasoned out in the migration.
+
+* **test(rls): `tests/rls/test_vector_tlp.sql`**, wired into CI and `make
+  test`. It asserts visibility at each ceiling, that an unset `app.max_tlp`
+  coalesces to the restrictive reading rather than to "no filter", and that the
+  serving tier filters too. Verified to **fail** against the pre-037 state: with
+  the policy absent a `max_tlp=1` caller sees all five rows including TLP:RED.
+
+  It runs in `schema-and-rls-test`, which needs no embedding provider — unlike
+  `tests/eval/test_rls_retrieval_correctness.py`, which asserts the same
+  property end to end and has never run for exactly that reason.
+
 ### Correction: the retrieval gates do not verify what was claimed (2026-08)
 
 * **docs: correct ADR-0011.** It claimed the eval gate "runs in CI against real

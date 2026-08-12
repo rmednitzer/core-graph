@@ -56,6 +56,7 @@ test: ## Run all tests
 	$(PSQL) -f tests/rls/test_iam_tlp_floor.sql
 	$(PSQL) -f tests/rls/test_write_path.sql
 	$(PSQL) -f tests/rls/test_stix_sdo_rls.sql
+	$(PSQL) -f tests/rls/test_vector_tlp.sql
 	@echo "==> All tests passed"
 
 lint: validate ## Lint Python and SQL (alias for validate)

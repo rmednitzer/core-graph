@@ -179,6 +179,27 @@ delete from embedding_models where model_id = 'vtlp-model';
 
 revoke select on embeddings from vtlp_low, vtlp_high;
 revoke select on retrieval_embeddings from vtlp_low, vtlp_high;
+
+-- The schema USAGE grant is a dependency too. Revoking only the table SELECTs
+-- leaves it behind, and DROP ROLE then fails with "cannot be dropped because
+-- some objects depend on it / privileges for schema ag_catalog". Resolved from
+-- the catalogue, exactly as the grant was.
+do $$
+declare
+    sch text;
+begin
+    select n.nspname into sch
+      from pg_class c
+      join pg_namespace n on n.oid = c.relnamespace
+     where c.relname = 'embeddings'
+       and c.relkind = 'r'
+     limit 1;
+
+    if sch is not null then
+        execute format('revoke usage on schema %I from vtlp_low, vtlp_high', sch);
+    end if;
+end $$;
+
 drop role if exists vtlp_low;
 drop role if exists vtlp_high;
 

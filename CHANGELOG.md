@@ -30,6 +30,19 @@ ADR-0018. Closes the gap ADR-0017 recorded as its own second revisit trigger:
   `principal_from_caller` is now shared with `identity_attribution`, which had
   been assembling the same principal by hand.
 
+* **fix: `CG_CERBOS_ENDPOINT` pointed at Cerbos's gRPC port.** 3593 is gRPC;
+  the HTTP listener is 3592. `api.authz.cerbos` is an HTTP client, so every
+  check raised `illegal request line` and `check_action` turned it into a
+  fail-closed deny -- **every Cerbos decision in the repository was a silent
+  denial since the client was written**, including the CISO gate on
+  `identity_attribution`. Invisible because no CI-exercised path called Cerbos
+  until this change; the first integration run caught it. `tests/test_cerbos_client.py`
+  now asserts the endpoint is not the gRPC port, and compose publishes 3592.
+
+  A fail-closed control that denies everything looks identical, from outside, to
+  one that works. The fix is not to fail open -- it is that such a control needs
+  a positive test, asserting an *allowed* action is allowed, and there was none.
+
 > **Breaking: a caller presenting no roles is now denied.** Authorization is
 > decided by role, so a caller that presents none has not established one. Until
 > now the memory tools accepted `caller_identity={"max_tlp": 4}` and wrote an

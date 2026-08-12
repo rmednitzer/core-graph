@@ -88,6 +88,47 @@ Cerbos onto the critical path for Layer 5, which it was not on before.
 Neutral. The policy's `read` rules for `soc_analyst` and `compliance_officer`
 become enforced, which they were not; nothing else about the policy changes.
 
+## Discovered by wiring it: every Cerbos check was already failing closed
+
+Not caused by this change, and found the moment it landed. The integration test
+denied a caller that should have been allowed:
+
+```
+PermissionError: Denied by Cerbos policy: create on memory. Caller roles: ['ai_agent'].
+ERROR api.authz.cerbos: Cerbos check failed for memory/create, denying by default
+httpx.RemoteProtocolError: illegal request line
+```
+
+The role was right and the policy was right. Cerbos never returned a verdict:
+`CG_CERBOS_ENDPOINT` defaulted to `http://localhost:3593`, which is Cerbos's
+**gRPC** listener. Its HTTP listener is 3592, and the Cerbos SDK vendored in this
+repository states both (`cerbos.sdk.container.HTTP_PORT` / `GRPC_PORT`). Posting
+HTTP at a gRPC port produces exactly that `illegal request line`, and
+`check_action` fails closed on any transport error, so it became a denial.
+
+**That has been true since `api/authz/cerbos.py` was written.** Every Cerbos
+decision in this repository was a silent denial. `identity_attribution` -- the
+only other caller, and the tool that gates `Principal--same_as--ThreatActor`
+edges behind the CISO role -- would have denied a legitimate CISO.
+
+It stayed invisible for the same reason ADR-0016's `ai_agent` problem did:
+nothing on a CI-exercised path called Cerbos. `identity_attribution` requires the
+`ciso` role and has no integration test, so the failure had nowhere to surface.
+Putting a Cerbos call on a path the integration suite runs surfaced it in the
+first run.
+
+Fixed here: the default becomes `http://localhost:3592`, the compose stack
+publishes 3592 alongside 3593, and `tests/test_cerbos_client.py` asserts the
+configured endpoint is not the gRPC port. The real regression test is the
+integration test itself, which now exercises a Cerbos decision end to end.
+
+Worth noting what this says about fail-closed defaults. `check_action` denying
+on transport error is correct, and it is also what hid a total misconfiguration
+for the lifetime of the client: a control that denies everything looks identical
+to a control that is working, from the outside. The lesson is not to fail open;
+it is that a fail-closed control needs a positive test -- one that asserts an
+*allowed* action is allowed -- and this repository had none.
+
 ## Alternatives considered and rejected
 
 **Skip the check when OIDC is disabled.** It would have kept the integration

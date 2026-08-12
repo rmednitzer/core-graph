@@ -60,7 +60,18 @@ SPICEDB_ENDPOINT = os.environ.get("CG_SPICEDB_ENDPOINT", "localhost:50051")
 SPICEDB_TOKEN = os.environ.get("CG_SPICEDB_TOKEN", "")
 
 # Cerbos (ABAC)
-CERBOS_ENDPOINT = os.environ.get("CG_CERBOS_ENDPOINT", "http://localhost:3593")
+# 3592, not 3593. Cerbos listens for HTTP on 3592 and gRPC on 3593 (its own SDK
+# states both: cerbos.sdk.container.HTTP_PORT / GRPC_PORT). api.authz.cerbos is
+# an HTTP client, so the previous default pointed it at the gRPC listener and
+# every check failed with httpx "illegal request line" -- which check_action
+# then turned into a fail-closed deny.
+#
+# That made every Cerbos decision in this repository a denial, silently, since
+# the client was written. It stayed invisible because nothing on a CI-exercised
+# path called Cerbos: identity_attribution needs the ciso role and has no
+# integration test. Wiring the memory tools (ADR-0018) put a Cerbos call on a
+# path the integration suite runs, and it failed immediately.
+CERBOS_ENDPOINT = os.environ.get("CG_CERBOS_ENDPOINT", "http://localhost:3592")
 
 # MinIO (evidence store)
 MINIO_ENDPOINT = os.environ.get("CG_MINIO_ENDPOINT", "localhost:9000")

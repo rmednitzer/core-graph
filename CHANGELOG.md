@@ -8,6 +8,51 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### Retrieval model provenance and lifecycle, reconciled against axiom_kg (2026-08)
+
+Records a direct comparison against a running instance of this design
+(PostgreSQL 18.4, Apache AGE, pgvector, hybrid retrieval with reranking;
+176,235 documents, 51,100 retrieval-active) and adopts three things it does
+that this repository did not. Full evidence and the rejected alternatives are
+in ADR-0010.
+
+* **schema: add `retrieval_models`** (migration 034) with `kind`
+  (`embedding` / `reranker`), `provider`, `repo`, `revision`, nullable `dim`
+  and `active`. `embedding_models` recorded only a dimension, could not
+  express a reranker at all, and recorded nothing about which weights produced
+  a vector — `api/mcp/tools/hybrid_search.py` reranks via `CG_RERANKER_URL`
+  with no registry row, so a reranked result set was unattributable. A check
+  constraint pairs `dim` with `kind`, so a reranker cannot be used as a vector
+  space. Deactivation keeps the row: vectors from a retired model stay
+  attributable only while it survives.
+
+  It is a separate table rather than columns on `embedding_models` because
+  `make migrate` replays every migration each run, and 021 ends by calling
+  `cg_create_model_indexes()` over every non-deprecated row — which raises on
+  a null `dim`. A nullable-dim reranker row there would break the *second*
+  replay of 021, and 021 re-creates that function, so hardening it later would
+  be overwritten.
+
+* **schema: add retrieval lifecycle to `embeddings`** (migration 035):
+  `retrieval_active`, `pinned`, `expires_at`, `retention_class`, with a
+  constraint that a pinned row cannot carry an expiry. Every row here was
+  permanently live, so the vector tier and its HNSW indexes grew without bound.
+  Defaults keep every existing row durable and active, so behaviour is
+  unchanged until something sets them.
+
+* **schema: add `cg_retrieval_parity`**, reporting active subjects, vectors
+  present and the gap per active embedding model. An asymmetry between vector
+  spaces makes hybrid fusion search a smaller corpus on one side and shifts the
+  blend with no error raised; nothing measured that before.
+
+* **schema: add `pg_trgm`.** `ingest/resolver/` did entity resolution with no
+  trigram index available to it.
+
+* **test(schema): `tests/schema/test_retrieval_registry.py`**, exercising every
+  new constraint in both directions — a check that is never seen to reject is
+  not evidence — plus parity gap detection, reranker exclusion from parity, and
+  deactivation preserving the row.
+
 ### Backlog completion — STIX SDO set, shared NATS connection, supply-chain gates (2026-06)
 
 Works the carried-forward roadmap of `audit/2026-06-01-engagement.md` § 6 and

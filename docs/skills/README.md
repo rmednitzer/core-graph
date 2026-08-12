@@ -57,6 +57,7 @@ AI Agent
    from api.mcp.skills.base import SkillBase, SkillResult
    from api.mcp.tools.cypher_query import cypher_query
 
+
    class MySkill(SkillBase):
        name = "my_skill"
        description = "What this skill does"

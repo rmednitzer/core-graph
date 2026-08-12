@@ -73,6 +73,18 @@ Neutral. `embeddings` is unchanged and remains the identity and full-precision
 record for every subject, hot or cold, exactly as axiom keeps its own legacy
 pair.
 
+Worth knowing for anyone writing a migration here: migration 001 sets the
+database `search_path` to `ag_catalog,"$user",public`, so an unqualified
+`CREATE TABLE` in a migration lands in **`ag_catalog`**, not `public`. That is
+where `embeddings`, `retrieval_models` and now `retrieval_embeddings` actually
+live. Everything resolves consistently through the search path, so it works,
+but a guard written as `to_regclass('public.<table>')` asks a different
+question than the unqualified `CREATE` answers: it reports NULL on a re-run
+even though the table exists, and the migration then fails as "relation already
+exists" on the idempotency pass rather than the first one.
+`tests/rls/test_tlp_enforcement.sql` documents the same trap for its own
+stand-in table. The guard in 036 is deliberately unqualified for this reason.
+
 ## Discovered while implementing: the vector path does not enforce TLP
 
 Not caused by this change, and not fixed by it, but found in the course of it

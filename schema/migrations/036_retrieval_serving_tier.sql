@@ -54,7 +54,15 @@ begin
         target_dim := 768;
     end if;
 
-    if to_regclass('public.retrieval_embeddings') is null then
+    -- Deliberately NOT schema-qualified. Migration 001 sets the database
+    -- search_path to ag_catalog,"$user",public, so the unqualified CREATE
+    -- below resolves to the first schema on that path, not to public. A
+    -- `to_regclass('public.retrieval_embeddings')` guard asks a different
+    -- question than the CREATE answers: it reports NULL on the second pass
+    -- even though the table exists, and the migration then fails as
+    -- "relation already exists". The guard has to resolve exactly the way
+    -- the CREATE does. Same trap documented in tests/rls/test_tlp_enforcement.sql.
+    if to_regclass('retrieval_embeddings') is null then
         execute format(
             'create table retrieval_embeddings (
                  graph_id   bigint      not null,

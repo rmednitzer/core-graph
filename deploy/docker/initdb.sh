@@ -26,11 +26,22 @@ done
 #
 # Dev-only. A real deployment sets it from its own secret store; nothing here
 # is a credential anyone should reuse.
+#
+# The SQL arrives on stdin rather than through -c. psql does NOT expand
+# variables in a -c string -- it is sent to the server verbatim, so :'pw'
+# reaches the parser as literal text and fails with `syntax error at or near
+# ":"`. Under `set -e` that exits the entrypoint and the container dies before
+# the database is ever reachable. Verified against psql 16.
+#
+# :'pw' rather than the value inline is what quotes and escapes the password
+# safely, which matters here more than anywhere: this is the one place a real
+# deployment's secret is interpolated into SQL.
 if [ -n "${CG_APP_PASSWORD:-}" ]; then
     echo "==> Activating the cg_app application role"
     psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
-        -v pw="$CG_APP_PASSWORD" \
-        -c "alter role cg_app login password :'pw'"
+        -v pw="$CG_APP_PASSWORD" <<'SQL'
+alter role cg_app login password :'pw';
+SQL
 else
     echo "==> CG_APP_PASSWORD unset; cg_app stays inactive and the API will" \
          "fall back to $POSTGRES_USER, which bypasses RLS"

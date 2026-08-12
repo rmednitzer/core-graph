@@ -44,8 +44,8 @@ activate-app-role: ## Set the cg_app password so the API can connect (dev)
 		echo "==> CG_APP_PASSWORD unset; skipping cg_app activation"; \
 	else \
 		echo "==> Activating cg_app"; \
-		$(PSQL) -v pw="$(CG_APP_PASSWORD)" \
-			-c "alter role cg_app login password :'pw'" >/dev/null; \
+		echo "alter role cg_app login password :'pw';" \
+			| $(PSQL) -v pw="$(CG_APP_PASSWORD)" >/dev/null; \
 	fi
 
 seed: ## Load reference data (MITRE ATT&CK, STIX vocabularies, roles)

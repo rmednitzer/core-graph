@@ -110,6 +110,13 @@ jobs:
         with:
           name: embedding-drift-report
           path: drift-report.json
+      # The stack's own stderr never reaches this log otherwise. A postgres
+      # container that dies during initdb (a failing migration, a bad
+      # entrypoint script) shows up only as "dependency failed to start:
+      # container cg-postgres exited (1)", which says nothing about why.
+      - name: Dump stack logs on failure
+        if: failure()
+        run: docker compose -f deploy/docker/docker-compose.yml logs --no-color --tail=200
       - name: Tear down stack
         if: always()
         run: docker compose -f deploy/docker/docker-compose.yml down -v

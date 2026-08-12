@@ -83,6 +83,13 @@ async def _log_enforcement_posture() -> None:
     """
     if _pool is None:
         return
+    # Typed Any deliberately. The pool is constructed with `row_factory=dict_row`
+    # a few lines up, so the runtime value is a mapping, but `execute()` is
+    # annotated as returning the default `tuple[Any, ...]` and mypy has no way to
+    # see the pool's factory from here. Positional access would type-check and be
+    # wrong: unpacking a dict yields its keys, so `row[0]` would silently become
+    # the string "role" rather than the role name.
+    row: Any
     try:
         async with _pool.connection() as conn:
             row = await (

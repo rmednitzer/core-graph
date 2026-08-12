@@ -40,7 +40,11 @@ misp = [
 dev = [
   "ruff>=0.16.1,<0.17",
   "yamllint>=1.35,<2",
-  "mypy>=1.14,<3",
+  # Floor raised to 2.3 so the local gate runs the same major version as CI.
+  # It was ">=1.14,<3": pip resolved 1.19 locally and 2.3 in CI, mypy 2.x
+  # tightened psycopg row typing, and a clean local `make typecheck` shipped a
+  # commit that failed the CI job. Same class as the ruff pin skew.
+  "mypy>=2.3,<3",
 ]
 
 [tool.setuptools.packages.find]

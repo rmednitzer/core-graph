@@ -389,7 +389,7 @@ requires-dist = [
     { name = "mcp", specifier = ">=2,<3" },
     { name = "minio", specifier = ">=7.2,<8" },
     { name = "misp-stix", marker = "extra == 'misp'", specifier = ">=2.4" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.14,<3" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = ">=2.3,<3" },
     { name = "nats-py", specifier = ">=2.14.0,<3" },
     { name = "prometheus-client", specifier = ">=0.25.0,<1" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.1,<4" },

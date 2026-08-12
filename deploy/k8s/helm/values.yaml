@@ -95,8 +95,20 @@ postgres:
       memory: 4Gi
   auth:
     database: core_graph
+    # The owner identity: runs migrations, and what the graph-writer and the
+    # evidence tooling connect as. Not what serves requests.
     username: cg_admin
     password: changeme  # Override via --set in production
+    # The request-serving identity, cg_app (migration 038). NOSUPERUSER
+    # NOBYPASSRLS, so the TLP policies are actually evaluated for it; a
+    # superuser bypasses row-level security unconditionally. See ADR-0014.
+    #
+    # Migration 038 creates the role without a password on purpose. Set one
+    # here and the deployment activates it; leave appPassword empty and the API
+    # falls back to the owner DSN, which means no enforcement. api.db logs
+    # which role it connected as at startup, and warns on the fallback.
+    appUsername: cg_app
+    appPassword: ""  # Override via --set in production
   external:
     host: ""
     port: 5432

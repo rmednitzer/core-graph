@@ -10,7 +10,13 @@ services:
     ports:
       - "8000:8000"
     environment:
+      # Two identities, deliberately. CG_PG_DSN is the owner: migrations, the
+      # trusted writers, and the evidence tooling. CG_PG_APP_DSN is what the
+      # request-serving pool connects as, and it is the whole point -- cg_app
+      # is NOSUPERUSER NOBYPASSRLS, so the TLP policies are actually evaluated.
+      # See ADR-0014.
       CG_PG_DSN: postgresql://cg_admin:cg_dev_only@postgres:5432/core_graph
+      CG_PG_APP_DSN: postgresql://cg_app:cg_dev_only_app@postgres:5432/core_graph
       CG_NATS_URL: nats://nats:4222
       CG_VALKEY_URL: redis://valkey:6379
       CG_OIDC_ENABLED: "false"
@@ -41,6 +47,9 @@ services:
       POSTGRES_USER: cg_admin
       POSTGRES_PASSWORD: cg_dev_only
       POSTGRES_DB: core_graph
+      # Activates the cg_app role that migration 038 creates without one.
+      # initdb.sh sets it after the migrations have run. Dev-only value.
+      CG_APP_PASSWORD: cg_dev_only_app
     ports:
       - "5432:5432"
     volumes:

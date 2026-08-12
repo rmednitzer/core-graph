@@ -163,7 +163,14 @@ jobs:
           version: v3.21.3
       - name: Install kubeconform
         run: |
-          curl -fsSL https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz | tar xz
+          # Retry flags per ADR-0014's companion fix (#111): every CI job here
+          # fetches a release asset from github.com at run time, and four such
+          # fetches failed with 503 or a dropped connection inside one hour on
+          # 2026-08-12. Exponential backoff (no --retry-delay, which would
+          # disable it), bounded so a real outage still fails rather than hangs.
+          curl -fsSL --retry 8 --retry-all-errors --retry-max-time 180 \
+            https://github.com/yannh/kubeconform/releases/download/v0.7.0/kubeconform-linux-amd64.tar.gz \
+            | tar xz
           sudo mv kubeconform /usr/local/bin/
       - name: Validate manifests (lab profile)
         run: |
@@ -217,7 +224,12 @@ jobs:
           ACTIONLINT_VERSION: v1.7.12
           ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
         run: |
-          curl -fsSL -o /tmp/actionlint.tar.gz \
+          # Retry flags per ADR-0014's companion fix (#111): every CI job here
+          # fetches a release asset from github.com at run time, and four such
+          # fetches failed with 503 or a dropped connection inside one hour on
+          # 2026-08-12. Exponential backoff (no --retry-delay, which would
+          # disable it), bounded so a real outage still fails rather than hangs.
+          curl -fsSL --retry 8 --retry-all-errors --retry-max-time 180 -o /tmp/actionlint.tar.gz \
             "https://github.com/rhysd/actionlint/releases/download/${ACTIONLINT_VERSION}/actionlint_${ACTIONLINT_VERSION#v}_linux_amd64.tar.gz"
           echo "${ACTIONLINT_SHA256}  /tmp/actionlint.tar.gz" | sha256sum -c -
           tar xzf /tmp/actionlint.tar.gz actionlint

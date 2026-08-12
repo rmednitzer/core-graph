@@ -74,7 +74,13 @@ jobs:
           CERBOS_VERSION: v0.53.0
         run: |
           mkdir -p "$HOME/.local/bin"
-          curl -fsSL "https://github.com/cerbos/cerbos/releases/download/${CERBOS_VERSION}/cerbos_${CERBOS_VERSION#v}_Linux_x86_64.tar.gz" \
+          # Retry flags per ADR-0014's companion fix (#111): every CI job here
+          # fetches a release asset from github.com at run time, and four such
+          # fetches failed with 503 or a dropped connection inside one hour on
+          # 2026-08-12. Exponential backoff (no --retry-delay, which would
+          # disable it), bounded so a real outage still fails rather than hangs.
+          curl -fsSL --retry 8 --retry-all-errors --retry-max-time 180 \
+            "https://github.com/cerbos/cerbos/releases/download/${CERBOS_VERSION}/cerbos_${CERBOS_VERSION#v}_Linux_x86_64.tar.gz" \
             | tar xz -C "$HOME/.local/bin" cerbos
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           cerbos --version
@@ -141,7 +147,11 @@ jobs:
       PGUSER: cg_admin
       PGPASSWORD: cg_dev_only
       PGDATABASE: core_graph
+      # The serving pool connects as cg_app (migration 038), not as the owner,
+      # so the integration suite exercises the real read and write paths with
+      # RLS actually evaluated. That is what proves the grant surface complete.
       CG_PG_DSN: postgresql://cg_admin:cg_dev_only@localhost:5432/core_graph
+      CG_PG_APP_DSN: postgresql://cg_app:cg_dev_only_app@localhost:5432/core_graph
       CG_NATS_URL: nats://localhost:4222
       CG_VALKEY_URL: redis://localhost:6379
       # The REST integration tests drive the app in-process, so they need the
@@ -202,6 +212,13 @@ jobs:
           done
       - name: Run integration tests
         run: pytest -m integration -v
+      # The stack's own stderr never reaches this log otherwise. A postgres
+      # container that dies during initdb (a failing migration, a bad
+      # entrypoint script) shows up only as "dependency failed to start:
+      # container cg-postgres exited (1)", which says nothing about why.
+      - name: Dump stack logs on failure
+        if: failure()
+        run: docker compose -f deploy/docker/docker-compose.yml logs --no-color --tail=200
       - name: Tear down stack
         if: always()
         run: docker compose -f deploy/docker/docker-compose.yml down -v

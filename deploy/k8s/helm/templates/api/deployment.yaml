@@ -43,6 +43,14 @@ spec:
                 secretKeyRef:
                   name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "api") }}-secret
                   key: pg-dsn
+            # The request-serving pool connects with this one, not CG_PG_DSN.
+            # Empty when postgres.auth.appPassword is unset, in which case
+            # api.config falls back to CG_PG_DSN and logs the unenforced posture.
+            - name: CG_PG_APP_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "api") }}-secret
+                  key: pg-app-dsn
           envFrom:
             - configMapRef:
                 name: {{ include "core-graph.componentName" (dict "Release" .Release "Chart" .Chart "component" "api") }}-config

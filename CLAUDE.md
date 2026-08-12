@@ -105,7 +105,11 @@ authoritative upstream documentation as of 2026-05.
 
 Groups currently bound in `api/config.py`:
 
-- Database / pool: `CG_PG_DSN`, `CG_PG_POOL_MIN`, `CG_PG_POOL_MAX`
+- Database / pool: `CG_PG_DSN` (owner identity: migrations, writers, evidence
+  tooling), `CG_PG_APP_DSN` (the `api.db` serving pool, the `cg_app` role from
+  migration 038; falls back to `CG_PG_DSN` when unset, which disables RLS
+  enforcement and is logged as a warning at pool open — see ADR-0014),
+  `CG_PG_POOL_MIN`, `CG_PG_POOL_MAX`
 - Bus / cache: `CG_NATS_URL`, `CG_VALKEY_URL`
 - Authz: `CG_SPICEDB_ENDPOINT`, `CG_SPICEDB_TOKEN`, `CG_CERBOS_ENDPOINT`
 - Auth: `CG_OIDC_ENABLED` (default `true`, fail-closed), `CG_OIDC_ISSUER_URL`,

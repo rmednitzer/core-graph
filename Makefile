@@ -1,4 +1,4 @@
-.PHONY: help up down migrate seed validate test lint typecheck clean reset psql serve mcp graph-writer enrichment-worker integration-test verify-chain verify-merkle stamp-merkle bench helm-lint helm-template helm-validate zarf-validate deploy-lint
+.PHONY: help up down migrate activate-app-role seed validate test lint typecheck clean reset psql serve mcp graph-writer enrichment-worker integration-test verify-chain verify-merkle stamp-merkle bench helm-lint helm-template helm-validate zarf-validate deploy-lint
 
 # Database connection defaults (override via environment)
 PGHOST   ?= localhost
@@ -6,6 +6,9 @@ PGPORT   ?= 5432
 PGUSER   ?= cg_admin
 PGPASSWORD ?= cg_dev_only
 PGDATABASE ?= core_graph
+# Dev-only. Matches deploy/docker/docker-compose.yml so `make migrate` against a
+# pre-existing stack activates cg_app the same way a fresh initdb does.
+CG_APP_PASSWORD ?= cg_dev_only_app
 
 export PGHOST PGPORT PGUSER PGPASSWORD PGDATABASE
 
@@ -28,6 +31,22 @@ migrate: ## Run database migrations
 		$(PSQL) -f "$$f"; \
 	done
 	@echo "==> Migrations complete"
+	@$(MAKE) --no-print-directory activate-app-role
+
+activate-app-role: ## Set the cg_app password so the API can connect (dev)
+	@# Migration 038 creates cg_app without a password on purpose; setting one
+	@# is what activates it, and belongs to the deployment rather than to a
+	@# migration. deploy/docker/initdb.sh does this on a *first* container
+	@# start. This target covers the other case: a stack whose pgdata volume
+	@# predates the role, where initdb never re-runs and the API would sit in a
+	@# connect-retry loop against a role with no password.
+	@if [ -z "$(CG_APP_PASSWORD)" ]; then \
+		echo "==> CG_APP_PASSWORD unset; skipping cg_app activation"; \
+	else \
+		echo "==> Activating cg_app"; \
+		echo "alter role cg_app login password :'pw';" \
+			| $(PSQL) -v pw="$(CG_APP_PASSWORD)" >/dev/null; \
+	fi
 
 seed: ## Load reference data (MITRE ATT&CK, STIX vocabularies, roles)
 	@echo "==> Loading seed data"

@@ -175,6 +175,20 @@ other env-var values, so the password must be baked into the DSN string.
 {{- end }}
 
 {{/*
+PostgreSQL DSN for the request-serving pool (the cg_app role, migration 038).
+Empty when postgres.auth.appPassword is unset, which leaves CG_PG_APP_DSN unset
+and makes api.config fall back to CG_PG_DSN -- the unenforced posture, logged as
+a warning at pool open rather than failing to start.
+*/}}
+{{- define "core-graph.postgresAppDSN" -}}
+{{- $host := include "core-graph.postgresHost" . -}}
+{{- $port := include "core-graph.postgresPort" . -}}
+{{- if .Values.postgres.auth.appPassword -}}
+{{- printf "postgresql://%s:%s@%s:%s/%s" .Values.postgres.auth.appUsername .Values.postgres.auth.appPassword (trimAll " " $host) (trimAll " " $port) .Values.postgres.auth.database -}}
+{{- end }}
+{{- end }}
+
+{{/*
 NATS URL — resolves to internal service or external URL.
 */}}
 {{- define "core-graph.natsURL" -}}

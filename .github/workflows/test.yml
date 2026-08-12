@@ -49,6 +49,12 @@ jobs:
       # embedding provider and so never runs in CI; this one needs only psql.
       - name: Run vector-tier TLP RLS test
         run: psql -v ON_ERROR_STOP=1 -f tests/rls/test_vector_tlp.sql
+      # Every other suite here creates its own non-superuser role, which proves
+      # the policies correct without proving the application ever reaches them.
+      # This one asserts the property those suites assume, against the role
+      # migration 038 creates for the application to connect as.
+      - name: Run application-role RLS test
+        run: psql -v ON_ERROR_STOP=1 -f tests/rls/test_application_role.sql
 
   policy-test:
     runs-on: ubuntu-latest

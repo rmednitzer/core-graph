@@ -8,6 +8,39 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### A non-superuser application role (2026-08)
+
+Half of the finding recorded below. The policies key off the `app.max_tlp` GUC
+rather than off the role, so closing the gap does not need per-request
+`SET ROLE` and `get_connection()` is unchanged. It needs the application to stop
+being a superuser.
+
+* **schema: `cg_app`** (migration 038) — `LOGIN NOSUPERUSER NOBYPASSRLS`, with
+  `USAGE` on `public`, `ag_catalog` and `core_graph`, broad table/sequence/
+  function grants across all three, and matching default privileges so it does
+  not go stale when a later migration adds a table. Table grants are deliberately
+  broad and RLS is what constrains them, the model 004 already uses.
+
+  Carve-outs: no `UPDATE`/`DELETE` on `audit_log` (append-only, 024), no writes
+  to `ag_catalog.ag_graph` or `ag_catalog.ag_label` (DDL by another name), and no
+  `CREATE` on any schema. The last is what stops AGE auto-creating a label's
+  backing table owned by `cg_app` with no policy attached — the hole 028 had to
+  close by hand. It does not arise because `ingest/graph_writer.py` drops any
+  label without a `MERGE_TEMPLATES` entry before it reaches Cypher.
+
+* **test: `tests/rls/test_application_role.sql`** — the first suite here that
+  grants itself nothing, so everything it exercises has to come from the
+  migration. Asserts the role attributes, the carve-outs, the absence of
+  `CREATE`, and that RLS actually binds: at `max_tlp=1` it must see 2 of 3 rows.
+  Checked against a `BYPASSRLS` control, where the count moves to 3.
+
+> **This does not switch anything over, and the gap is still open.** Nothing uses
+> `cg_app` until a deployment points `CG_PG_DSN` at it, so deployments still
+> connect as a superuser and every policy in the repository is still inert for
+> them. That is deliberate: the switch-over is a compose and CI change, and it is
+> where grant-completeness gets proven, because the integration suite exercises
+> the real read and write paths. See ADR-0012.
+
 ### TLP policy on the vector tier, and a larger finding (2026-08)
 
 Adds the policy ADR-0011 recorded as missing: RLS covered only `core_graph.*`,

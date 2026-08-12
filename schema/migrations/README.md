@@ -70,6 +70,11 @@ Migrations are designed to be additive. If a migration must be reverted:
 | `031_uuidv7_audit_correlation.sql` | PG18 `uuidv7()` time-ordered audit correlation ids |
 | `032_edge_tlp_writer_resync.sql` | Edge-TLP resync helpers for the Cypher write path (trigger-less AGE writes) |
 | `033_stix_sdo_completion.sql` | Final STIX SDO labels (IntrusionSet/Identity/Location/Report): vlabels, RLS policies + grants, stix indexes |
+| `034_retrieval_model_registry.sql` | Retrieval model provenance: kind/provider/repo/revision/dim, register + deactivate helpers, pg_trgm |
+| `035_retrieval_lifecycle.sql` | Subject retrieval lifecycle (`retrieval_active`, `pinned`, `expires_at`, `retention_class`) + parity views |
+| `036_retrieval_serving_tier.sql` | Native `halfvec` serving tier `retrieval_embeddings (graph_id, model_id)`, per-model partial HNSW, hot-set backfill (ADR-0011) |
+| `037_vector_tlp_enforcement.sql` | `tlp_level` + RLS read/write policies on both vector tables, fail-closed at 4 |
+| `038_application_role.sql` | `cg_app`: a `LOGIN NOSUPERUSER NOBYPASSRLS` application role so RLS is actually evaluated (ADR-0012) |
 
 ## CI validation
 

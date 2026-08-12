@@ -8,6 +8,47 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### Native halfvec serving tier (2026-08)
+
+Resolves the two open questions ADR-0010 left, with axiom adopted as the
+reference configuration. Detail in ADR-0011.
+
+* **schema: add `retrieval_embeddings`** (migration 036) — `graph_id`,
+  `model_id`, `embedding halfvec(N)`, `created_at`, keyed
+  `(graph_id, model_id)`, one partial HNSW index per model over
+  `halfvec_cosine_ops`. Mirrors axiom's table, including what it omits: no
+  full-precision twin and no `tlp_level`. Migration 021 stored both a
+  `vector(N)` and a trigger-derived `halfvec(N)` and indexed each, per model —
+  two copies of every vector and two graphs per model. Measured on axiom:
+  12.7 kB/row for the dual-column shape against 2.8 kB/row for halfvec-only.
+
+* **schema: the serving tier holds only retrieval-active subjects.** This is
+  what ADR-0010's second open question was really asking for. axiom does not
+  predicate its index; its table simply has no cold rows, so the heap shrinks
+  as well as the index.
+
+* **fix(mcp): `_vector_candidates` reads the serving tier**, with the ANN in
+  its own CTE carrying its own `order by` and `limit` against the indexed
+  table. Joining before ordering leaves the planner unable to use HNSW at all,
+  which fails as a performance cliff rather than an error.
+
+* **fix(mcp): `model_id` is resolved before either query runs.** It was
+  optional, and `None` applied no filter. With per-model partial indexes that
+  is both slow and wrong — it mixes vector spaces that are not comparable. The
+  function already refused cross-model retrieval, so the process default was
+  the only thing `None` could have meant.
+
+* **test: 8 schema tests** for the serving tier and 3 unit tests for the query
+  shape, the latter needing no database.
+
+`embeddings.embedding_half` and 021's halfvec indexes are now unread but are
+deliberately left in place, so the change is reversible by pointing the query
+back at `embeddings` if the eval gate shows a retrieval-quality regression.
+
+**Recorded, not fixed:** the vector retrieval path does not enforce TLP. RLS
+covers only `core_graph.*`, so neither `embeddings` nor `retrieval_embeddings`
+has a policy, and `hybrid_search` applies no post-filter. See ADR-0011.
+
 ### Retrieval model provenance and lifecycle, reconciled against axiom_kg (2026-08)
 
 Records a direct comparison against a running instance of this design

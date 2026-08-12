@@ -8,6 +8,55 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### Read-only clearances (2026-08)
+
+ADR-0016. The narrowing that ADR-0014 and ADR-0015 were each shaped to make
+possible, and the point of the whole sequence: migration 028 wrote TLP
+INSERT/UPDATE/DELETE policies, and a policy is a predicate. A predicate that is
+wrong is a hole; a missing `GRANT` is not.
+
+* **schema: five clearances lose write** (migration 041) --
+  `cg_compliance_officer`, `cg_it_operations`, `cg_dpo`, `cg_external_auditor`
+  and `cg_ai_agent`. `cg_ciso` and `cg_soc_analyst` keep theirs.
+
+  Derived, not invented. Cerbos (`policies/resource/*.yaml`) allows mutating
+  actions to exactly two roles: `ciso` (`*` on three resources plus the sole
+  `assert` on identity_attribution) and `soc_analyst` (`incident:update`).
+  `docs/architecture/authorization-model.md` independently describes every other
+  role as review, oversight, monitoring, audit or analysis --
+  `external_auditor` is documented as "read-only" in as many words.
+
+* **fix: the default privileges are revoked too.** 040 set defaults granting
+  write on tables created *later*. Revoking only the current grants would have
+  left every read-only clearance re-widened by the next migration that adds a
+  table, with nothing to notice it. Asserted directly against `pg_default_acl`.
+
+* **schema: `INSERT` on `audit_log` is kept.** Every audited tool writes an
+  entry, so revoking it would fail *every call* by a read-only caller rather
+  than only its writes. `UPDATE`/`DELETE` stay revoked, so the log is still
+  append-only for them.
+
+* **schema: `cg_clearance_write_surface`**, a view reporting per clearance how
+  many tables it may insert, update or delete. Whether a clearance can write is
+  now a property of the database; an auditor should not have to reconstruct a
+  migration to find out.
+
+* **test: `tests/rls/test_readonly_clearances.sql`** -- the catalogue view of
+  the split, the same claim made the way a caller finds out (a denied INSERT),
+  and the `pg_default_acl` half. Checked against four negative controls:
+  granting UPDATE back, restoring the default privileges, revoking the audit
+  INSERT, and stripping `soc_analyst`'s write surface.
+
+> **Behaviour change: the AI memory layer becomes unwritable by `ai_agent`.**
+> Layer 5 (023) is the only graph-write path reachable through the request pool,
+> and an agent writing memory as `ai_agent` will now get `permission denied`.
+> Deliberate: Cerbos grants `ai_agent` no mutating action anywhere, the memory
+> tools never consult Cerbos so the absence of a policy is not an implicit
+> allow, and 023 attributes memory writes to "application writers" rather than
+> to a role. If agents should write Layer 5, the fix is a Cerbos memory policy
+> saying so plus a grant -- not a silent exception in the migration, which would
+> put the engine and the authorization model back out of step.
+
 ### Requests run as their clearance role (2026-08)
 
 ADR-0015. Completes what ADR-0012 and ADR-0014 both deferred, and closes

@@ -30,7 +30,11 @@ jobs:
       PGUSER: cg_admin
       PGPASSWORD: cg_dev_only
       PGDATABASE: core_graph
+      # The serving pool connects as cg_app (migration 038), not as the owner,
+      # so the integration suite exercises the real read and write paths with
+      # RLS actually evaluated. That is what proves the grant surface complete.
       CG_PG_DSN: postgresql://cg_admin:cg_dev_only@localhost:5432/core_graph
+      CG_PG_APP_DSN: postgresql://cg_app:cg_dev_only_app@localhost:5432/core_graph
       CG_NATS_URL: nats://localhost:4222
       CG_VALKEY_URL: redis://localhost:6379
     steps:

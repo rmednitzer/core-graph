@@ -8,6 +8,54 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### TLP enforcement becomes real: the serving pool runs as cg_app (2026-08)
+
+Completes the work migration 038 set up. See ADR-0014.
+
+Until this change, `core-graph`'s first architectural claim — "Row-Level
+Security enforces TLP markings at the engine level" — was not true for a single
+request. Five migrations implement the policies, six `tests/rls/` suites verify
+them, and the pool connected as the owner, which is a superuser, and superusers
+bypass RLS unconditionally.
+
+* **deploy: two identities, split by role.** `CG_PG_DSN` stays the owner:
+  migrations, `graph_writer`, the DLQ processor, the connectors, the evidence
+  chain, Merkle stamping. The new `CG_PG_APP_DSN` is what `api.db`'s pool
+  connects with, and it points at `cg_app` (`NOSUPERUSER NOBYPASSRLS`).
+
+  The split is the point. Writers persist entities at whatever TLP their source
+  declares; under 028's write policies with a caller's ceiling applied, a
+  TLP:RED indicator from MISP would be silently rejected. Enforcement belongs
+  where the caller is, not where the system is.
+
+* **deploy: the credential lives in the deployment layer.** 038 creates
+  `cg_app` without a password on purpose. `deploy/docker/initdb.sh` sets it from
+  `CG_APP_PASSWORD` after migrations; Helm takes `postgres.auth.appPassword`.
+
+* **fix: the fallback is now visible.** `CG_PG_APP_DSN` falls back to
+  `CG_PG_DSN` when unset, so an image deployed against a pre-038 schema still
+  starts. That silently restores the unenforced posture, so `api.db` reads
+  `rolsuper` / `rolbypassrls` at pool open and logs a **warning** naming the
+  role when it bypasses RLS. Advisory only; it never blocks startup.
+
+* **test: `tests/integration/test_app_role_enforcement.py`** — the pool role is
+  not a superuser, the two DSNs do not resolve to the same role, a caller
+  cleared to TLP:2 sees the TLP:0 and TLP:2 rows and never the TLP:4 row, and
+  the pool cannot `UPDATE` or `DELETE` the append-only audit log.
+
+> **Behaviour change worth reading before upgrading.** `get_connection()` sets
+> `app.max_tlp` only when passed a caller identity, and an unset GUC coalesces
+> to 1 in every policy predicate. Any path that relied on the superuser bypass
+> now sees TLP:0/1 only. The API surface was audited — the one no-identity call
+> site is `ingest_event`, which writes to `audit_log` (no policy, `INSERT`
+> granted). `scripts/bench/bench_retrieval_recall.py` also acquires without an
+> identity and is left alone deliberately.
+>
+> The dev identity carries `CG_DEFAULT_TLP`, which is 2. A test that writes
+> above TLP:2 as the owner and reads back through the API will now correctly get
+> nothing. Raising `CG_DEFAULT_TLP` to make such a test pass would be weakening
+> the control to fix the symptom.
+
 ### Serving-tier lifecycle, and a defect 036 introduced (2026-08)
 
 Resolves the last of ADR-0010's open questions, and fixes a live defect found

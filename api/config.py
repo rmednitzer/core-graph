@@ -12,6 +12,28 @@ PG_DSN = os.environ.get(
     "CG_PG_DSN",
     "postgresql://cg_admin:cg_dev_only@localhost:5432/core_graph",
 )
+
+# The DSN the serving pool in api.db connects with. Separate from PG_DSN
+# because the two have different privilege requirements, not because they
+# point at different databases.
+#
+# PG_DSN is the owner identity: it runs migrations, and it is what the trusted
+# writers (ingest/graph_writer.py, the DLQ processor, the connectors) and the
+# evidence tooling use. Those write at whatever TLP their source declares and
+# must not be filtered by a caller's clearance.
+#
+# PG_APP_DSN is the request-serving identity, cg_app (migration 038):
+# NOSUPERUSER NOBYPASSRLS, so the policies from 004, 010, 022, 028 and 037 are
+# actually evaluated for it. Superusers bypass row-level security
+# unconditionally, which is why pointing the pool at the owner meant no policy
+# in this repository was ever enforced. See ADR-0014.
+#
+# Falls back to PG_DSN when unset, so an image deployed against a schema that
+# predates migration 038 still starts rather than failing to connect to a role
+# that does not exist yet. That fallback silently restores the unenforced
+# posture, so api.db logs the role it actually connected as at pool open, and
+# warns when that role bypasses RLS.
+PG_APP_DSN = os.environ.get("CG_PG_APP_DSN", "") or PG_DSN
 NATS_URL = os.environ.get("CG_NATS_URL", "nats://localhost:4222")
 VALKEY_URL = os.environ.get("CG_VALKEY_URL", "redis://localhost:6379")
 DEFAULT_TLP = int(os.environ.get("CG_DEFAULT_TLP", "2"))

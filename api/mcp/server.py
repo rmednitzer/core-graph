@@ -33,7 +33,7 @@ import logging
 from dataclasses import asdict
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server.mcpserver import MCPServer
 
 from api.mcp.skills.registry import registry
 from api.mcp.tools.cypher_query import cypher_query
@@ -45,9 +45,10 @@ from api.mcp.tools.vector_search import vector_search
 
 logger = logging.getLogger(__name__)
 
-# `instructions` is the SDK's server-description field; FastMCP has no
-# `description` kwarg and raises TypeError at import if one is passed.
-mcp = FastMCP(
+# `instructions` is the SDK's server-description field. MCPServer does take a
+# `description` kwarg, but it is the human-facing blurb, not the model-facing
+# guidance the tool surface is selected from; keep this on `instructions`.
+mcp = MCPServer(
     "core-graph",
     instructions="Converged graph-vector knowledge platform for threat intelligence, "
     "security events, OSINT, compliance, AI memory, and forensic timelines.",

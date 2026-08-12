@@ -77,6 +77,7 @@ test: ## Run all tests
 	$(PSQL) -f tests/rls/test_stix_sdo_rls.sql
 	$(PSQL) -f tests/rls/test_vector_tlp.sql
 	$(PSQL) -f tests/rls/test_application_role.sql
+	$(PSQL) -f tests/rls/test_clearance_roles.sql
 	@echo "==> All tests passed"
 
 lint: validate ## Lint Python and SQL (alias for validate)

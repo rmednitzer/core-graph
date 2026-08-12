@@ -20,6 +20,7 @@ from psycopg_pool import AsyncConnectionPool
 
 from api import config
 from api.utils.age_query_guard import query_timeout_ms
+from api.utils.clearance_roles import DATABASE_ROLES, database_role_for
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,24 @@ except ImportError:
 _pool: AsyncConnectionPool | None = None
 
 
+async def _reset_connection(conn: Any) -> None:
+    """Scrub per-request state before a connection re-enters the pool.
+
+    The last line of defence for the clearance role `get_connection` assumes.
+    `SET LOCAL ROLE` already reverts at transaction end and `get_connection`
+    already issues `RESET ROLE` in its finally, so by the time this runs the
+    role should be `cg_app` twice over. It runs anyway because the failure it
+    guards is the one that matters: a connection returned to the pool still
+    wearing a clearance would hand that clearance to whoever borrows it next,
+    silently and with no error anywhere.
+
+    psycopg_pool discards a connection whose reset raises, which is the right
+    outcome here -- losing a connection is cheaper than reusing a dirty one.
+    """
+    await conn.execute("reset role")
+    await conn.execute("reset all")
+
+
 async def open_pool() -> None:
     """Create and open the shared connection pool (call on app startup)."""
     global _pool
@@ -45,6 +64,7 @@ async def open_pool() -> None:
         min_size=config.PG_POOL_MIN,
         max_size=config.PG_POOL_MAX,
         kwargs={"row_factory": dict_row},
+        reset=_reset_connection,
     )
     await _pool.open()
     if pool_size is not None:
@@ -143,6 +163,13 @@ async def get_connection(
     The statement_timeout is applied uniformly here so that *all* callers —
     REST, MCP tools, ingest workers, TAXII handlers — enforce the same per-role
     ceiling (no path can accidentally run unbounded queries).
+
+    It also assumes the caller's clearance role for the duration, when one maps
+    (ADR-0015). That is what makes the role-targeted policies — `ciso_full_access`
+    and its write twin — apply, and what puts the clearance role's own table
+    grants between a request and the data, so enforcement no longer rests on the
+    `app.max_tlp` GUC alone. A caller outside the seven-role hierarchy keeps the
+    pool's own `cg_app`, which is still non-superuser and still policy-bound.
     """
     if _pool is None:
         raise RuntimeError("Connection pool not initialised — call open_pool() first")
@@ -169,9 +196,33 @@ async def get_connection(
                 (f"{timeout_ms}ms",),
             )
 
+            # Last, so everything above runs as cg_app. The clearance roles hold
+            # no privilege this function needs, and setting the role first would
+            # make the GUC writes depend on grants they do not need to depend on.
+            db_role = database_role_for(caller_identity)
+            if db_role is not None:
+                # SET LOCAL, not SET. The role then reverts when the transaction
+                # ends, which the pool's context manager does on the way out —
+                # so a connection cannot be handed to the next borrower still
+                # wearing a clearance it was not given. The RESET ROLE below and
+                # the pool's reset hook are the second and third lines of that
+                # defence, not the first.
+                #
+                # Interpolated rather than bound because a role name cannot be a
+                # parameter. Safe only because db_role came out of the
+                # CLEARANCE_ROLES allowlist; the assertion says so out loud
+                # rather than trusting the reader to check the call site.
+                if db_role not in DATABASE_ROLES:  # pragma: no cover - defensive
+                    raise RuntimeError(f"refusing to SET ROLE to unlisted role {db_role!r}")
+                await conn.execute(f"set local role {db_role}")
+
             yield conn
         finally:
             try:
+                # Before the GUC resets, which are session-level writes: run
+                # them as the pool's own role rather than as a clearance role
+                # that may not outlive this block.
+                await conn.execute("reset role")
                 await conn.execute("select set_config('app.max_tlp', '', false)")
                 await conn.execute("select set_config('app.allowed_compartments', '', false)")
                 await conn.execute("select set_config('statement_timeout', '0', false)")

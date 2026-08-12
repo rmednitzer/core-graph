@@ -150,6 +150,51 @@ async def test_clearance_filters_what_a_request_can_see():
 
 
 @pytest.mark.asyncio
+async def test_a_clearance_caller_runs_as_its_own_database_role():
+    """ADR-0015. `tests/rls/test_clearance_roles.sql` proves the roles behave;
+    this proves the pool actually assumes them for a request."""
+    async with db.get_connection({"roles": ["soc_analyst"], "max_tlp": 2}) as conn:
+        row = await (await conn.execute("select current_user as role")).fetchone()
+    assert row is not None
+    assert row["role"] == "cg_soc_analyst"
+
+
+@pytest.mark.asyncio
+async def test_the_role_does_not_leak_to_the_next_borrower():
+    """The failure this design is shaped around. `SET LOCAL ROLE` reverts at
+    transaction end, so a connection returned to the pool carrying a clearance
+    would be a cross-caller leak with no error to notice it by."""
+    async with db.get_connection({"roles": ["ciso"], "max_tlp": 4}) as conn:
+        row = await (await conn.execute("select current_user as role")).fetchone()
+        assert row is not None and row["role"] == "cg_ciso"
+
+    # A fresh acquire, which may well be the same pooled connection.
+    async with db.get_connection() as conn:
+        row = await (await conn.execute("select current_user as role")).fetchone()
+    assert row is not None
+    assert row["role"] != "cg_ciso", "the clearance role survived into the next request"
+
+
+@pytest.mark.asyncio
+async def test_an_unmapped_caller_keeps_the_pool_role():
+    """The synthetic dev identity emits `admin`, which is deliberately not a
+    clearance. It must fall through rather than fail, and the fall-through is
+    still non-superuser and still policy-bound."""
+    async with db.get_connection({"roles": ["admin"], "max_tlp": 2}) as conn:
+        row = await (
+            await conn.execute(
+                "select current_user as role, "
+                "       rolsuper, rolbypassrls "
+                "  from pg_roles where rolname = current_user"
+            )
+        ).fetchone()
+
+    assert row is not None
+    assert row["role"] not in {"cg_ciso", "cg_soc_analyst"}
+    assert not row["rolsuper"] and not row["rolbypassrls"]
+
+
+@pytest.mark.asyncio
 async def test_the_append_only_audit_log_stays_append_only_for_the_pool():
     """038 carved UPDATE and DELETE out of the pool role's broad table grant.
 

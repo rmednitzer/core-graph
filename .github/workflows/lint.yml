@@ -18,7 +18,12 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: "3.14"
-      - run: pip install ruff==0.15.22
+      # Must name the same version uv.lock resolves and the same minor line
+      # the pyproject dev floor allows, so a contributor running `ruff format`
+      # locally cannot produce output this job rejects. Ruff 0.16 formats
+      # Python fenced in Markdown, so a stale pin here silently narrows what
+      # CI checks relative to what a developer's ruff rewrites.
+      - run: pip install ruff==0.16.1
       - run: ruff check .
       - run: ruff format --check .
 

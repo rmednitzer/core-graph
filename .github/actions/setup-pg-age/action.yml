@@ -55,10 +55,10 @@ runs:
             postgresql-18-pgaudit postgresql-18-cron
           mkdir -p /tmp/pgvector
           # Retry flags mirror deploy/docker/Dockerfile.postgres; see the
-          # comment there. Safe because the checksum is verified on the next
-          # line, so a partial body fails loudly rather than being retried into
-          # the build.
-          curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 \
+          # comment there for why there is no --retry-delay. Safe because the
+          # checksum is verified on the next line, so a partial body fails
+          # loudly rather than being retried into the build.
+          curl -fsSL --retry 8 --retry-all-errors --retry-max-time 180 \
             -o /tmp/pgvector.tar.gz \
             "https://github.com/pgvector/pgvector/archive/refs/tags/${PGVECTOR_TAG}.tar.gz"
           echo "${PGVECTOR_SHA256}  /tmp/pgvector.tar.gz" | sha256sum -c -

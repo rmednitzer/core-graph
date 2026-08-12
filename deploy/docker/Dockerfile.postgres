@@ -24,12 +24,19 @@ RUN export DEBIAN_FRONTEND=noninteractive \
         postgresql-18-cron \
         postgresql-18-pgaudit \
     && mkdir -p /tmp/pgvector \
-    # --retry-all-errors because the observed failure is curl 56 ("Connection
-    # died"), a transport error rather than a retryable HTTP status, which plain
-    # --retry does not cover. Retrying is safe precisely because the next line
-    # verifies the checksum: a truncated or substituted body fails there, not
-    # here.
-    && curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 -o /tmp/pgvector.tar.gz \
+    # --retry-all-errors because the observed failures are curl 56 ("Connection
+    # died") and curl 22 (503), a transport error and a server error, and plain
+    # --retry covers neither reliably on its own.
+    #
+    # No --retry-delay: setting it pins every attempt at a fixed interval and
+    # disables curl's exponential backoff. Backoff is what is wanted here, since
+    # the failure being absorbed is an upstream incident lasting minutes rather
+    # than a single dropped packet. --retry-max-time bounds the whole thing, so
+    # a genuine outage still fails the build instead of hanging it.
+    #
+    # Retrying is safe precisely because the next line verifies the checksum: a
+    # truncated or substituted body fails there, not here.
+    && curl -fsSL --retry 8 --retry-all-errors --retry-max-time 180 -o /tmp/pgvector.tar.gz \
         "https://github.com/pgvector/pgvector/archive/refs/tags/${PGVECTOR_TAG}.tar.gz" \
     && echo "${PGVECTOR_SHA256}  /tmp/pgvector.tar.gz" | sha256sum -c - \
     && tar xz -C /tmp/pgvector --strip-components=1 -f /tmp/pgvector.tar.gz \

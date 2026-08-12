@@ -44,6 +44,11 @@ jobs:
         run: psql -v ON_ERROR_STOP=1 -f tests/rls/test_write_path.sql
       - name: Run STIX SDO RLS test
         run: psql -v ON_ERROR_STOP=1 -f tests/rls/test_stix_sdo_rls.sql
+      # The vector tier had no policy at all until 037. The end-to-end
+      # equivalent, tests/eval/test_rls_retrieval_correctness.py, needs an
+      # embedding provider and so never runs in CI; this one needs only psql.
+      - name: Run vector-tier TLP RLS test
+        run: psql -v ON_ERROR_STOP=1 -f tests/rls/test_vector_tlp.sql
 
   policy-test:
     runs-on: ubuntu-latest

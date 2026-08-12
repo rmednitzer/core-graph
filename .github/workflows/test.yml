@@ -55,6 +55,11 @@ jobs:
       # migration 038 creates for the application to connect as.
       - name: Run application-role RLS test
         run: psql -v ON_ERROR_STOP=1 -f tests/rls/test_application_role.sql
+      # Assumption must not be inheritance: cg_app has to be able to SET ROLE to
+      # each clearance without passively holding any of them, and the role must
+      # not outlive its transaction onto the next borrower of the connection.
+      - name: Run clearance-role assumption RLS test
+        run: psql -v ON_ERROR_STOP=1 -f tests/rls/test_clearance_roles.sql
 
   policy-test:
     runs-on: ubuntu-latest

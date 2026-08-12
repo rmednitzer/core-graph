@@ -76,6 +76,7 @@ Migrations are designed to be additive. If a migration must be reverted:
 | `037_vector_tlp_enforcement.sql` | `tlp_level` + RLS read/write policies on both vector tables, fail-closed at 4 |
 | `038_application_role.sql` | `cg_app`: a `LOGIN NOSUPERUSER NOBYPASSRLS` application role so RLS is actually evaluated (ADR-0012) |
 | `039_serving_tier_lifecycle.sql` | Serving-tier prune trigger (fixes orphans left by 012's cleanup), duplicate-reporting view, `cg_sync_serving_tier()`, `cg_expire_retrieval()` + pg_cron maintenance (ADR-0013) |
+| `040_clearance_role_assumption.sql` | `cg_app` may SET ROLE to each `cg_*` clearance (`inherit false, set true`) + the grants those roles need to serve a request (ADR-0015) |
 
 ## CI validation
 

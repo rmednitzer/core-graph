@@ -8,6 +8,62 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### Requests run as their clearance role (2026-08)
+
+ADR-0015. Completes what ADR-0012 and ADR-0014 both deferred, and closes
+ADR-0014's second revisit trigger.
+
+After ADR-0014 the TLP policies were real but rested on a single mechanism:
+every policy reads the `app.max_tlp` GUC. Meanwhile the seven clearance roles
+from 004, 010 and 033 were inert in a different way -- they existed, they held
+`SELECT`, and nothing ever connected or switched to them, so `ciso_full_access`
+could never match and the roles' grants sat between nothing and nothing.
+
+* **schema: clearance-role assumption** (migration 040). Each `cg_*` clearance
+  role is granted to `cg_app` `with inherit false, set true`: the pool may
+  *assume* a clearance but holds none passively. Verified rather than assumed --
+  `cg_app` selecting a table granted only to `cg_ciso` gets `permission denied`,
+  and the same select after `SET ROLE cg_ciso` succeeds. Stated explicitly
+  rather than relying on `cg_app`'s `NOINHERIT` default, so a later
+  `ALTER ROLE cg_app INHERIT` cannot widen every membership at once.
+
+* **fix: the clearance roles could not have served a request.** `cg_app` is
+  `NOINHERIT`, so assuming a clearance drops everything it holds -- `INSERT` on
+  `audit_log`, `USAGE` on `ag_catalog`, sequences, functions -- and 028 added
+  write *policies* but no write *grants*. 040 mirrors `cg_app`'s surface onto
+  all seven, carve-outs included, so the append-only audit log and AGE's
+  registries cannot be sidestepped by assuming any clearance.
+
+* **feat: `api.db` assumes the caller's role.** `SET LOCAL ROLE`, not `SET ROLE`
+  -- the role reverts at transaction end, which is the primary defence against
+  handing a clearance to the next borrower of a pooled connection. `RESET ROLE`
+  in the `finally` and a new pool `reset` hook are the second and third.
+
+* **feat: `api/utils/clearance_roles.py`** maps the bare application roles the
+  IdP emits to the `cg_`-prefixed database roles. An allowlist, not a computed
+  prefix: the input arrives in a token, and the result is interpolated into
+  `SET LOCAL ROLE` because a role name cannot be bound as a parameter.
+  Most-privileged role wins, order-independent.
+
+* **test:** `tests/test_clearance_roles.py` (16 assertions on the mapping, no
+  database), `tests/rls/test_clearance_roles.sql` (assumption is not
+  inheritance, the carve-outs survive it, `SET LOCAL ROLE` does not outlive its
+  transaction), and three additions to
+  `tests/integration/test_app_role_enforcement.py`.
+
+> **Behaviour-preserving by choice.** All seven clearances get the same grants
+> for now. Which of them *should* be read-only is a governance decision, and it
+> belongs in its own change as a narrowing. Nothing widens: every clearance is
+> reachable only by a caller that could already reach `cg_app`, and `cg_app`
+> already holds this surface.
+>
+> One thing does change: `ciso_full_access` starts matching, so a CISO's reads
+> OR past `tlp_read_policy`. The seeded CISO clearance is 4, which already saw
+> everything, so the effect today is nil -- but the RLS suite asserts it
+> deliberately, so removing that policy is a visible change rather than a silent
+> one. An unmapped caller (the dev identity emits `admin`) falls through to
+> `cg_app`, which is the pre-040 posture.
+
 ### TLP enforcement becomes real: the serving pool runs as cg_app (2026-08)
 
 Completes the work migration 038 set up. See ADR-0014.

@@ -8,6 +8,38 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### Correction: the retrieval gates do not verify what was claimed (2026-08)
+
+* **docs: correct ADR-0011.** It claimed the eval gate "runs in CI against real
+  data" and would show whether halfvec-only retrieval changed result quality.
+  It does not. `run_retrieval_eval.py` needs an embedding provider to embed each
+  golden query; CI runs `CG_EMBEDDING_PROVIDER=none`, so it emits
+  `status: "skipped_no_embedding_provider"` and exits 0. The `retrieval-eval`
+  job is green without evaluating anything.
+
+  The skip itself is deliberate and documented in `.github/workflows/eval.yml`.
+  The error was the ADR asserting a verification the workflow says it does not
+  perform, and that claim was load-bearing for keeping 021's columns as a
+  rollback path. They still stay — but until something measures the
+  half-precision change, not until a gate that already runs reports on it.
+
+* **Recorded: a second gate is inert for the same reason, undocumented.**
+  `tests/eval/test_rls_retrieval_correctness.py` asserts `vector_search` never
+  returns a document above the caller's TLP ceiling and calls itself "a hard CI
+  fail if RLS regresses". It skips without an embedding provider, so it has
+  never run — and it is precisely the test that would have caught the TLP gap
+  ADR-0011 records. Unlike the quality eval it needs no semantic embeddings,
+  only some vector; it does need the database populated from the golden set,
+  which nothing in the repository does.
+
+* **Recorded: nothing writes `embeddings`.** No `insert into embeddings` in
+  `api/`, `ingest/`, `evidence/` or `scripts/`; `graph_writer.py` has no vector
+  reference; `generate_embedding()` is called only to embed queries. The vector
+  tier has a complete read path and no producer. This bounds the TLP gap to
+  latent rather than live, and makes closing it cheap now — with no rows, a
+  fail-closed default needs no backfill. It gets expensive once a producer
+  exists, so the ordering is to close it first.
+
 ### Native halfvec serving tier (2026-08)
 
 Resolves the two open questions ADR-0010 left, with axiom adopted as the
@@ -43,7 +75,8 @@ reference configuration. Detail in ADR-0011.
 
 `embeddings.embedding_half` and 021's halfvec indexes are now unread but are
 deliberately left in place, so the change is reversible by pointing the query
-back at `embeddings` if the eval gate shows a retrieval-quality regression.
+back at `embeddings` if the half-precision change turns out to cost recall.
+(Corrected below: that effect is not measured anywhere yet.)
 
 **Recorded, not fixed:** the vector retrieval path does not enforce TLP. RLS
 covers only `core_graph.*`, so neither `embeddings` nor `retrieval_embeddings`

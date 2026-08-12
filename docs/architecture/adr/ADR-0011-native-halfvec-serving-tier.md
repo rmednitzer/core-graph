@@ -65,9 +65,9 @@ by total corpus. The ANN can no longer accidentally span vector spaces.
 Negative. `embeddings.embedding_half` and 021's halfvec indexes are now dead
 weight: nothing reads them. They are deliberately **not** dropped here. Keeping
 them makes this change reversible by pointing `_vector_candidates` back at
-`embeddings`, which matters because the retrieval-quality effect is measured by
-the eval gate rather than proven in advance. Dropping them is a follow-up once
-the gate has run against real data.
+`embeddings`, which matters because the retrieval-quality effect of moving to
+half precision is **not** measured anywhere yet. See the correction below.
+Dropping them is a follow-up once something does measure it.
 
 Neutral. `embeddings` is unchanged and remains the identity and full-precision
 record for every subject, hot or cold, exactly as axiom keeps its own legacy
@@ -84,6 +84,46 @@ even though the table exists, and the migration then fails as "relation already
 exists" on the idempotency pass rather than the first one.
 `tests/rls/test_tlp_enforcement.sql` documents the same trap for its own
 stand-in table. The guard in 036 is deliberately unqualified for this reason.
+
+## Correction (2026-08-12, same day)
+
+This ADR as first written claimed the eval gate "runs in CI against real data"
+and would show whether halfvec-only retrieval changed result quality. **That is
+false**, and the claim was load-bearing for the decision to keep 021's columns
+as a rollback path.
+
+`scripts/eval/run_retrieval_eval.py` requires an embedding provider to embed
+each golden query. CI runs with `CG_EMBEDDING_PROVIDER=none`, so the script
+emits `status: "skipped_no_embedding_provider"` and exits 0. The
+`retrieval-eval` job is therefore green without having evaluated anything.
+
+That skip is deliberate and documented in the header of
+`.github/workflows/eval.yml`: "Without an embedding backend
+(`CG_EMBEDDING_PROVIDER=none` in CI) the retrieval/drift steps skip cleanly;
+the unit-test layer covers the pure helpers." The design is sound. The error
+was this ADR asserting a verification that the workflow it depends on says it
+does not perform.
+
+Two consequences follow.
+
+**Nothing measured the half-precision change.** Moving from `vector` to
+`halfvec` is a precision reduction and could plausibly cost recall. That effect
+remains unmeasured. It is the reason 021's columns stay: not "until the gate
+runs", but until something measures it at all. A meaningful measurement needs a
+real embedding model, because a deterministic stub embedder produces vectors
+with no semantic structure and recall numbers computed over it would be noise.
+
+**A second gate is inert for the same reason, and that one is not documented.**
+`tests/eval/test_rls_retrieval_correctness.py` asserts that `vector_search`
+never returns a document above the caller's TLP ceiling and describes itself as
+"a **hard CI fail** if RLS regresses". It skips when no embedding provider is
+configured, which in CI is always. It is the test that would have caught the
+TLP gap described in the next section, and it has never run.
+
+Unlike the quality eval, this one does not need semantic embeddings: it asserts
+only that nothing above the ceiling comes back, which holds for any vector
+whatsoever. It also needs the database populated from the golden set, and
+nothing in the repository does that.
 
 ## Discovered while implementing: the vector path does not enforce TLP
 
@@ -108,6 +148,24 @@ retrieval path is a security-behaviour change that needs its own decision, its
 own `tests/rls/` suite, and a write-path policy so ingest is not locked out —
 the same treatment 028 gave the graph tables. Raised for a separate decision.
 
+**Severity is bounded today by a second gap.** Nothing in this repository writes
+`embeddings`. There is no `insert into embeddings` in `api/`, `ingest/`,
+`evidence/` or `scripts/`; `ingest/graph_writer.py` contains no vector
+reference at all; and `generate_embedding()` is called from exactly two places,
+both to embed the *query* rather than to persist a document vector. The vector
+tier has a complete read path and no producer, so in a deployment fed only by
+this repository the table is empty and there is nothing to leak.
+
+That makes the TLP gap latent rather than live, and it makes fixing it cheap
+right now: with no rows, a fail-closed default costs nothing and needs no
+backfill. It becomes expensive the moment a writer exists. The ordering
+argument is therefore to close it before building the producer, not after.
+
+Whether an out-of-tree producer already populates the table in a given
+deployment is not knowable from the repository; axiom has one
+(`graph/extract_graph.py`) for `axiom_kg`, and this repository may be intended
+to acquire the equivalent.
+
 ## Alternatives considered and rejected
 
 **Predicating 021's existing indexes on `retrieval_active`.** The literal
@@ -126,7 +184,12 @@ belief that something is enforced.
 
 ## Revisit triggers
 
-- The eval gate showing a retrieval-quality regression against the golden set.
+- An embedding provider becoming available to CI or to a scheduled run, which
+  would let the quality eval measure the half-precision change for the first
+  time. A regression there is the trigger to point `_vector_candidates` back at
+  `embeddings.embedding`.
+- A producer being added for `embeddings`. That converts the TLP gap from
+  latent to live and should not land before the gap is closed.
 - A second embedding model at a different dimension, which the shared
   `halfvec(N)` column still cannot express; the `(graph_id, model_id)` key
   makes a partitioned or per-model-table follow-up straightforward.

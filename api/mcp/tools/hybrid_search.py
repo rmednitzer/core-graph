@@ -4,8 +4,12 @@ Combines two ranked candidate lists from PostgreSQL:
 
   * BM25-style lexical via `ts_rank_cd` over the `embeddings.content_tsv` GIN
     index added by migration 021.
-  * Cosine similarity via pgvector's HNSW (full or half precision) keyed by
-    optional `model_id`.
+  * Cosine similarity via pgvector's HNSW over the `retrieval_embeddings`
+    serving tier added by migration 036: one native halfvec per
+    (graph_id, model_id), populated only for retrieval-active subjects, with
+    one partial index per model. `model_id` is resolved to a concrete model
+    before either query runs, since the indexes are partial and vector spaces
+    from different models are not comparable.
 
 Reciprocal Rank Fusion (RRF) merges them with the canonical
 `1 / (k + rank)` weighting (k=60). An optional reranker hook calls a local
@@ -127,24 +131,38 @@ async def _vector_candidates(
     conn: Any,
     query_vector: list[float],
     limit: int,
-    model_id: str | None,
+    model_id: str,
 ) -> list[dict[str, Any]]:
-    """HNSW cosine-distance retrieval. Returns at most `limit` rows."""
-    where = ""
-    params: list[Any] = []
-    if model_id is not None:
-        where = "where model_id = %s"
-        params.append(model_id)
+    """HNSW cosine-distance retrieval over the serving tier.
+
+    Reads `retrieval_embeddings` (migration 036), which stores one native
+    halfvec per (graph_id, model_id) and only for retrieval-active subjects.
+    `embeddings` is joined afterwards purely to hydrate label and content.
+
+    The ANN runs in its own CTE with its own ORDER BY and LIMIT directly
+    against the indexed table. Joining first and ordering afterwards would
+    leave the planner unable to use the HNSW index at all.
+
+    `model_id` is always supplied by the caller, never None: the per-model
+    indexes are partial (`where model_id = ...`), so an unfiltered scan would
+    both miss every index and mix vector spaces that are not comparable.
+    """
     qv = str(query_vector)
     sql = (
-        "select graph_id, label, content, "
-        "       embedding <=> %s::vector as distance "
-        "from embeddings "
-        f"{where} "
-        "order by embedding <=> %s::vector "
-        "limit %s"
+        "with cand as ("
+        "  select graph_id, model_id, embedding <=> %s::halfvec as distance"
+        "    from retrieval_embeddings"
+        "   where model_id = %s"
+        "   order by embedding <=> %s::halfvec"
+        "   limit %s"
+        ") "
+        "select e.graph_id, e.label, e.content, c.distance "
+        "from cand c "
+        "join embeddings e "
+        "  on e.graph_id = c.graph_id and e.model_id = c.model_id "
+        "order by c.distance"
     )
-    cursor = await conn.execute(sql, (qv, *params, qv, limit))
+    cursor = await conn.execute(sql, (qv, model_id, qv, limit))
     rows = await cursor.fetchall()
     return [dict(r) for r in rows]
 
@@ -228,8 +246,14 @@ async def hybrid_search(
             (str(int(ef_search)),),
         )
 
-        bm25_rows = await _bm25_candidates(conn, query, fetch_n, model_id)
-        vector_rows = await _vector_candidates(conn, query_vector, fetch_n, model_id)
+        # Resolve to a concrete model rather than leaving it None. The guard
+        # above already refuses cross-model retrieval, so the process default
+        # is the only value None can mean; making it explicit is what lets the
+        # partial per-model HNSW indexes from 036 be used at all.
+        effective_model = model_id or EMBEDDING_MODEL
+
+        bm25_rows = await _bm25_candidates(conn, query, fetch_n, effective_model)
+        vector_rows = await _vector_candidates(conn, query_vector, fetch_n, effective_model)
 
         await conn.execute(
             """

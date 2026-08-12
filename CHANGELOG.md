@@ -8,6 +8,94 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### The memory tools consult Cerbos (2026-08)
+
+ADR-0018. Closes the gap ADR-0017 recorded as its own second revisit trigger:
+`policies/resource/memory.yaml` was declarative, because nothing called it.
+
+* **feat: all four memory entry points authorize before acting.**
+  `tool_remember` and `tool_record_extracted_fact` check `create`;
+  `tool_recall` and `tool_session_start` check `read` (the latter only selects
+  -- it is named for the caller's workflow, not because it writes a session).
+
+  The check runs **before** `get_connection`, and in `tool_recall` before
+  `hybrid_search`: a denial should cost a policy round-trip, not a pooled
+  connection and a half-built episode. The tests enforce that rather than
+  trusting it -- the denial paths replace those functions with ones that raise,
+  so a tool authorizing too late fails loudly.
+
+* **feat: `api.authz.cerbos.require_caller_action`** raises `PermissionError`
+  rather than returning a bool. Four call sites made the alternative -- one
+  forgotten `if` between a check and the action -- worth removing.
+  `principal_from_caller` is now shared with `identity_attribution`, which had
+  been assembling the same principal by hand.
+
+> **Breaking: a caller presenting no roles is now denied.** Authorization is
+> decided by role, so a caller that presents none has not established one. Until
+> now the memory tools accepted `caller_identity={"max_tlp": 4}` and wrote an
+> episode. Any caller passing only `max_tlp` will start receiving
+> `PermissionError`.
+>
+> **And memory now depends on Cerbos being reachable.** `check_action` fails
+> closed on transport errors, matching `identity_attribution`. Right direction,
+> but it puts Cerbos on Layer 5's critical path, where it was not before.
+
+Worth noting what fell out of it: giving `tests/integration/test_memory_edge_tlp.py`
+a real `ai_agent` role makes it the **first integration test to exercise a
+clearance end to end** -- `get_connection` assumes `cg_ai_agent`, so its writes
+run against migration 042's grants rather than `cg_app`'s. ADR-0017 recorded
+"CI cannot catch an under-grant here" as a limitation; for the memory path it
+no longer holds.
+
+### The AI agent can write its own memory again (2026-08)
+
+ADR-0017. Closes ADR-0016's first revisit trigger by the route that ADR named,
+and in that order: the policy states the decision, the grant derives from it.
+
+Migration 041 made five clearances read-only, derived from the mutating actions
+Cerbos grants. `ai_agent` fell into that set because Cerbos had no `memory`
+resource at all, and absence is not denial when the tools never ask Cerbos. The
+consequence was recorded rather than discovered: Layer 5 (023) became unwritable
+by the role it exists for.
+
+* **policy: `policies/resource/memory.yaml`.** `ai_agent` gets `read`, `create`
+  and `update`; `ciso` keeps `*`; `soc_analyst` and `compliance_officer` may
+  read; everyone else is explicitly denied the mutating actions. Five Cerbos
+  decision tests added.
+
+  The actions are named `create`/`update` rather than something
+  memory-flavoured, deliberately: ADR-0016 derives the database split by reading
+  these files for `{*, create, update, delete, assert}`, and an action outside
+  that set would leave a re-derivation concluding `ai_agent` mutates nothing.
+
+* **schema: migration 042** grants `INSERT` and `UPDATE` on exactly the eleven
+  objects 023 created — the eight AGE memory labels and the three shadow tables
+  — and nothing else. Not "write": Cerbos grants mutating actions on `memory`
+  and no other resource, so the grant stops where the policy does.
+
+  **No `DELETE`.** Memory is bitemporal; 020 enforces it with a delete-block
+  trigger, and the grant now agrees rather than leaving the trigger as the only
+  thing standing there.
+
+* **Two grants that do not follow from reading the tool code**, both from
+  `SECURITY INVOKER` functions in 023: `memory_session_counters` needs `UPDATE`
+  as well as `INSERT` (`memory_next_sequence()` is an upsert), and
+  `memory_extracted_fact_index` needs `UPDATE` too (`trg_memory_supersession`
+  is an `AFTER INSERT` trigger that updates the same table, so an insert-only
+  grant would let the insert begin and the trigger fail it).
+
+* **test:** `tests/rls/test_readonly_clearances.sql` gains a fourth section
+  asserting the boundary in both directions — `ai_agent` must have write on the
+  memory layer, must have none outside it beyond `audit_log`, and must hold no
+  `DELETE` anywhere. Checked against three negative controls.
+
+> **Two limits worth knowing.** The grant is a list, so a future migration
+> adding a memory label will not be covered and the symptom is a runtime
+> `permission denied`. And CI cannot catch an under-grant: the integration suite
+> runs as the dev identity, which falls through to `cg_app` and never assumes a
+> clearance. Both are recorded in ADR-0017 with the alternatives that were
+> rejected for being worse.
+
 ### Read-only clearances (2026-08)
 
 ADR-0016. The narrowing that ADR-0014 and ADR-0015 were each shaped to make

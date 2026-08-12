@@ -36,13 +36,8 @@ async def _check_cerbos_authorization(
     """
     from api.authz import cerbos
 
-    principal = {
-        "id": caller_identity.get("actor", "unknown"),
-        "roles": caller_identity.get("roles", []),
-        "attr": caller_identity.get("attr", {}),
-    }
     return await cerbos.check_action(
-        principal,
+        cerbos.principal_from_caller(caller_identity),
         resource_kind="identity_attribution",
         resource_id=resource_id,
         action="assert",

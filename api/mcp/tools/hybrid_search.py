@@ -146,6 +146,17 @@ async def _vector_candidates(
     `model_id` is always supplied by the caller, never None: the per-model
     indexes are partial (`where model_id = ...`), so an unfiltered scan would
     both miss every index and mix vector spaces that are not comparable.
+
+    Hydration is a LATERAL picking exactly one row, not a plain join. The CTE
+    yields at most one row per (graph_id, model_id) because that is the serving
+    table's primary key, but `embeddings` has no unique key on the pair: it is
+    keyed on a surrogate `id` and carries only non-unique indexes on `graph_id`
+    and `model_id` (migrations 003 and 021). A subject embedded twice under the
+    same model would therefore multiply its ANN candidate through a plain join,
+    and the caller would receive more than `limit` rows with duplicate
+    `graph_id`s. `order by id desc` resolves it to the newest embedding.
+    `cg_serving_tier_duplicates` (migration 039) reports when the condition
+    exists.
     """
     qv = str(query_vector)
     sql = (
@@ -156,10 +167,15 @@ async def _vector_candidates(
         "   order by embedding <=> %s::halfvec"
         "   limit %s"
         ") "
-        "select e.graph_id, e.label, e.content, c.distance "
+        "select c.graph_id, e.label, e.content, c.distance "
         "from cand c "
-        "join embeddings e "
-        "  on e.graph_id = c.graph_id and e.model_id = c.model_id "
+        "join lateral ("
+        "  select label, content"
+        "    from embeddings"
+        "   where graph_id = c.graph_id and model_id = c.model_id"
+        "   order by id desc"
+        "   limit 1"
+        ") e on true "
         "order by c.distance"
     )
     cursor = await conn.execute(sql, (qv, model_id, qv, limit))

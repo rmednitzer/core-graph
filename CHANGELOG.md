@@ -8,6 +8,65 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### Serving-tier lifecycle, and a defect 036 introduced (2026-08)
+
+Resolves the last of ADR-0010's open questions, and fixes a live defect found
+while resolving it. See ADR-0013.
+
+* **fix: the serving tier had no delete path.** Migration 036 only ever
+  inserts. Migration 012 schedules `stale-embedding-cleanup`, which deletes from
+  `embeddings` daily for graph vertices that no longer exist, so every row it
+  removed left a serving row behind permanently.
+
+  Not cosmetic: `_vector_candidates` takes top-k from `retrieval_embeddings` in
+  a CTE and joins `embeddings` afterwards, so an orphan **wins a slot and is
+  then dropped by the join** — a caller asking for k candidates silently
+  receives fewer. That is the under-return failure 027 enabled iterative scans
+  to prevent, reintroduced through a different door, and it worsens with graph
+  churn rather than appearing at once.
+
+  Migration 039 prunes the orphans that already exist and adds a
+  statement-level `AFTER DELETE` trigger so they cannot come back.
+  Statement-level with a transition table, because 012's cleanup deletes in
+  bulk.
+
+* **fix: the hydration join could fan out.** `embeddings` is keyed on a
+  surrogate `id bigserial` and carries only non-unique indexes on `graph_id` and
+  `model_id`, so a subject embedded twice under the same model multiplied its
+  ANN candidate and the caller got more than `limit` rows with duplicate
+  `graph_id`s. `_vector_candidates` now hydrates through a
+  `LATERAL … ORDER BY id DESC LIMIT 1`: exactly one row per candidate, newest
+  embedding wins.
+
+  No `unique (graph_id, model_id)` was added. It would fail outright on any
+  deployment whose out-of-tree producer ever inserted a re-embedding rather than
+  updating in place, and the only way to make it succeed would be to delete rows
+  from `embeddings`. The new `cg_serving_tier_duplicates` view reports the
+  condition instead.
+
+* **schema: what writes the lifecycle columns** (ADR-0010 question 3).
+  `cg_expire_retrieval(interval)` mirrors axiom: a 45-day rolling window over
+  `retention_class = 'hot'`, `pinned` exempt, `expires_at` as a per-row override
+  that applies whatever the class. It marks rows inactive rather than deleting;
+  the row stays queryable relationally and loses only its vector.
+  `cg_sync_serving_tier()` reconciles both directions, making 036's one-shot
+  backfill re-runnable. One `pg_cron` entry at 03:30 calls
+  `cg_retrieval_maintenance()`, which runs expiry before reconciliation — two
+  schedules would encode that ordering as a gap between two clock times.
+
+* **test: `tests/schema/test_retention.py`** — 12 integration assertions
+  covering the trigger (single, bulk, and the surviving-duplicate case), the
+  sweeper (hot expires, durable does not, pinned is exempt, `expires_at`
+  outranks the class), and reconciliation (removal, restoration, idempotency,
+  ordering).
+
+> **The sweeper is inert by default.** 035 defaults every row to `durable` with
+> a null `expires_at`, so `cg_expire_retrieval()` matches nothing until a
+> producer classifies rows. Which subjects are feed material is a product
+> decision, not a schema one; what was missing was the mechanism. The prune
+> trigger, by contrast, is live immediately — it fires on the deletes 012
+> already performs.
+
 ### A non-superuser application role (2026-08)
 
 Half of the finding recorded below. The policies key off the `app.max_tlp` GUC

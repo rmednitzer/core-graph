@@ -75,6 +75,7 @@ Migrations are designed to be additive. If a migration must be reverted:
 | `036_retrieval_serving_tier.sql` | Native `halfvec` serving tier `retrieval_embeddings (graph_id, model_id)`, per-model partial HNSW, hot-set backfill (ADR-0011) |
 | `037_vector_tlp_enforcement.sql` | `tlp_level` + RLS read/write policies on both vector tables, fail-closed at 4 |
 | `038_application_role.sql` | `cg_app`: a `LOGIN NOSUPERUSER NOBYPASSRLS` application role so RLS is actually evaluated (ADR-0012) |
+| `039_serving_tier_lifecycle.sql` | Serving-tier prune trigger (fixes orphans left by 012's cleanup), duplicate-reporting view, `cg_sync_serving_tier()`, `cg_expire_retrieval()` + pg_cron maintenance (ADR-0013) |
 
 ## CI validation
 

@@ -1,0 +1,91 @@
+name: Setup an Anchore CLI (syft or grype)
+description: >-
+  Installs a checksum-pinned syft or grype release from GitHub with retry, and
+  caches the binary so a repeat run needs no network at all. Replaces
+  anchore/sbom-action and anchore/scan-action, whose bundled installers fetch
+  a release with no retry and no pinned digest.
+
+inputs:
+  tool:
+    description: Which CLI to install, syft or grype
+    required: true
+  version:
+    description: Release version, without the leading v
+    required: true
+  sha256:
+    description: SHA-256 of that version's linux_amd64 tarball
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Restore cached ${{ inputs.tool }}
+      id: cache
+      uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+      with:
+        path: ~/.cache/anchore-cli/${{ inputs.tool }}/${{ inputs.version }}
+        key: anchore-cli-${{ runner.os }}-${{ runner.arch }}-${{ inputs.tool }}-${{ inputs.version }}
+
+    - name: Download ${{ inputs.tool }}
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      env:
+        TOOL: ${{ inputs.tool }}
+        VERSION: ${{ inputs.version }}
+        SHA256: ${{ inputs.sha256 }}
+      run: |
+        set -euo pipefail
+
+        case "$TOOL" in
+          syft|grype) ;;
+          *) echo "setup-anchore-cli: unsupported tool '$TOOL'" >&2; exit 1 ;;
+        esac
+
+        # The pinned digest is for one specific asset, so refuse to run
+        # anywhere that asset is not the right one rather than installing a
+        # binary the checksum was never computed against.
+        platform="$(uname -s)-$(uname -m)"
+        if [ "$platform" != "Linux-x86_64" ]; then
+          echo "setup-anchore-cli: pins the linux_amd64 asset, runner is $platform" >&2
+          exit 1
+        fi
+
+        work="$(mktemp -d)"
+        dest="$HOME/.cache/anchore-cli/$TOOL/$VERSION"
+        tarball="${TOOL}_${VERSION}_linux_amd64.tar.gz"
+
+        # Retry flags per ADR-0014's companion fix (#111): no --retry-delay,
+        # which would disable exponential backoff, and bounded so a real
+        # outage fails rather than hangs. The installers this replaces had no
+        # retry at all, which is why sbom and docker-scan failed three times
+        # on 2026-08-12 alone against a github.com 503.
+        #
+        # Downloading to a file and verifying before extraction is safe under
+        # retry: a partial body fails the checksum loudly instead of being
+        # extracted. Mirrors .github/actions/setup-pg-age's pgvector fetch.
+        curl -fsSL --retry 8 --retry-all-errors --retry-max-time 180 \
+          -o "$work/$tarball" \
+          "https://github.com/anchore/${TOOL}/releases/download/v${VERSION}/${tarball}"
+        echo "${SHA256}  ${work}/${tarball}" | sha256sum -c -
+
+        mkdir -p "$dest"
+        tar xzf "$work/$tarball" -C "$work" "$TOOL"
+        install -m 0755 "$work/$TOOL" "$dest/$TOOL"
+        rm -rf "$work"
+
+    - name: Put ${{ inputs.tool }} on PATH
+      shell: bash
+      env:
+        TOOL: ${{ inputs.tool }}
+        VERSION: ${{ inputs.version }}
+      run: |
+        set -euo pipefail
+        dest="$HOME/.cache/anchore-cli/$TOOL/$VERSION"
+        # Also catches a cache entry that restored without the binary, which
+        # would otherwise surface much later as "command not found".
+        if [ ! -x "$dest/$TOOL" ]; then
+          echo "setup-anchore-cli: $TOOL missing from $dest after install" >&2
+          exit 1
+        fi
+        echo "$dest" >> "$GITHUB_PATH"
+        "$dest/$TOOL" version

@@ -8,6 +8,37 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### The Anchore CLIs are installed by this repository (2026-08)
+
+ADR-0019. `anchore/sbom-action` and `anchore/scan-action` bundle an installer
+with no retry and no pinned digest, and expose no input to change either. A
+github.com degradation on 2026-08-12 failed `sbom` twice on PR #115 and
+`docker-scan` on the merge commit, always on that one step. The direct
+downloads hardened in #111 survived the same window; the retry could not reach
+inside a vendor action.
+
+* **ci: add `.github/actions/setup-anchore-cli`.** Installs syft or grype with
+  the #111 retry shape, verifies a SHA-256 pinned in this repository before
+  extracting (following `setup-pg-age` and the `actionlint` job), and caches
+  the binary by version so a repeat run needs no network. Refuses to run on a
+  platform the pinned digest was not computed for, rather than installing the
+  wrong asset.
+* **ci: call syft and grype directly in `security.yml`.** `sbom`, `cve-scan`
+  and `docker-scan` no longer use the Anchore actions. Artifact names are
+  unchanged, so `cve-scan`'s `download-artifact` contract still holds, and
+  `--fail-on high` is the CLI spelling of `severity-cutoff: high` plus
+  `fail-build: true`.
+* **ci: one syft invocation now renders both SBOM formats.** The previous form
+  scanned the tree twice and produced two independent catalogues; `-o
+  cyclonedx-json=... -o spdx-json=...` renders one catalogue two ways.
+* **The grype vulnerability database is deliberately not cached.** The binary
+  is version-pinned and safe to cache; the CVE data is the one input that must
+  be current, and a cached database would buy seconds at the risk of a false
+  negative.
+
+  The cost, stated plainly: this repository now owns the syft and grype version
+  bumps, joining kubeconform, actionlint and cerbos as manual tool pins.
+
 ### The memory tools consult Cerbos (2026-08)
 
 ADR-0018. Closes the gap ADR-0017 recorded as its own second revisit trigger:

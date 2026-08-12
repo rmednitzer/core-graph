@@ -54,7 +54,12 @@ runs:
             build-essential curl ca-certificates postgresql-server-dev-18 \
             postgresql-18-pgaudit postgresql-18-cron
           mkdir -p /tmp/pgvector
-          curl -fsSL -o /tmp/pgvector.tar.gz \
+          # Retry flags mirror deploy/docker/Dockerfile.postgres; see the
+          # comment there. Safe because the checksum is verified on the next
+          # line, so a partial body fails loudly rather than being retried into
+          # the build.
+          curl -fsSL --retry 5 --retry-all-errors --retry-delay 2 \
+            -o /tmp/pgvector.tar.gz \
             "https://github.com/pgvector/pgvector/archive/refs/tags/${PGVECTOR_TAG}.tar.gz"
           echo "${PGVECTOR_SHA256}  /tmp/pgvector.tar.gz" | sha256sum -c -
           tar xz -C /tmp/pgvector --strip-components=1 -f /tmp/pgvector.tar.gz

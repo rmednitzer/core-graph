@@ -14,6 +14,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from api.authz.cerbos import require_caller_action
 from api.config import DEFAULT_TLP
 from api.db import get_connection
 
@@ -79,6 +80,17 @@ async def tool_session_start(
         raise ValueError("session_id is required")
 
     caller = caller_identity or {"max_tlp": DEFAULT_TLP, "allowed_compartments": []}
+
+    # `read`: this tool only selects. It is named "session start" for the
+    # caller's workflow, not because it writes one.
+    await require_caller_action(
+        caller_identity,
+        resource_kind="memory",
+        resource_id=session_id,
+        action="read",
+        resource_attrs={"session_id": session_id},
+    )
+
     correlation_id = uuid.uuid4()
 
     async with get_connection(caller) as conn:

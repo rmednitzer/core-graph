@@ -27,8 +27,12 @@ declare
     r        text;
     n_write  bigint;
 begin
+    -- cg_ai_agent is deliberately absent: migration 042 gives it write on the
+    -- memory layer and only there, following policies/resource/memory.yaml.
+    -- Section 4 asserts that scope, which is a stronger claim than the blanket
+    -- one made here and would be lost if it were folded in.
     foreach r in array array['cg_compliance_officer', 'cg_it_operations', 'cg_dpo',
-                             'cg_external_auditor', 'cg_ai_agent'] loop
+                             'cg_external_auditor'] loop
         select count(*) into n_write
           from information_schema.table_privileges
          where grantee = r
@@ -154,6 +158,66 @@ begin
             end if;
         end loop;
     end loop;
+end $$;
+
+-- ============================================================
+-- 4. cg_ai_agent writes memory, and only memory
+-- ============================================================
+
+-- Migration 042 is the one exception to 041, and an exception is only as good
+-- as its boundary. Cerbos grants ai_agent create/update on `memory` and on
+-- nothing else, so the grant has to stop there too -- otherwise the engine and
+-- the authorization model drift apart again, which is the condition ADR-0016
+-- exists to end.
+do $$
+declare
+    n_memory     bigint;
+    n_non_memory bigint;
+    n_delete     bigint;
+    memory_rel   text[] := array['Session', 'Episode', 'ExtractedFact', 'ConceptEntity',
+                                 'belongs_to', 'extracted_from', 'mentions', 'supersedes',
+                                 'memory_session_counters', 'memory_extracted_fact_index',
+                                 'memory_episode_salience'];
+begin
+    select count(*) into n_memory
+      from information_schema.table_privileges
+     where grantee = 'cg_ai_agent'
+       and privilege_type in ('INSERT', 'UPDATE')
+       and table_name = any (memory_rel);
+    if n_memory = 0 then
+        raise exception
+            'cg_ai_agent has no write on the memory layer; Layer 5 is unwritable by '
+            'the role it exists for (migration 042)';
+    end if;
+
+    -- The boundary. audit_log is the one non-memory table it may insert into,
+    -- for the reason section 1 records: every audited tool writes an entry.
+    select count(*) into n_non_memory
+      from information_schema.table_privileges
+     where grantee = 'cg_ai_agent'
+       and table_schema in ('public', 'ag_catalog', 'core_graph')
+       and privilege_type in ('INSERT', 'UPDATE')
+       and not (table_name = any (memory_rel))
+       and table_name <> 'audit_log';
+    if n_non_memory <> 0 then
+        raise exception
+            'cg_ai_agent can write % table(s) outside the memory layer; Cerbos grants '
+            'it mutating actions on `memory` and nothing else', n_non_memory;
+    end if;
+
+    -- Bitemporal: facts are invalidated, never deleted. 020 enforces it with a
+    -- trigger; this asserts the grant agrees, so the trigger is a backstop
+    -- rather than the only thing standing there.
+    select count(*) into n_delete
+      from information_schema.table_privileges
+     where grantee = 'cg_ai_agent'
+       and table_schema in ('public', 'ag_catalog', 'core_graph')
+       and privilege_type = 'DELETE';
+    if n_delete <> 0 then
+        raise exception
+            'cg_ai_agent holds DELETE on % table(s); memory is bitemporal and Cerbos '
+            'denies it delete', n_delete;
+    end if;
 end $$;
 
 -- ============================================================

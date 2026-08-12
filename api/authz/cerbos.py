@@ -88,6 +88,59 @@ async def check_action(
         return False
 
 
+def principal_from_caller(caller_identity: dict[str, Any] | None) -> dict[str, Any]:
+    """Build a Cerbos principal from an MCP tool's ``caller_identity`` dict.
+
+    The counterpart to :func:`check_resource`, which takes the REST layer's
+    typed ``CallerIdentity``. MCP tools receive a plain dict instead, and were
+    each assembling this shape by hand.
+
+    A caller with no ``roles`` produces a principal with none, which every
+    resource policy denies. That is the intended reading: authorization is
+    decided by role, so a caller that presents no role has not established one.
+    """
+    caller = caller_identity or {}
+    return {
+        "id": caller.get("actor", "unknown"),
+        "roles": caller.get("roles", []),
+        "attr": caller.get("attr", {}),
+    }
+
+
+async def require_caller_action(
+    caller_identity: dict[str, Any] | None,
+    resource_kind: str,
+    resource_id: str,
+    action: str,
+    resource_attrs: dict[str, Any] | None = None,
+) -> None:
+    """Raise ``PermissionError`` unless Cerbos allows the action.
+
+    The raising form exists because the alternative -- returning a bool and
+    letting each call site decide -- is one forgotten ``if`` away from a tool
+    that checks authorization and then proceeds regardless. Four call sites in
+    the memory tools use this; a fifth (identity attribution) predates it and
+    keeps its own message.
+
+    Fail closed by construction: :func:`check_action` returns ``False`` on any
+    transport error or non-allow effect, so an unreachable Cerbos denies rather
+    than admits.
+    """
+    allowed = await check_action(
+        principal_from_caller(caller_identity),
+        resource_kind=resource_kind,
+        resource_id=resource_id,
+        action=action,
+        resource_attrs=resource_attrs,
+    )
+    if not allowed:
+        roles = (caller_identity or {}).get("roles") or []
+        raise PermissionError(
+            f"Denied by Cerbos policy: {action} on {resource_kind}. "
+            f"Caller roles: {sorted(roles) if roles else 'none presented'}."
+        )
+
+
 async def check_resource(
     principal: CallerIdentity,
     resource_type: str,

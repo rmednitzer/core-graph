@@ -23,7 +23,17 @@ async def test_memory_mentions_edge_tlp_synced(pg_conn) -> None:
     episode = await tool_remember(
         session_id="edge-tlp-mem-session",
         content="Suspicious beacon to 203.0.113.77 observed",
-        caller_identity={"max_tlp": 4, "allowed_compartments": []},
+        # `roles` is load-bearing now, not decoration. ADR-0018 wired the memory
+        # tools to Cerbos, so a caller presenting no role is denied before any
+        # write happens. It also makes this the first integration test to
+        # exercise a real clearance: get_connection assumes cg_ai_agent, so the
+        # writes below run against migration 042's grants rather than cg_app's.
+        caller_identity={
+            "actor": "memory-edge-tlp-test",
+            "roles": ["ai_agent"],
+            "max_tlp": 4,
+            "allowed_compartments": [],
+        },
         tlp_level=3,
     )
 

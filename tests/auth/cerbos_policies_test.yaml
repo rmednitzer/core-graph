@@ -215,6 +215,79 @@ tests:
 # Principal roles use the bare role names the OIDC IdP emits, matched verbatim
 # by the derived-role parentRoles in policies/derived_roles.yaml. Do not add a
 # cg_ prefix here (see ADR-0008 decision 5).
+
+  # ------------------------------------------------------------------
+  # memory (Layer 5) — the resource ADR-0016 required before ai_agent
+  # could regain write. Migration 042's grant derives from these rules.
+  # ------------------------------------------------------------------
+  - name: memory — AI agent can create and update its own memory
+    input:
+      principals: [ai_user]
+      resources: [memory_episode]
+      actions: [read, create, update]
+    expected:
+      - principal: ai_user
+        resource: memory_episode
+        actions:
+          read: EFFECT_ALLOW
+          create: EFFECT_ALLOW
+          update: EFFECT_ALLOW
+
+  - name: memory — AI agent cannot delete; memory is bitemporal
+    input:
+      principals: [ai_user]
+      resources: [memory_episode]
+      actions: [delete]
+    expected:
+      - principal: ai_user
+        resource: memory_episode
+        actions:
+          delete: EFFECT_DENY
+
+  - name: memory — CISO retains full access
+    input:
+      principals: [ciso_user]
+      resources: [memory_episode]
+      actions: [read, create, update, delete]
+    expected:
+      - principal: ciso_user
+        resource: memory_episode
+        actions:
+          read: EFFECT_ALLOW
+          create: EFFECT_ALLOW
+          update: EFFECT_ALLOW
+          delete: EFFECT_ALLOW
+
+  - name: memory — SOC analyst may read but not write
+    input:
+      principals: [soc_user]
+      resources: [memory_episode]
+      actions: [read, create, update]
+    expected:
+      - principal: soc_user
+        resource: memory_episode
+        actions:
+          read: EFFECT_ALLOW
+          create: EFFECT_DENY
+          update: EFFECT_DENY
+
+  - name: memory — external auditor and DPO may not write
+    input:
+      principals: [auditor_user, dpo_user]
+      resources: [memory_episode]
+      actions: [create, update]
+    expected:
+      - principal: auditor_user
+        resource: memory_episode
+        actions:
+          create: EFFECT_DENY
+          update: EFFECT_DENY
+      - principal: dpo_user
+        resource: memory_episode
+        actions:
+          create: EFFECT_DENY
+          update: EFFECT_DENY
+
 principals:
   ciso_user:
     id: ciso_user
@@ -253,6 +326,12 @@ principals:
     attr: {}
 
 resources:
+  memory_episode:
+    kind: memory
+    id: mem-ep-001
+    attr:
+      session_id: sess-001
+      tlp_level: 1
   # TLP encoding aligned to integer schema: 0=CLEAR, 1=GREEN, 2=AMBER, 3=AMBER+STRICT, 4=RED
   threat_entity_red:
     kind: threat_entity

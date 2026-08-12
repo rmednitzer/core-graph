@@ -21,6 +21,7 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from api.authz.cerbos import require_caller_action
 from api.config import DEFAULT_TLP
 from api.db import get_connection
 from api.mcp.tools.hybrid_search import hybrid_search
@@ -73,6 +74,15 @@ async def tool_recall(
         raise ValueError("session_id and query are required")
 
     caller = caller_identity or {"max_tlp": DEFAULT_TLP, "allowed_compartments": []}
+
+    await require_caller_action(
+        caller_identity,
+        resource_kind="memory",
+        resource_id=session_id,
+        action="read",
+        resource_attrs={"session_id": session_id},
+    )
+
     correlation_id = uuid.uuid4()
 
     hits = await hybrid_search(

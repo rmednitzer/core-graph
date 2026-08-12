@@ -163,3 +163,27 @@ async def test_check_resource_builds_principal_from_caller_identity(
     assert principal["roles"] == ["soc_analyst"]
     assert principal["attr"]["max_tlp"] == 2
     assert principal["attr"]["allowed_compartments"] == ["INV-1"]
+
+
+def test_the_endpoint_is_cerbos_http_not_its_grpc_port() -> None:
+    """Regression: the client is HTTP, so it must not point at 3593.
+
+    Cerbos listens for HTTP on 3592 and gRPC on 3593 -- its own SDK states both
+    (`cerbos.sdk.container.HTTP_PORT` / `GRPC_PORT`). The default was 3593 from
+    the day this client was written, so every check raised httpx
+    "illegal request line" and `check_action` turned it into a fail-closed deny.
+    Every Cerbos decision in the repository was a denial, silently, and nothing
+    noticed because no CI-exercised path called Cerbos until ADR-0018.
+
+    Asserting the port rather than the whole URL keeps this honest for a
+    deployment that overrides the host.
+    """
+    from urllib.parse import urlparse
+
+    from api import config
+
+    port = urlparse(config.CERBOS_ENDPOINT).port
+    assert port != 3593, (
+        "CG_CERBOS_ENDPOINT points at Cerbos's gRPC port; the client speaks "
+        "HTTP, so every check will fail closed"
+    )

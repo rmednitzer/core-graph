@@ -116,6 +116,10 @@ services:
     image: ghcr.io/cerbos/cerbos:latest@sha256:211c261f6031675522a35c6055b13fd719c4aff13747307e4bcb6907326537ef
     container_name: cg-cerbos
     ports:
+      # 3592 is Cerbos's HTTP listener and 3593 its gRPC one. api.authz.cerbos
+      # speaks HTTP, so 3592 is the one that matters; 3593 stays published for
+      # any gRPC client (the Cerbos SDK's default) without being depended on.
+      - "3592:3592"
       - "3593:3593"
     volumes:
       - ../../policies:/policies:ro

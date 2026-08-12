@@ -24,6 +24,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
+from api.authz.cerbos import require_caller_action
 from api.config import DEFAULT_TLP
 from api.db import get_connection
 from api.utils.edge_tlp import resync_vertex_edges
@@ -75,6 +76,17 @@ async def tool_remember(
     tlp = int(tlp_level if tlp_level is not None else DEFAULT_TLP)
     if tlp < 0 or tlp > 4:
         raise ValueError(f"tlp_level must be 0..4, got {tlp}")
+
+    # ADR-0018. Checked before anything is written, and before the connection is
+    # acquired: a denial should cost a policy round-trip, not a pooled
+    # connection and a half-built episode.
+    await require_caller_action(
+        caller_identity,
+        resource_kind="memory",
+        resource_id=session_id,
+        action="create",
+        resource_attrs={"session_id": session_id, "tlp_level": tlp},
+    )
 
     correlation_id = uuid.uuid4()
     now_iso = datetime.now(UTC).isoformat()
@@ -250,6 +262,19 @@ async def tool_record_extracted_fact(
     """
     caller = caller_identity or {"max_tlp": DEFAULT_TLP, "allowed_compartments": []}
     tlp = int(tlp_level if tlp_level is not None else DEFAULT_TLP)
+
+    # `create` rather than `update`, even though the supersession trigger
+    # updates the previous fact's row: what the caller is authorized to do is
+    # record a fact. The update is the model's bookkeeping, not a second
+    # operation the caller chose.
+    await require_caller_action(
+        caller_identity,
+        resource_kind="memory",
+        resource_id=session_id,
+        action="create",
+        resource_attrs={"session_id": session_id, "tlp_level": tlp},
+    )
+
     now_iso = datetime.now(UTC).isoformat()
 
     subj_hash = _hash_string(subject)

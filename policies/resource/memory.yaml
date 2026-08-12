@@ -1,0 +1,58 @@
+---
+apiVersion: api.cerbos.dev/v1
+resourcePolicy:
+  resource: memory
+  version: default
+  importDerivedRoles:
+    - core_graph_roles
+  # Layer 5, the AI memory model from migration 023: Session, Episode,
+  # ExtractedFact and ConceptEntity plus the belongs_to / extracted_from /
+  # mentions / supersedes edges, and the three relational shadow tables.
+  #
+  # This policy exists because ADR-0016 required it. Migration 041 made the five
+  # non-operational clearances read-only at the engine, derived from the
+  # mutating actions Cerbos grants — and Cerbos had no memory resource at all,
+  # so `ai_agent` came out with no write anywhere and Layer 5 became unwritable
+  # by the role it exists for. ADR-0016 was explicit that the remedy was a
+  # policy saying so, reviewable here, rather than a silent exception in a
+  # migration. This is that policy; migration 042 follows it.
+  #
+  # The action names are `create` and `update` rather than something
+  # memory-flavoured like `remember` on purpose. ADR-0016 derives the database
+  # write split by reading these files for actions in
+  # {*, create, update, delete, assert}; an action outside that set would leave
+  # a re-derivation concluding that ai_agent still mutates nothing.
+  #
+  # No `delete`, for anyone but the CISO. Memory is bitemporal: a superseded
+  # fact keeps its row and gains a `t_superseded` stamp, and 020's delete-block
+  # trigger enforces that on the temporal tables. A delete grant would describe
+  # an operation the model does not have.
+  rules:
+    - actions: ["*"]
+      effect: EFFECT_ALLOW
+      derivedRoles: [ciso]
+
+    # The role the layer exists for. An agent writes its own episodes and the
+    # facts extracted from them, and updates them on supersession.
+    - actions: [read, create, update]
+      effect: EFFECT_ALLOW
+      derivedRoles: [ai_agent]
+
+    # Reading an agent's memory is oversight, and both roles are already
+    # cleared for it elsewhere. Neither may write: memory is written by the
+    # agent whose memory it is, or by the CISO.
+    - actions: [read]
+      effect: EFFECT_ALLOW
+      derivedRoles: [soc_analyst, compliance_officer]
+
+    # Everyone else is denied by Cerbos default. Stated explicitly for the
+    # mutating actions so the intent survives someone later adding a broad
+    # allow rule above.
+    - actions: [create, update, delete]
+      effect: EFFECT_DENY
+      derivedRoles:
+        - soc_analyst
+        - compliance_officer
+        - it_operations
+        - dpo
+        - external_auditor

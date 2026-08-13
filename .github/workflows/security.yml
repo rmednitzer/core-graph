@@ -10,6 +10,21 @@ on:
 
 permissions: {}
 
+# Anchore CLI pins, consumed by .github/actions/setup-anchore-cli. Bump a
+# version and its SHA-256 together, exactly as setup-pg-age pins pgvector.
+# Each digest is the linux_amd64 tarball of the matching GitHub release.
+#
+# These are pinned here rather than tracked by anchore/sbom-action's own
+# default, which is the tradeoff this repo accepts for a retried,
+# digest-verified install; they join kubeconform, actionlint and cerbos as
+# manually bumped tool pins. Note that grype's *vulnerability data* is not
+# pinned and is never cached, so a stale binary cannot mean stale CVEs.
+env:
+  SYFT_VERSION: "1.42.3"
+  SYFT_SHA256: "0d6be741479eddd2c8644a288990c04f3df0d609bbc1599a005532a9dff63509"
+  GRYPE_VERSION: "0.110.0"
+  GRYPE_SHA256: "aaa98d27d2d7efd9317c6a1ad6d9b15f3e65bab320e7d03bde41e251387bb71c"
+
 jobs:
   sbom:
     runs-on: ubuntu-latest
@@ -17,17 +32,28 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-      - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+      - uses: ./.github/actions/setup-anchore-cli
         with:
-          format: cyclonedx-json
-          artifact-name: sbom.cyclonedx.json
-      # SPDX rendition alongside the CycloneDX one: the NOTICE points readers
-      # at the SBOM for license terms, and SPDX is the expression-bearing
-      # format that the license gate below complements.
-      - uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+          tool: syft
+          version: ${{ env.SYFT_VERSION }}
+          sha256: ${{ env.SYFT_SHA256 }}
+      # One invocation renders both formats from a single catalogue, so the
+      # two documents cannot disagree about what was found — the previous
+      # two-step form scanned the tree twice. The SPDX rendition exists
+      # because NOTICE points readers at the SBOM for license terms, and
+      # SPDX is the expression-bearing format the license gate complements.
+      - name: Generate SBOMs
+        run: syft . -o cyclonedx-json=sbom.cyclonedx.json -o spdx-json=sbom.spdx.json
+      - name: Upload CycloneDX SBOM
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          format: spdx-json
-          artifact-name: sbom.spdx.json
+          name: sbom.cyclonedx.json
+          path: sbom.cyclonedx.json
+      - name: Upload SPDX SBOM
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom.spdx.json
+          path: sbom.spdx.json
 
   # License-policy gate (audit 2026-06-01 § 6.5): scan the *runtime*
   # dependency closure only — dev tooling (e.g. GPL-licensed yamllint) is not
@@ -64,11 +90,20 @@ jobs:
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: sbom.cyclonedx.json
-      - uses: anchore/scan-action@e1165082ffb1fe366ebaf02d8526e7c4989ea9d2 # v7.4.0
+      - uses: ./.github/actions/setup-anchore-cli
         with:
-          sbom: sbom.cyclonedx.json
-          fail-build: true
-          severity-cutoff: high
+          tool: grype
+          version: ${{ env.GRYPE_VERSION }}
+          sha256: ${{ env.GRYPE_SHA256 }}
+      # --fail-on high is the CLI spelling of the previous
+      # severity-cutoff: high plus fail-build: true.
+      #
+      # grype downloads its vulnerability database on every run and that is
+      # deliberate: the binary is version-pinned and cached, the CVE data is
+      # neither. Caching the database would trade a few seconds for the risk
+      # of a false negative, which is the wrong trade for a security gate.
+      - name: Scan SBOM for vulnerabilities
+        run: grype sbom:sbom.cyclonedx.json --fail-on high
 
   secret-scan:
     runs-on: ubuntu-latest
@@ -98,12 +133,21 @@ jobs:
           exit-code: "1"
           ignore-unfixed: "true"
           severity: CRITICAL
-      - name: Generate container image SBOM
-        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+      - uses: ./.github/actions/setup-anchore-cli
         with:
-          image: core-graph-app:ci
-          format: cyclonedx-json
-          artifact-name: sbom-container.cyclonedx.json
+          tool: syft
+          version: ${{ env.SYFT_VERSION }}
+          sha256: ${{ env.SYFT_SHA256 }}
+      # docker: scheme is explicit — the image is only in the local daemon,
+      # never pushed, so leaving the source ambiguous invites a registry
+      # lookup for an image that does not exist there.
+      - name: Generate container image SBOM
+        run: syft docker:core-graph-app:ci -o cyclonedx-json=sbom-container.cyclonedx.json
+      - name: Upload container SBOM
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: sbom-container.cyclonedx.json
+          path: sbom-container.cyclonedx.json
       - name: Check for additional Dockerfiles
         id: check-pg
         run: |

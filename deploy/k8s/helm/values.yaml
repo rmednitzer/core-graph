@@ -122,7 +122,7 @@ nats:
   enabled: true
   image:
     repository: nats
-    tag: "2.14@sha256:ecf677bae6a0ae7900bd3217be041c6614d5dcd2cae780000f9cd69462b36541"
+    tag: "2.14@sha256:d4a8980c1ee558257f196f86693ec919c7a8b8095dd678e2cb5ff1adcfe03ecb"
   storageClass: ""
   jetstream:
     maxMem: 256MB
@@ -153,7 +153,7 @@ valkey:
   enabled: true
   image:
     repository: valkey/valkey
-    tag: "9@sha256:3acc0687f2a2e1091fae6450d7842dd658c941338cf0a873ddd9e14b9e4ea4dd"
+    tag: "9@sha256:475ee65cc75c327407458f5096cdd36954b3de3fc83f4c8ac31a4a8edecbf49e"
   storage: 1Gi
   storageClass: ""
   resources:

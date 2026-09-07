@@ -142,7 +142,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
         with:
-          version: v3.21.3
+          version: v3.21.4
       - name: Helm lint (lab profile)
         run: helm lint deploy/k8s/helm
       - name: Helm lint (prod profile)
@@ -160,7 +160,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5
         with:
-          version: v3.21.3
+          version: v3.21.4
       - name: Install kubeconform
         run: |
           # Retry flags per ADR-0014's companion fix (#111): every CI job here

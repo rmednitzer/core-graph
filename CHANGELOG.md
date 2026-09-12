@@ -8,6 +8,25 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### The dev/CI MinIO image now pulls from Quay, not Docker Hub (2026-09-12)
+
+The nightly `Eval` schedule run (`.github/workflows/eval.yml`) failed at the
+`Start Docker Compose stack` step with `pull access denied for minio/minio,
+repository does not exist or may require 'docker login'`, while the
+push-triggered `Eval` run on the same commit had passed roughly 19 hours
+earlier. The `minio/minio` Docker Hub repository itself is gone (`docker
+manifest`/`hub.docker.com` both return not-found for it); MinIO's canonical
+distribution has moved to `quay.io/minio/minio`, which serves the identical
+digest this repository already pinned.
+
+* **deploy: pull the dev/CI MinIO image from `quay.io/minio/minio` instead of
+  `minio/minio`.** Digest unchanged
+  (`sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e`);
+  only the registry changes. This is the `deploy/docker/docker-compose.yml`
+  dev/CI stack only — production already avoids Docker Hub and Quay.io
+  entirely via the Harbor mirror (`docs/architecture/data-residency.md`), so
+  this does not touch that posture.
+
 ### The Anchore CLIs are installed by this repository (2026-08)
 
 ADR-0019. `anchore/sbom-action` and `anchore/scan-action` bundle an installer

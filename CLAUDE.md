@@ -117,9 +117,14 @@ Groups currently bound in `api/config.py`:
   `false`; required to be `true` when `CG_OIDC_ENABLED=false` to opt into
   the synthetic dev identity, otherwise the middleware refuses requests
   with 503)
-- Evidence: `CG_MINIO_*`, `CG_TSA_URL`, `CG_TSA_ENABLED`
+- Evidence: `CG_MINIO_*`, `CG_TSA_URL`, `CG_TSA_ENABLED`, `CG_TSA_CERT_PATH`
+  (optional CA to verify timestamp tokens against; fail-closed when set)
 - Embedding: `CG_EMBEDDING_PROVIDER`, `CG_EMBEDDING_MODEL`,
   `CG_EMBEDDING_URL`, `CG_EMBEDDING_DIMENSIONS`
+- Keycloak (IAM): `CG_KEYCLOAK_URL`, `CG_KEYCLOAK_REALM`,
+  `CG_KEYCLOAK_CLIENT_ID`, `CG_KEYCLOAK_CLIENT_SECRET` — mirrored here and in
+  the connector's own `Config` dataclass per the satellite-connector
+  convention below
 - Memory salience: `CG_SALIENCE_RECENCY_WEIGHT`, `CG_SALIENCE_ACCESS_WEIGHT`,
   `CG_SALIENCE_RELEVANCE_WEIGHT`, `CG_SALIENCE_DECAY`
 - Operational defaults: `CG_DEFAULT_TLP`, `CG_PROMETHEUS_WEBHOOK_HOST`,

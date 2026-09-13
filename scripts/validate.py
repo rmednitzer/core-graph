@@ -81,7 +81,7 @@ def check_yaml_syntax() -> None:
     try:
         import yaml  # noqa: F401
     except ImportError:
-        print("  SKIP: PyYAML not installed, skipping YAML syntax check")
+        fail("PyYAML not installed; YAML syntax validation cannot run")
         return
 
     for yf in yaml_files:
@@ -89,8 +89,9 @@ def check_yaml_syntax() -> None:
             with open(yf) as fh:
                 yaml.safe_load(fh)
             ok(f"Valid YAML: {yf.relative_to(REPO_ROOT)}")
-        except yaml.YAMLError as e:
-            fail(f"Invalid YAML in {yf.relative_to(REPO_ROOT)}: {e}")
+        except yaml.YAMLError:
+            # Parser exception text can include source lines containing secrets.
+            fail(f"Invalid YAML in {yf.relative_to(REPO_ROOT)} (source excerpt omitted)")
 
 
 # -- Check 3: Secret detection ------------------------------------------------
@@ -119,6 +120,7 @@ def format_secret_warning(name: str, path: Path) -> str:
 def check_secrets() -> None:
     """Scan for potential secrets in the codebase."""
     print("==> Checking for potential secrets")
+    scan_failed = False
 
     for path in REPO_ROOT.rglob("*"):
         if not path.is_file():
@@ -131,13 +133,17 @@ def check_secrets() -> None:
         try:
             content = path.read_text(errors="ignore")
         except (OSError, UnicodeDecodeError):
+            fail(f"Cannot read {path.relative_to(REPO_ROOT)} for secret scanning")
+            scan_failed = True
             continue
 
         for name, pattern in SECRET_PATTERNS:
             if pattern.search(content):
                 fail(format_secret_warning(name, path))
+                scan_failed = True
 
-    ok("No obvious secrets detected")
+    if not scan_failed:
+        ok("No obvious secrets detected")
 
 
 # -- Main ----------------------------------------------------------------------

@@ -79,6 +79,7 @@ Migrations are designed to be additive. If a migration must be reverted:
 | `040_clearance_role_assumption.sql` | `cg_app` may SET ROLE to each `cg_*` clearance (`inherit false, set true`) + the grants those roles need to serve a request (ADR-0015) |
 | `041_readonly_clearances.sql` | Read-only clearances: revoke write (and the default privileges) from compliance_officer, it_operations, dpo, external_auditor, ai_agent; keep audit INSERT (ADR-0016) |
 | `042_memory_write_for_ai_agent.sql` | `cg_ai_agent` regains INSERT+UPDATE on the 11 memory-layer objects only, following `policies/resource/memory.yaml`; no DELETE (bitemporal) (ADR-0017) |
+| `043_pg_stat_statements_and_app_role_limits.sql` | `pg_stat_statements` extension; `statement_timeout` / `idle_in_transaction_session_timeout` moved from the global config onto the `cg_app` role |
 
 ## CI validation
 

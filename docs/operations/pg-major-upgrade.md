@@ -79,7 +79,7 @@ psql -d core_graph -c "COPY (
 ### 4. Install new PostgreSQL version
 
 ```bash
-# Install target version (e.g., PostgreSQL 17)
+# Install target version (e.g., PostgreSQL 19)
 # Install extensions in the new cluster
 CREATE EXTENSION IF NOT EXISTS age;
 CREATE EXTENSION IF NOT EXISTS vector;

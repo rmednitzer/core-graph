@@ -834,12 +834,25 @@ async def run(
                 await conn.rollback()
                 # Publish to DLQ with error details
                 try:
+                    raw_payload = json.loads(msg.data.decode()) if msg.data else {}
+                    # A non-object payload (list/scalar) has no markers; it must
+                    # still reach the DLQ rather than fail here and be acked away.
+                    markers = raw_payload if isinstance(raw_payload, dict) else {}
+                    # Carry the DLQ processor's own counters forward when this
+                    # delivery is itself a DLQ retry republish (see
+                    # ingest.dlq.processor). Hardcoding these to 0/now() here
+                    # discarded the DLQ processor's retry counter on every
+                    # cycle, so CG_DLQ_MAX_RETRIES was never actually reached
+                    # and a poison message retried forever instead of being
+                    # archived to dlq_archive.
                     dlq_payload = {
                         "original_subject": msg.subject,
-                        "payload": json.loads(msg.data.decode()) if msg.data else {},
+                        "payload": raw_payload,
                         "error": str(exc),
-                        "retry_count": 0,
-                        "first_failed": datetime.now(UTC).isoformat(),
+                        "retry_count": markers.get("_dlq_retry_count", 0),
+                        "first_failed": markers.get(
+                            "_dlq_first_failed", datetime.now(UTC).isoformat()
+                        ),
                     }
                     await js.publish(
                         f"dlq.{msg.subject}",

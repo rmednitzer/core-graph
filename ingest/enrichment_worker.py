@@ -93,12 +93,22 @@ async def run(nats_url: str | None = None) -> None:
             except Exception as exc:
                 logger.exception("Error enriching message, publishing to DLQ")
                 try:
+                    raw_payload = json.loads(msg.data.decode()) if msg.data else {}
+                    # A non-object payload (list/scalar) has no markers; it must
+                    # still reach the DLQ rather than fail here and be acked away.
+                    markers = raw_payload if isinstance(raw_payload, dict) else {}
+                    # Carry the DLQ processor's own counters forward when this
+                    # delivery is itself a DLQ retry republish (see
+                    # ingest.dlq.processor and ingest.graph_writer, which has
+                    # the same fix for the same reason).
                     dlq_payload = {
                         "original_subject": msg.subject,
-                        "payload": json.loads(msg.data.decode()) if msg.data else {},
+                        "payload": raw_payload,
                         "error": str(exc),
-                        "retry_count": 0,
-                        "first_failed": datetime.now(UTC).isoformat(),
+                        "retry_count": markers.get("_dlq_retry_count", 0),
+                        "first_failed": markers.get(
+                            "_dlq_first_failed", datetime.now(UTC).isoformat()
+                        ),
                     }
                     await js.publish(
                         f"dlq.{msg.subject}",

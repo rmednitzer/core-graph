@@ -8,6 +8,44 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### DLQ retry counter and `first_failed` were reset on every republish cycle (2026-09-13)
+
+Full-pass audit. `ingest.graph_writer.run` and `ingest.enrichment_worker.run`
+hardcoded `retry_count: 0` and `first_failed: datetime.now(UTC)` whenever a
+message failed processing and was published to `dlq.*`. `ingest.dlq.processor`
+republishes a retried message to its `original_subject` carrying
+`_dlq_retry_count` (and, as of this fix, `_dlq_first_failed`) embedded in the
+payload — but neither worker read those markers back out, so a message that
+failed again after a DLQ retry looked like a brand-new, first-time failure.
+`CG_DLQ_MAX_RETRIES` was therefore never actually reached: a poison message
+retried forever instead of being archived to `dlq_archive`, and the
+`dlq-archive-cleanup` cron job's 90-day auto-resolve (migration 012) could
+never fire for it either, since `first_failed` kept resetting to "now".
+
+* **fix: `ingest/dlq/processor.py` now also carries `_dlq_first_failed`
+  forward** on the retry republish, alongside the existing
+  `_dlq_retry_count`.
+* **fix: `ingest/graph_writer.py` and `ingest/enrichment_worker.py` now read
+  `_dlq_retry_count` / `_dlq_first_failed` off the incoming payload** when
+  building a fresh `dlq.*` envelope, instead of hardcoding `0` / `now()`. A
+  genuine first-time failure (no markers present) still starts at `0`.
+* **test: `tests/test_dlq_retry_count_propagation.py`** drives both workers'
+  `run()` with a fake NATS/psycopg substrate and asserts the republished
+  envelope carries the incoming counters forward.
+
+### `starlette` is now declared explicitly (2026-09-13)
+
+`api/rest/middleware/{oidc,metrics,request_id,logging}.py` import `starlette`
+directly (`BaseHTTPMiddleware`, `Request`, `JSONResponse`, `Response`), but
+only `fastapi` was declared in `pyproject.toml`; `starlette` was reaching the
+environment solely as fastapi's transitive dependency. Every other
+directly-imported third-party package in this repository is declared
+explicitly, so this brought `starlette` in line with that convention.
+
+* **deps: add `starlette>=1.0,<2` to `[project].dependencies`.** Matches the
+  version already resolved transitively (1.6.0); `uv.lock` only gained the
+  new direct-dependency edge, no package versions changed.
+
 ### The dev/CI MinIO image now pulls from Quay, not Docker Hub (2026-09-12)
 
 The nightly `Eval` schedule run (`.github/workflows/eval.yml`) failed at the

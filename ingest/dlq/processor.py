@@ -143,10 +143,15 @@ async def _process_dlq_message(
         backoff = random.uniform(0, ceiling)  # noqa: S311 — not crypto
         await asyncio.sleep(backoff)
 
-        # Republish to original subject with incremented retry count
+        # Republish to original subject with incremented retry count. Both
+        # markers are read back out of the payload by graph_writer/
+        # enrichment_worker if this delivery fails again, so the next DLQ
+        # envelope carries the real counter and origin timestamp forward
+        # instead of resetting them (see those modules' DLQ-publish paths).
         retry_payload = {
             **original_payload,
             "_dlq_retry_count": retry_count + 1,
+            "_dlq_first_failed": first_failed,
         }
         await js.publish(
             original_subject,

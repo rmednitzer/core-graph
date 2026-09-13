@@ -28,6 +28,10 @@ spec:
           env:
             - name: POSTGRES_DB
               value: {{ .Values.postgres.auth.database | quote }}
+            # initdb-time only; matches the production posture (data
+            # checksums on, checksum_failures polled as evidence).
+            - name: POSTGRES_INITDB_ARGS
+              value: "--data-checksums"
             - name: POSTGRES_USER
               value: {{ .Values.postgres.auth.username | quote }}
             - name: POSTGRES_PASSWORD
@@ -37,9 +41,11 @@ spec:
                   key: password
           args:
             - "-c"
-            - "shared_preload_libraries=age,pgaudit,pg_cron"
+            - "shared_preload_libraries=age,pgaudit,pg_cron,pg_stat_statements"
             - "-c"
             - "cron.database_name={{ .Values.postgres.auth.database }}"
+            - "-c"
+            - "cron.use_background_workers=on"
           resources:
             {{- toYaml .Values.postgres.resources | nindent 12 }}
           livenessProbe:

@@ -79,6 +79,32 @@ archive_command = 'pgbackrest --stanza=core-graph archive-push %p'
 The `archive_command` must succeed before PostgreSQL recycles a WAL segment,
 ensuring no evidence records can be lost between backup snapshots.
 
+Two properties of the archive step are load-bearing and are what pgBackRest's
+`archive-push` provides; keep them if the archive command is ever replaced:
+
+- **Never overwrite.** An archived segment that already exists must be
+  compared byte-for-byte with the new copy and the command must fail on a
+  mismatch. A `test ! -f %f && cp` guard checks existence, not content, so an
+  interrupted or short copy is silently accepted as archived.
+- **Durable.** The copy must be `fsync`ed, and the directory entry with it,
+  before the command returns success; PostgreSQL recycles the segment on
+  success.
+
+## Base backup verification
+
+Every physical base backup carries a `backup_manifest`. Verify it before
+trusting the copy, and again as part of the monthly restore test:
+
+```bash
+pg_verifybackup /path/to/restored/base
+```
+
+The reference production deployment runs exactly this: a fresh
+`pg_basebackup` before each off-host copy, `pg_verifybackup` on the result,
+and a scheduled restore-check job that restores the whole base backup to a
+temporary directory and verifies it again. A backup that has never been
+restored and verified is an assumption, not a recovery capability.
+
 ## Monthly restore test procedure
 
 A restore test is executed on the first Monday of each month. Results are

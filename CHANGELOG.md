@@ -8,6 +8,47 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### PostgreSQL deployment aligned with the production reference host (2026-09-13)
+
+The live PostgreSQL 18 host that backs the production knowledge graph was
+read against what this repository ships (hardened config, compose, Helm, CI
+database, operations docs). Same extension family (AGE 1.7.0, pgvector,
+pg_cron, pgAudit, pg_stat_statements), several posture differences, one of
+them a defect:
+
+* **fix: `deploy/docker/pg_hba-hardened.conf` accepted cleartext TCP.** A
+  plain `host ... scram-sha-256` line preceded the `hostssl` lines; PostgreSQL
+  takes the first match, so the TLS lines were unreachable and non-TLS
+  connections were accepted despite `ssl_min_protocol_version = 'TLSv1.3'`.
+  Now `hostnossl ... reject`, then `hostssl ... scram-sha-256`, then an
+  explicit `host all all all reject` catch-all.
+* **schema: migration 043** creates `pg_stat_statements` and moves
+  `statement_timeout` / `idle_in_transaction_session_timeout` from the global
+  config onto the `cg_app` serving role. A cluster-wide 30s ceiling also cut
+  off the owner identity's migrations and HNSW index builds and pg_cron jobs.
+  `api.db` still sets a role-derived ceiling per pooled connection.
+  `tests/schema/test_app_role_limits.py` covers the role settings, the absent
+  global ceiling, and the preloaded extension; `test_migrations.sh` now
+  requires `pg_stat_statements`.
+* **deploy: `postgresql-hardened.conf`** preloads `pg_stat_statements`, runs
+  pg_cron on background workers (`cron.use_background_workers = on`; the
+  libpq-to-localhost form has no credential under the hardened `pg_hba` and
+  every job fails to authenticate), audits `role` events alongside `ddl` and
+  `write`, and enables the bounded evidence settings (`track_io_timing`,
+  `log_min_duration_statement = 1000`, `log_lock_waits`, `deadlock_timeout`,
+  `log_connections = 'authorization'`, `log_disconnections`).
+* **deploy: compose, Helm statefulset and the CI database** pass the same
+  server flags and initialise with `--data-checksums` (an initdb-time
+  decision; not retrofittable without `pg_checksums` downtime).
+* **docs: `postgresql-hardening.md`** corrects the CIS 4.1 claim (pgAudit
+  does not log connections), documents the HBA ordering defect, the
+  role-scoped timeouts, the reference tuning profile with the `work_mem ×
+  hash_mem_multiplier × max_connections` hazard that bit the reference host,
+  and a corruption-detection section (data checksums, amcheck scope, WAL
+  archive integrity). `backup-restore.md` gains the never-overwrite and
+  durability properties of the archive step and a `pg_verifybackup` section.
+  `pg-major-upgrade.md` no longer names PostgreSQL 17 as an example target.
+
 ### DLQ retry counter and `first_failed` were reset on every republish cycle (2026-09-13)
 
 Full-pass audit. `ingest.graph_writer.run` and `ingest.enrichment_worker.run`

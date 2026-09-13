@@ -50,6 +50,10 @@ services:
       # Activates the cg_app role that migration 038 creates without one.
       # initdb.sh sets it after the migrations have run. Dev-only value.
       CG_APP_PASSWORD: cg_dev_only_app
+      # Data checksums are an initdb-time decision; they cannot be switched
+      # on later without pg_checksums downtime. Mirrors the production
+      # posture (data_checksums = on, checksum_failures polled as evidence).
+      POSTGRES_INITDB_ARGS: "--data-checksums"
     ports:
       - "5432:5432"
     volumes:
@@ -60,8 +64,9 @@ services:
       - pgdata:/var/lib/postgresql
     command: >
       postgres
-      -c shared_preload_libraries='age,pgaudit,pg_cron'
+      -c shared_preload_libraries='age,pgaudit,pg_cron,pg_stat_statements'
       -c cron.database_name=core_graph
+      -c cron.use_background_workers=on
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U cg_admin -d core_graph"]
       interval: 5s

@@ -42,7 +42,7 @@ done
 
 echo "==> Verifying expected extensions"
 
-required_extensions=(age vector pgaudit pg_cron)
+required_extensions=(age vector pgaudit pg_cron pg_stat_statements)
 
 for ext in "${required_extensions[@]}"; do
   result=$(psql -tAc "SELECT extname FROM pg_extension WHERE extname = '${ext}';")

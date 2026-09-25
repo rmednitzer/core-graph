@@ -47,8 +47,8 @@ jobs:
           cache-dependency-path: pyproject.toml
       - name: Install dependencies
         run: pip install '.[test]'
-      - name: Start Docker Compose stack
-        run: docker compose -f deploy/docker/docker-compose.yml up -d
+      - name: Start PostgreSQL service for eval
+        run: docker compose -f deploy/docker/docker-compose.yml up -d postgres
       - name: Wait for PostgreSQL
         run: |
           ready=false

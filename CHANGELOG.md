@@ -8,6 +8,23 @@ contracts. Migrations are forward-only — see `schema/migrations/README.md`.
 
 ## Unreleased
 
+### Dev/CI object store moved from MinIO to SeaweedFS (2026-10-04)
+
+* **fix: the compose stack could not start, failing every job that runs it.**
+  `quay.io/minio/minio` now rejects anonymous pulls (HTTP 401, even for the
+  manifest), after `minio/minio` had already left Docker Hub on 2026-09-12 and
+  upstream archived the project. The nightly `Eval` schedule failed on
+  2026-10-02, 2026-10-03 and 2026-10-04, and `integration-test` and
+  `retrieval-eval` failed on the renovate lock-file PR.
+* **deploy:** the `minio` compose service now runs the official SeaweedFS
+  image, pinned by digest, with `TZ=UTC` (required for `verify_locked()`, see
+  ADR-0020). Service name, port 9000, volume and `CG_MINIO_*` are unchanged;
+  the console port 9001 is gone.
+* **scripts:** `init-minio.sh` uses the `minio` Python SDK instead of `mc` and
+  stays idempotent.
+* **docs:** ADR-0020 records the options, the test evidence, and that the
+  production evidence store is a separate, open decision.
+
 ### PostgreSQL deployment aligned with the production reference host (2026-09-13)
 
 The live PostgreSQL 18 host that backs the production knowledge graph was

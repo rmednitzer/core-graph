@@ -44,7 +44,7 @@ The dev stack (`make up`) starts the following services (among others):
 | Valkey | 6379 | Cache (session, rate limiting) |
 | SpiceDB | 50051 | ReBAC engine |
 | Cerbos | 3593 | ABAC engine |
-| MinIO | 9000, 9001 | Evidence storage (API, console) |
+| SeaweedFS (S3, service `minio`) | 9000 | Evidence storage (S3 API) |
 | Prometheus | 9090 | Metrics collection |
 | Grafana | 3000 | Dashboards |
 

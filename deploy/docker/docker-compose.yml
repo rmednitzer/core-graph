@@ -133,30 +133,40 @@ services:
       - core-graph
 
   minio:
-    # MinIO's canonical distribution moved off Docker Hub to Quay.io; the
-    # `minio/minio` Docker Hub repository was withdrawn between 2026-09-11
-    # 08:17 UTC and 2026-09-12 03:29 UTC (the nightly Eval schedule run
-    # started failing with "pull access denied for minio/minio" while the
-    # push-triggered run on the same commit had passed hours earlier — see
-    # run 34670502792 vs 34578427533). quay.io/minio/minio:latest resolves
-    # to the identical digest this line already pinned, so only the
-    # registry changes.
-    image: quay.io/minio/minio:latest@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    # S3 object store with Object Lock for the evidence WORM bucket. This is
+    # SeaweedFS, not MinIO: upstream MinIO stopped distributing images
+    # (minio/minio left Docker Hub in 2026-09, quay.io/minio/minio answers 401
+    # since 2026-10) and archived its repository on 2026-04-25. See ADR-0020.
+    # The service keeps the name `minio` and the CG_MINIO_* variables so the
+    # S3 client code and the volume do not change; only the server does.
+    #
+    # Official image, pinned by digest (4.48, multi-arch index). Its
+    # entrypoint runs `weed server` as a non-root user with Go FIPS 140-3 mode
+    # on, and pre-sets -dir=/data and a 1 GiB volume size.
+    #
+    # TZ=UTC is load-bearing: SeaweedFS renders RetainUntilDate in the local
+    # zone (`...+02:00`), which minio-py cannot parse, so
+    # evidence.signing.minio.verify_locked() would report an object as
+    # unlocked. The image defaults to UTC; this keeps it that way.
+    image: chrislusf/seaweedfs:4.48@sha256:4e61d15fd35994cb1e43e1e553dff106794841fd9a99ade2fc8c8bfce4d7872d
     container_name: cg-minio
-    command: server /data --console-address ":9001"
+    command: ["server", "-s3", "-s3.port=9000"]
     environment:
-      MINIO_ROOT_USER: cg_admin
-      MINIO_ROOT_PASSWORD: cg_dev_only_minio
+      TZ: UTC
+      # Dev/CI placeholders. The S3 gateway reads its root identity from the
+      # standard AWS variables.
+      AWS_ACCESS_KEY_ID: cg_admin
+      AWS_SECRET_ACCESS_KEY: cg_dev_only_minio
     ports:
       - "9000:9000"
-      - "9001:9001"
     volumes:
       - miniodata:/data
     healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:9000/healthz"]
       interval: 5s
       timeout: 3s
-      retries: 5
+      retries: 10
+      start_period: 10s
     networks:
       - core-graph
 

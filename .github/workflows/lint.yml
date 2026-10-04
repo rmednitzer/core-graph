@@ -18,12 +18,12 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: "3.14"
-      # Must name the same version uv.lock resolves and the same minor line
-      # the pyproject dev floor allows, so a contributor running `ruff format`
+      # Must name the same exact version uv.lock and the pyproject dev extra
+      # pin, so a contributor running `ruff format`
       # locally cannot produce output this job rejects. Ruff 0.16 formats
       # Python fenced in Markdown, so a stale pin here silently narrows what
       # CI checks relative to what a developer's ruff rewrites.
-      - run: pip install ruff==0.16.1
+      - run: pip install ruff==0.16.9
       - run: ruff check .
       - run: ruff format --check .
 
@@ -63,7 +63,7 @@ jobs:
         with:
           python-version: "3.14"
       - name: Install uv (pinned)
-        run: pip install uv==0.8.17
+        run: pip install uv==0.12.21
       - name: Verify uv.lock is in sync with pyproject.toml
         run: uv lock --check
 

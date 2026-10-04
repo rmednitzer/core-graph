@@ -18,12 +18,25 @@ jobs:
       REQUIRED_CHECKS: |-
         python-lint
         typecheck
-        python-test
+        lockfile-check
+        yaml-lint
+        sql-lint
+        markdown-lint
+        helm-lint
+        kubeconform
+        zarf-validate
+        actionlint
         schema-and-rls-test
         policy-test
+        python-test
+        taxii-test
+        integration-test
+        sbom
+        license-scan
+        cve-scan
         secret-scan
-        lockfile-check
-        actionlint
+        docker-scan
+        retrieval-eval
       # Empty by design. Add an exact check name here only when a skipped
       # result is an explicitly valid outcome for that protected dependency.
       ALLOWED_SKIPPED_CHECKS: ""

@@ -1,24 +1,53 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["github>rmednitzer/infra:renovate-preset"],
+  "extends": [
+    "github>rmednitzer/infra:renovate-preset"
+  ],
   "packageRules": [
     {
       "description": "Group non-major container image (Dockerfile/Compose) and Helm chart updates.",
-      "matchManagers": ["dockerfile", "docker-compose", "helmv3", "helm-values", "helm-requirements"],
-      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "matchManagers": [
+        "dockerfile",
+        "docker-compose",
+        "helmv3",
+        "helm-values",
+        "helm-requirements"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest"
+      ],
       "groupName": "container images and charts"
     },
     {
       "description": "Self-built images have no upstream registry to query; skip Renovate so it stops emitting no-result lookup warnings for deploy/k8s/helm/values.yaml.",
-      "matchDatasources": ["docker"],
-      "matchPackageNames": ["rmednitzer/core-graph", "rmednitzer/core-graph-postgres"],
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "rmednitzer/core-graph",
+        "rmednitzer/core-graph-postgres"
+      ],
       "enabled": false
     },
     {
       "description": "rfc3161ng is unmaintained upstream (last release 2020) but load-bearing for RFC 3161 Merkle-root timestamping, with no maintained drop-in replacement. Raise its abandonment threshold so Renovate stops flagging it.",
-      "matchDatasources": ["pypi"],
-      "matchPackageNames": ["rfc3161ng"],
+      "matchDatasources": [
+        "pypi"
+      ],
+      "matchPackageNames": [
+        "rfc3161ng"
+      ],
       "abandonmentThreshold": "50 years"
+    },
+    {
+      "description": "Update the exact Ruff dependency, CI command, and pre-commit hook together to prevent formatter version drift.",
+      "matchPackageNames": [
+        "ruff",
+        "astral-sh/ruff-pre-commit"
+      ],
+      "groupName": "ruff toolchain"
     }
   ]
 }

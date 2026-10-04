@@ -23,7 +23,7 @@ jobs:
       # locally cannot produce output this job rejects. Ruff 0.16 formats
       # Python fenced in Markdown, so a stale pin here silently narrows what
       # CI checks relative to what a developer's ruff rewrites.
-      - run: pip install ruff==0.16.9
+      - run: pip install ruff==0.16.10
       - run: ruff check .
       - run: ruff format --check .
 

@@ -63,7 +63,7 @@ jobs:
         with:
           python-version: "3.14"
       - name: Install uv (pinned)
-        run: pip install uv==0.12.21
+        run: pip install uv==0.12.22
       - name: Verify uv.lock is in sync with pyproject.toml
         run: uv lock --check
 

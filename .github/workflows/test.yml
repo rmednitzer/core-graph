@@ -11,6 +11,7 @@ permissions: {}
 jobs:
   schema-and-rls-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     env:
@@ -69,6 +70,7 @@ jobs:
 
   policy-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -100,6 +102,7 @@ jobs:
 
   python-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -127,6 +130,7 @@ jobs:
 
   taxii-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -144,6 +148,7 @@ jobs:
 
   integration-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     # Runs on PRs as well as push-to-main. Previously main-only, which is why
     # the PG18 postgres-volume breakage (and #48's collection error before it)
     # stayed invisible until after merge — the full-stack path was never

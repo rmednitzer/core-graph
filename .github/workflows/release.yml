@@ -30,6 +30,7 @@ permissions: {}
 jobs:
   images:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     permissions:
       contents: read
       packages: write       # push to GHCR

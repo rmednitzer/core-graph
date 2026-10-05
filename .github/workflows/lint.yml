@@ -11,6 +11,7 @@ permissions: {}
 jobs:
   python-lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -34,6 +35,7 @@ jobs:
   # from the start. Tighten [tool.mypy] incrementally, not this job.
   typecheck:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -55,6 +57,7 @@ jobs:
   # verified against the real index, not a half-offline approximation.
   lockfile-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -69,6 +72,7 @@ jobs:
 
   yaml-lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -81,6 +85,7 @@ jobs:
 
   sql-lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -125,6 +130,7 @@ jobs:
 
   markdown-lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
@@ -136,6 +142,7 @@ jobs:
 
   helm-lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -154,6 +161,7 @@ jobs:
 
   kubeconform:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -191,6 +199,7 @@ jobs:
 
   zarf-validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
@@ -212,6 +221,7 @@ jobs:
   # a workflow that is hard to exercise in CI.
   actionlint:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
